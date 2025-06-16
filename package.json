@@ -1,0 +1,25 @@
+{
+  "name": "gymcore",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "pnpm --parallel --stream -r run dev",
+    "dev:frontend": "pnpm --filter web-dashboard run dev",
+    "dev:auth": "pnpm --filter auth-service run start:dev",
+    "dev:payments": "pnpm --filter payment-service run start:dev",
+    "dev:gyms": "pnpm --filter gym-management-service run start:dev",
+    "db:migrate": "pnpm exec prisma migrate dev --schema=./backend/libs/database/prisma/schema.prisma",
+    "db:generate": "pnpm exec prisma generate --schema=./backend/libs/database/prisma/schema.prisma"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.12.1",
+  "devDependencies": {
+    "prisma": "^6.9.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0"
+  }
+}

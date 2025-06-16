@@ -1,0 +1,59 @@
+node_modules
+# .gitignore para el Monorepo de Gymcore
+
+# ########## #
+# Dependencias #
+# ########## #
+# Ignorar las carpetas de dependencias en cualquier nivel del proyecto.
+**/node_modules
+**/pnpm-lock.yaml
+
+# ################# #
+# Build y Cachés  #
+# ################# #
+# Salida de compilación de TypeScript/NestJS
+**/dist
+
+# Artefactos de compilación y caché de Next.js
+**/frontend/web-dashboard/.next
+**/frontend/web-dashboard/out
+
+# ####################### #
+# Variables de Entorno    #
+# ####################### #
+# NUNCA subir archivos .env al repositorio. Contienen secretos.
+.env
+.env.*
+!.env.example
+
+# ####################### #
+# Logs y Archivos de Debug #
+# ####################### #
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ####################### #
+# Archivos de SO y Editores #
+# ####################### #
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Configuraciones de editores de código
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# ####################### #
+# Pruebas y Cobertura     #
+# ####################### #
+coverage/
+.nyc_output/
