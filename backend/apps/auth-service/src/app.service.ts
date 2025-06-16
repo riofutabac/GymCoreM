@@ -1,7 +1,8 @@
 // backend/apps/auth-service/src/app.service.ts
-import { Injectable, BadRequestException, InternalServerErrorException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { SupabaseService } from './supabase/supabase.service';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @Injectable()
 export class AppService {
@@ -92,4 +93,61 @@ export class AppService {
       throw new InternalServerErrorException('Error interno del servidor durante el registro.');
     }
   }
+
+  async loginUser(loginUserDto: LoginUserDto) {
+    const { email, password } = loginUserDto;
+
+    try {
+      // 1. Autenticar al usuario con Supabase
+      const { data: authData, error } = await this.supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      // Si hay un error en el login (email no existe, contraseña incorrecta)
+      if (error) {
+        throw new UnauthorizedException('Credenciales inválidas.');
+      }
+
+      if (!authData.user || !authData.session) {
+        throw new UnauthorizedException('No se pudo autenticar al usuario.');
+      }
+
+      // 2. Obtener el rol del usuario desde la tabla 'profiles'
+      const { data: profile, error: profileError } = await this.supabaseAdmin
+        .from('profiles')
+        .select('role, first_name, last_name')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        throw new InternalServerErrorException('No se pudo encontrar el perfil del usuario.');
+      }
+
+      // 3. Devolver la sesión y el token
+      return {
+        message: 'Inicio de sesión exitoso.',
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token,
+        user: {
+          id: authData.user.id,
+          email: authData.user.email,
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          role: profile.role,
+        },
+        expiresAt: authData.session.expires_at
+      };
+
+    } catch (error) {
+      if (error instanceof UnauthorizedException || 
+          error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      
+      console.error('Error inesperado en login:', error);
+      throw new InternalServerErrorException('Error interno del servidor durante el login.');
+    }
+  }
 }
+
