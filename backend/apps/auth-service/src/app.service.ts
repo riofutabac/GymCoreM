@@ -7,11 +7,11 @@ import { LoginUserDto } from './dto/login-user.dto';
 @Injectable()
 export class AppService {
   private readonly supabase;
-  private readonly supabaseAdmin; // <- Añadir referencia al cliente admin
+  private readonly supabaseAdmin;
 
   constructor(private readonly supabaseService: SupabaseService) {
     this.supabase = this.supabaseService.getClient();
-    this.supabaseAdmin = this.supabaseService.getAdminClient(); // <- Obtener el cliente admin
+    this.supabaseAdmin = this.supabaseService.getAdminClient();
   }
 
   getHello(): string {
@@ -22,30 +22,22 @@ export class AppService {
     const { email, password, firstName, lastName, gymId } = registerUserDto;
 
     try {
-      // 1. Verificar si el email ya existe (usando cliente admin para poder buscar)
-      const { data: existingProfile } = await this.supabaseAdmin
-        .from('User') // <-- CORREGIDO: de 'profiles' a 'User'
-        .select('email')
-        .eq('email', email)
-        .single();
-
-      if (existingProfile) {
-        throw new ConflictException('El email ya está registrado.');
-      }
-
-      // 2. Crear usuario en Supabase Auth (siempre con cliente público)
+      // 1. Register user with Supabase Auth (this handles password hashing and email confirmation)
       const { data: authData, error: authError } = await this.supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            first_name: firstName,
-            last_name: lastName,
+            firstName,
+            lastName,
           }
         }
       });
 
       if (authError) {
+        if (authError.message.includes('already_registered')) {
+          throw new ConflictException('El email ya está registrado.');
+        }
         throw new BadRequestException(`Error en el registro: ${authError.message}`);
       }
 
@@ -53,21 +45,22 @@ export class AppService {
         throw new InternalServerErrorException('No se pudo crear el usuario en el sistema de autenticación.');
       }
 
-      // 3. Crear perfil en la tabla User (USANDO EL CLIENTE ADMIN)
+      // 2. Create profile in User table only if auth user was created successfully
       const { error: profileError } = await this.supabaseAdmin
-        .from('User') // <-- CORREGIDO: de 'profiles' a 'User'
+        .from('User')
         .insert({
-          id: authData.user.id,
+          id: authData.user.id, // Use the Supabase Auth user ID
           email: email,
-          firstName: firstName, // <-- CORREGIDO: de first_name a firstName
-          lastName: lastName,   // <-- CORREGIDO: de last_name a lastName
+          firstName: firstName,
+          lastName: lastName,
           role: 'MEMBER',
-          gymId: gymId || null, // <-- CORREGIDO: de gym_id a gymId
+          gymId: gymId || null,
+          // Remove password field - Supabase Auth handles this
         });
 
       if (profileError) {
         console.error('Error creando perfil:', profileError);
-        // Limpiar el usuario de Supabase Auth si falla la creación del perfil
+        // Clean up: delete the auth user if profile creation fails
         await this.supabaseAdmin.auth.admin.deleteUser(authData.user.id);
         throw new InternalServerErrorException(`Error creando el perfil del usuario: ${profileError.message}`);
       }
@@ -79,7 +72,7 @@ export class AppService {
           lastName,
           role: 'MEMBER',
           createdAt: authData.user.created_at,
-          message: 'Usuario registrado exitosamente. Por favor verifica tu email.'
+          message: 'Usuario registrado exitosamente. Por favor verifica tu email para activar tu cuenta.'
       };
 
     } catch (error) {

@@ -14,6 +14,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 
@@ -24,13 +25,13 @@ datasource db {
 model User {
   id               String    @id @default(cuid())
   email            String    @unique
-  password         String // Siempre debe almacenarse con hash (bcrypt)
+  password         String?
   firstName        String?
   lastName         String?
   role             Role      @default(MEMBER)
   isActive         Boolean   @default(true) // Para desactivación en lugar de borrado
   createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  updatedAt        DateTime  @default(now()) @updatedAt
 
   // Relaciones de roles con Gimnasio
   managedGym       Gym?      @relation("GymManager") // Si el usuario es Gerente de UN gimnasio
