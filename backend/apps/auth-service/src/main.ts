@@ -11,10 +11,6 @@ async function bootstrap() {
   const configService = appContext.get(ConfigService);
   const port = configService.get<number>('PORT') || 3001;
 
-  // --- INSERTA ESTA LÍNEA PARA LA PRUEBA ---
-  console.log(`[PRUEBA DE .ENV] -> VARIABLE_DE_PRUEBA = ${configService.get<string>('VARIABLE_DE_PRUEBA')}`);
-  // -----------------------------------------
-
   // 2. Crea la aplicación como un MICROSERVICIO, no como una app web
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
