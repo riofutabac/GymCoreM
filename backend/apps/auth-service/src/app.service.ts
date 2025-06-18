@@ -24,7 +24,7 @@ export class AppService {
     try {
       // 1. Verificar si el email ya existe (usando cliente admin para poder buscar)
       const { data: existingProfile } = await this.supabaseAdmin
-        .from('profiles')
+        .from('User') // <-- CORREGIDO: de 'profiles' a 'User'
         .select('email')
         .eq('email', email)
         .single();
@@ -53,23 +53,23 @@ export class AppService {
         throw new InternalServerErrorException('No se pudo crear el usuario en el sistema de autenticación.');
       }
 
-      // 3. Crear perfil en la tabla profiles (USANDO EL CLIENTE ADMIN)
-      const { error: profileError } = await this.supabaseAdmin // <- ¡Cambio clave aquí!
-        .from('profiles')
+      // 3. Crear perfil en la tabla User (USANDO EL CLIENTE ADMIN)
+      const { error: profileError } = await this.supabaseAdmin
+        .from('User') // <-- CORREGIDO: de 'profiles' a 'User'
         .insert({
           id: authData.user.id,
           email: email,
-          first_name: firstName,
-          last_name: lastName,
+          firstName: firstName, // <-- CORREGIDO: de first_name a firstName
+          lastName: lastName,   // <-- CORREGIDO: de last_name a lastName
           role: 'MEMBER',
-          gym_id: gymId || null,
+          gymId: gymId || null, // <-- CORREGIDO: de gym_id a gymId
         });
 
       if (profileError) {
-        // Verificar si profileError existe antes de acceder a sus propiedades
-        const errorMessage = profileError?.message || 'Error desconocido al crear el perfil';
         console.error('Error creando perfil:', profileError);
-        throw new InternalServerErrorException(`Error creando el perfil del usuario: ${errorMessage}`);
+        // Limpiar el usuario de Supabase Auth si falla la creación del perfil
+        await this.supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        throw new InternalServerErrorException(`Error creando el perfil del usuario: ${profileError.message}`);
       }
 
       return {
@@ -113,10 +113,10 @@ export class AppService {
         throw new UnauthorizedException('No se pudo autenticar al usuario.');
       }
 
-      // 2. Obtener el rol del usuario desde la tabla 'profiles'
+      // 2. Obtener el rol del usuario desde la tabla 'User'
       const { data: profile, error: profileError } = await this.supabaseAdmin
-        .from('profiles')
-        .select('role, first_name, last_name')
+        .from('User') // <-- CORREGIDO: de 'profiles' a 'User'
+        .select('role, firstName, lastName') // <-- CORREGIDO: nombres de columnas
         .eq('id', authData.user.id)
         .single();
 
@@ -132,8 +132,8 @@ export class AppService {
         user: {
           id: authData.user.id,
           email: authData.user.email,
-          firstName: profile.first_name,
-          lastName: profile.last_name,
+          firstName: profile.firstName, // <-- CORREGIDO
+          lastName: profile.lastName,   // <-- CORREGIDO
           role: profile.role,
         },
         expiresAt: authData.session.expires_at
