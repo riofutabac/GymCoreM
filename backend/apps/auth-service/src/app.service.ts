@@ -1,5 +1,6 @@
 // backend/apps/auth-service/src/app.service.ts
-import { Injectable, BadRequestException, InternalServerErrorException, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, ConflictException } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { SupabaseService } from './supabase/supabase.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -91,33 +92,47 @@ export class AppService {
     const { email, password } = loginUserDto;
 
     try {
-      // 1. Autenticar al usuario con Supabase
       const { data: authData, error } = await this.supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      // Si hay un error en el login (email no existe, contraseña incorrecta)
       if (error) {
-        throw new UnauthorizedException('Credenciales inválidas.');
+        // Use RpcException for microservice communication
+        if (error.code === 'invalid_credentials') {
+          throw new RpcException({
+            message: 'Credenciales inválidas.',
+            status: 401,
+          });
+        }
+        
+        // For any other Supabase error
+        throw new RpcException({
+          message: error.message,
+          status: 500,
+        });
       }
 
       if (!authData.user || !authData.session) {
-        throw new UnauthorizedException('No se pudo autenticar al usuario.');
+        throw new RpcException({
+          message: 'No se pudo autenticar al usuario.',
+          status: 401,
+        });
       }
 
-      // 2. Obtener el rol del usuario desde la tabla 'User'
       const { data: profile, error: profileError } = await this.supabaseAdmin
-        .from('User') // <-- CORREGIDO: de 'profiles' a 'User'
-        .select('role, firstName, lastName') // <-- CORREGIDO: nombres de columnas
+        .from('User')
+        .select('role, firstName, lastName')
         .eq('id', authData.user.id)
         .single();
 
       if (profileError || !profile) {
-        throw new InternalServerErrorException('No se pudo encontrar el perfil del usuario.');
+        throw new RpcException({
+          message: 'No se pudo encontrar el perfil del usuario.',
+          status: 404,
+        });
       }
 
-      // 3. Devolver la sesión y el token
       return {
         message: 'Inicio de sesión exitoso.',
         access_token: authData.session.access_token,
@@ -125,21 +140,25 @@ export class AppService {
         user: {
           id: authData.user.id,
           email: authData.user.email,
-          firstName: profile.firstName, // <-- CORREGIDO
-          lastName: profile.lastName,   // <-- CORREGIDO
+          firstName: profile.firstName,
+          lastName: profile.lastName,
           role: profile.role,
         },
         expiresAt: authData.session.expires_at
       };
 
     } catch (error) {
-      if (error instanceof UnauthorizedException || 
-          error instanceof InternalServerErrorException) {
+      // If error is already RpcException, re-throw it
+      if (error instanceof RpcException) {
         throw error;
       }
       
-      console.error('Error inesperado en login:', error);
-      throw new InternalServerErrorException('Error interno del servidor durante el login.');
+      // For any other unexpected error
+      console.error('Error inesperado y no controlado en login:', error);
+      throw new RpcException({
+        message: 'Error interno crítico en el servicio de autenticación.',
+        status: 500,
+      });
     }
   }
 }
