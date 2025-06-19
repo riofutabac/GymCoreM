@@ -1,42 +1,60 @@
 "use client";
 
+import { useFormState, useFormStatus } from "react-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { loginFormSchema } from "@/lib/validations";
+import { loginAction } from "@/actions/auth.actions";
+
+// Componente para el botón, que muestra el estado de carga
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? "Iniciando Sesión..." : "Iniciar Sesión"}
+    </Button>
+  );
+}
 
 export function LoginForm() {
+  const [state, formAction] = useFormState(loginAction, {
+    success: false,
+    message: "",
+  });
+
   const form = useForm<z.infer<typeof loginFormSchema>>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: { email: "", password: "" },
   });
-
-  function onSubmit(data: z.infer<typeof loginFormSchema>) {
-    // La lógica de conexión con el backend irá aquí en el DÍA 5
-    console.log("Datos del formulario de login válidos:", data);
-  }
-
+  
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form action={formAction} className="space-y-4">
+        {state?.message && !state.success && (
+          <div className="text-red-500 text-sm text-center p-2 bg-red-50 rounded">
+            {state.message}
+          </div>
+        )}
         <FormField control={form.control} name="email" render={({ field }) => (
           <FormItem>
             <FormLabel>Email</FormLabel>
-            <FormControl><Input type="email" placeholder="tu@email.com" {...field} /></FormControl>
+            <FormControl><Input type="email" placeholder="tu@email.com" {...field} name="email" /></FormControl>
             <FormMessage />
           </FormItem>
         )} />
         <FormField control={form.control} name="password" render={({ field }) => (
           <FormItem>
             <FormLabel>Contraseña</FormLabel>
-            <FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl>
+            <FormControl><Input type="password" placeholder="••••••••" {...field} name="password" /></FormControl>
             <FormMessage />
           </FormItem>
         )} />
-        <Button type="submit" className="w-full">Iniciar Sesión</Button>
+        <SubmitButton />
       </form>
     </Form>
   );
