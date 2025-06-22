@@ -1,12 +1,27 @@
-import { Controller, Get } from '@nestjs/common';
+// backend/apps/auth-service/src/app.controller.ts (VERSIÓN CORREGIDA)
+
+import { Controller, ValidationPipe } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AppService } from './app.service';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @Get()
-  getHello(): string {
+  @MessagePattern({ cmd: 'get_health' }) // Para verificar que está vivo
+  getHealth(): string {
     return this.appService.getHello();
+  }
+
+  @MessagePattern({ cmd: 'register' })
+  registerUser(@Payload(new ValidationPipe()) registerUserDto: RegisterUserDto) {
+    return this.appService.registerUser(registerUserDto);
+  }
+
+  @MessagePattern({ cmd: 'login' })
+  loginUser(@Payload(new ValidationPipe()) loginUserDto: LoginUserDto) {
+    return this.appService.loginUser(loginUserDto);
   }
 }
