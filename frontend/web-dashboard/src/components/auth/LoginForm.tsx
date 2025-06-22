@@ -1,6 +1,8 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useFormStatus } from "react-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -22,10 +24,18 @@ function SubmitButton() {
 }
 
 export function LoginForm() {
-  const [state, formAction] = useFormState(loginAction, {
+  const router = useRouter();
+  const [state, formAction] = useActionState(loginAction, {
     success: false,
     message: "",
   });
+
+  // Handle client-side navigation when login is successful
+  useEffect(() => {
+    if (state.success && state.redirectUrl) {
+      router.push(state.redirectUrl);
+    }
+  }, [state, router]);
 
   const form = useForm<z.infer<typeof loginFormSchema>>({
     resolver: zodResolver(loginFormSchema),
