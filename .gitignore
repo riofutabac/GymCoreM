@@ -57,3 +57,27 @@ Thumbs.db
 # ####################### #
 coverage/
 .nyc_output/
+
+
+# gymcore/.gitignore
+
+# ####################### #
+# Archivos Generados      #
+# ####################### #
+
+# Ignorar todos los clientes de Prisma generados automáticamente
+# en cualquier subdirectorio del proyecto.
+**/prisma/generated
+
+# Ignorar todos los archivos de caché y build de TypeScript
+*.tsbuildinfo
+
+
+# ####################### #
+# Variables de Entorno    #
+# ####################### #
+# (Ya deberías tener esto, pero es bueno confirmarlo)
+# NUNCA subir archivos .env al repositorio. Contienen secretos.
+.env
+.env.*
+!.env.example

@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/payment-client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  CREDIT_CARD_STRIPE
+  CREDIT_CARD_KUSHKI
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  VERIFIED
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  amount          Float
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?
+  receiptImageUrl String?
+  createdAt       DateTime      @default(now())
+  membershipId    String
+  verifiedById    String?
+}

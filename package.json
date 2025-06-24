@@ -6,13 +6,11 @@
   "scripts": {
     "dev": "pnpm --parallel --stream -r run dev",
     "dev:all": "concurrently \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:payments\" \"pnpm dev:frontend\"",
-    
     "dev:gateway": "pnpm --filter api-gateway run start:dev",
     "dev:auth": "pnpm --filter auth-service run start:dev",
     "dev:gyms": "pnpm --filter gym-management-service run start:dev",
     "dev:payments": "pnpm --filter payment-service run start:dev",
     "dev:frontend": "pnpm --filter web-dashboard run dev",
-    
     "build": "pnpm -r run build",
     "build:backend": "pnpm --filter \"./backend/apps/*\" run build",
     "build:frontend": "pnpm --filter web-dashboard run build",
@@ -20,21 +18,28 @@
     "build:auth": "pnpm --filter auth-service run build",
     "build:gyms": "pnpm --filter gym-management-service run build",
     "build:payments": "pnpm --filter payment-service run build",
-    
     "start": "pnpm --parallel --stream -r run start:prod",
     "start:gateway": "pnpm --filter api-gateway run start:prod",
     "start:auth": "pnpm --filter auth-service run start:prod",
     "start:gyms": "pnpm --filter gym-management-service run start:prod",
     "start:payments": "pnpm --filter payment-service run start:prod",
-    
-    "db:migrate": "pnpm exec prisma migrate dev --schema=./backend/libs/database/prisma/schema.prisma",
-    "db:migrate:prod": "pnpm exec prisma migrate deploy --schema=./backend/libs/database/prisma/schema.prisma",
-    "db:generate": "pnpm exec prisma generate --schema=./backend/libs/database/prisma/schema.prisma",
-    "db:reset": "pnpm exec prisma migrate reset --schema=./backend/libs/database/prisma/schema.prisma",
-    "db:seed": "pnpm exec prisma db seed --schema=./backend/libs/database/prisma/schema.prisma",
-    "db:studio": "pnpm exec prisma studio --schema=./backend/libs/database/prisma/schema.prisma",
-    "db:push": "pnpm exec prisma db push --schema=./backend/libs/database/prisma/schema.prisma",
-    
+    "db:generate:auth": "pnpm exec dotenv -e ./backend/apps/auth-service/.env -- pnpm exec prisma generate --schema=./backend/apps/auth-service/prisma/schema.prisma",
+    "db:generate:gym": "pnpm exec dotenv -e ./backend/apps/gym-management-service/.env -- pnpm exec prisma generate --schema=./backend/apps/gym-management-service/prisma/schema.prisma",
+    "db:generate:inventory": "pnpm exec dotenv -e ./backend/apps/inventory-service/.env -- pnpm exec prisma generate --schema=./backend/apps/inventory-service/prisma/schema.prisma",
+    "db:generate:payment": "pnpm exec dotenv -e ./backend/apps/payment-service/.env -- pnpm exec prisma generate --schema=./backend/apps/payment-service/prisma/schema.prisma",
+    "db:generate:all": "pnpm db:generate:auth && pnpm db:generate:gym && pnpm db:generate:inventory && pnpm db:generate:payment",
+    "db:migrate:auth": "pnpm exec dotenv -e ./backend/apps/auth-service/.env -- pnpm exec prisma migrate dev --schema=./backend/apps/auth-service/prisma/schema.prisma",
+    "db:migrate:gym": "pnpm exec dotenv -e ./backend/apps/gym-management-service/.env -- pnpm exec prisma migrate dev --schema=./backend/apps/gym-management-service/prisma/schema.prisma",
+    "db:migrate:inventory": "pnpm exec dotenv -e ./backend/apps/inventory-service/.env -- pnpm exec prisma migrate dev --schema=./backend/apps/inventory-service/prisma/schema.prisma",
+    "db:migrate:payment": "pnpm exec dotenv -e ./backend/apps/payment-service/.env -- pnpm exec prisma migrate dev --schema=./backend/apps/payment-service/prisma/schema.prisma",
+    "db:push:auth": "pnpm exec dotenv -e ./backend/apps/auth-service/.env -- pnpm exec prisma db push --schema=./backend/apps/auth-service/prisma/schema.prisma",
+    "db:push:gym": "pnpm exec dotenv -e ./backend/apps/gym-management-service/.env -- pnpm exec prisma db push --schema=./backend/apps/gym-management-service/prisma/schema.prisma",
+    "db:push:inventory": "pnpm exec dotenv -e ./backend/apps/inventory-service/.env -- pnpm exec prisma db push --schema=./backend/apps/inventory-service/prisma/schema.prisma",
+    "db:push:payment": "pnpm exec dotenv -e ./backend/apps/payment-service/.env -- pnpm exec prisma db push --schema=./backend/apps/payment-service/prisma/schema.prisma",
+    "db:reset:auth": "pnpm exec dotenv -e ./backend/apps/auth-service/.env -- pnpm exec prisma migrate reset --schema=./backend/apps/auth-service/prisma/schema.prisma",
+    "db:reset:gym": "pnpm exec dotenv -e ./backend/apps/gym-management-service/.env -- pnpm exec prisma migrate reset --schema=./backend/apps/gym-management-service/prisma/schema.prisma",
+    "db:reset:inventory": "pnpm exec dotenv -e ./backend/apps/inventory-service/.env -- pnpm exec prisma migrate reset --schema=./backend/apps/inventory-service/prisma/schema.prisma",
+    "db:reset:payment": "pnpm exec dotenv -e ./backend/apps/payment-service/.env -- pnpm exec prisma migrate reset --schema=./backend/apps/payment-service/prisma/schema.prisma",
     "test": "pnpm -r run test",
     "test:auth": "pnpm --filter auth-service run test",
     "test:gyms": "pnpm --filter gym-management-service run test",
@@ -42,31 +47,25 @@
     "test:gateway": "pnpm --filter api-gateway run test",
     "test:e2e": "pnpm -r run test:e2e",
     "test:cov": "pnpm -r run test:cov",
-    
     "lint": "pnpm -r run lint",
     "lint:fix": "pnpm -r run lint --fix",
     "format": "pnpm -r run format",
     "format:check": "pnpm -r run format:check",
-    
     "install:all": "pnpm install && pnpm -r install",
     "clean": "pnpm -r run clean && rm -rf node_modules",
     "clean:deps": "pnpm -r exec rm -rf node_modules && rm -rf node_modules",
     "reinstall": "pnpm clean:deps && pnpm install:all",
-    
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "docker:restart": "docker-compose restart",
-    
     "health": "node scripts/health-check.js",
     "check:services": "concurrently \"curl -f http://localhost:3000/health\" \"curl -f http://localhost:3001/auth\" \"curl -f http://localhost:3002/gyms/health\" \"curl -f http://localhost:3003/payments/health\"",
-    
     "dev:backend": "concurrently --kill-others-on-fail \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:payments\"",
     "dev:services": "pnpm dev:backend",
     "dev:full": "pnpm dev:all",
-    
-    "postinstall": "pnpm db:generate",
+    "postinstall": "pnpm db:generate:all",
     "precommit": "pnpm lint && pnpm test",
     "prepare": "husky install || true"
   },
@@ -84,10 +83,11 @@
   "license": "ISC",
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
-    "prisma": "^6.9.0",
     "concurrently": "^8.2.2",
+    "dotenv-cli": "^8.0.0",
     "husky": "^9.0.11",
-    "lint-staged": "^15.2.10"
+    "lint-staged": "^15.2.10",
+    "prisma": "^6.9.0"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0"
