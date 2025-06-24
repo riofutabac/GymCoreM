@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload, EventPattern } from '@nestjs/microservices';
 import { AppService } from './app.service';
 import { CreateGymDto } from './dto/create-gym.dto';
 
@@ -20,5 +20,12 @@ export class AppController {
   @MessagePattern({ cmd: 'find_all_gyms' })
   findAllGyms() {
     return this.appService.findAllGyms();
+  }
+
+  @EventPattern('user_created')
+  handleUserCreated(
+    @Payload() data: { id: string; email: string; firstName?: string; lastName?: string },
+  ) {
+    return this.appService.createLocalUser(data);
   }
 }

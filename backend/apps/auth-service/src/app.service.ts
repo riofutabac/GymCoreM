@@ -1,7 +1,14 @@
 // backend/apps/auth-service/src/app.service.ts
-import { Injectable, BadRequestException, InternalServerErrorException, ConflictException } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  ConflictException,
+  Inject,
+} from '@nestjs/common';
+import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { SupabaseService } from './supabase/supabase.service';
+import { PrismaService } from './prisma/prisma.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 
@@ -10,7 +17,11 @@ export class AppService {
   private readonly supabase;
   private readonly supabaseAdmin;
 
-  constructor(private readonly supabaseService: SupabaseService) {
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly prisma: PrismaService,
+    @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+  ) {
     this.supabase = this.supabaseService.getClient();
     this.supabaseAdmin = this.supabaseService.getAdminClient();
   }
@@ -47,24 +58,32 @@ export class AppService {
       }
 
       // 2. Create profile in User table only if auth user was created successfully
-      const { error: profileError } = await this.supabaseAdmin
-        .from('User')
-        .insert({
-          id: authData.user.id, // Use the Supabase Auth user ID
-          email: email,
-          firstName: firstName,
-          lastName: lastName,
-          role: 'MEMBER',
-          gymId: gymId || null,
-          // Remove password field - Supabase Auth handles this
+      try {
+        await this.prisma.user.create({
+          data: {
+            id: authData.user.id,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            role: 'MEMBER',
+            gymId: gymId || null,
+          },
         });
-
-      if (profileError) {
+      } catch (profileError) {
         console.error('Error creando perfil:', profileError);
-        // Clean up: delete the auth user if profile creation fails
         await this.supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-        throw new InternalServerErrorException(`Error creando el perfil del usuario: ${profileError.message}`);
+        throw new InternalServerErrorException(
+          'Error creando el perfil del usuario:' + profileError.message,
+        );
       }
+
+      // Emitir evento para que otros servicios sincronicen el nuevo usuario
+      this.gymClient.emit('user_created', {
+        id: authData.user.id,
+        email,
+        firstName,
+        lastName,
+      });
 
       return {
           id: authData.user.id,
@@ -120,13 +139,12 @@ export class AppService {
         });
       }
 
-      const { data: profile, error: profileError } = await this.supabaseAdmin
-        .from('User')
-        .select('role, firstName, lastName')
-        .eq('id', authData.user.id)
-        .single();
+      const profile = await this.prisma.user.findUnique({
+        where: { id: authData.user.id },
+        select: { role: true, firstName: true, lastName: true },
+      });
 
-      if (profileError || !profile) {
+      if (!profile) {
         throw new RpcException({
           message: 'No se pudo encontrar el perfil del usuario.',
           status: 404,
