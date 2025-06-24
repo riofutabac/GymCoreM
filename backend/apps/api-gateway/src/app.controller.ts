@@ -5,6 +5,7 @@ import {
   Post,
   Inject,
   Body,
+  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -67,5 +68,12 @@ export class AppController {
   @HttpCode(HttpStatus.OK)
   findAllPublicGyms() {
     return this.gymClient.send({ cmd: 'find_all_public_gyms' }, {});
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Post('users/:id/role')
+  changeUserRole(@Param('id') userId: string, @Body() body: { role: string }) {
+    return this.authClient.send({ cmd: 'change_role' }, { userId, newRole: body.role });
   }
 }

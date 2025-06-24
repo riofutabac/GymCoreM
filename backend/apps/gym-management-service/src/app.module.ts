@@ -8,7 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: 'backend/apps/gym-management-service/.env',
+      envFilePath: './.env',
     }),
     PrismaModule,
   ],

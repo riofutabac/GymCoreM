@@ -10,7 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: 'backend/apps/auth-service/.env',
+      envFilePath: './.env',
     }),
     SupabaseModule,
     PrismaModule,

@@ -14,10 +14,16 @@ export class RolesGuard implements CanActivate {
     if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
+
     const { user } = context.switchToHttp().getRequest();
-    if (!user || !user.role) {
-      throw new ForbiddenException('Access denied');
+
+    // El rol personalizado ahora estará en app_metadata
+    const userRole = user?.app_metadata?.role;
+
+    if (!userRole) {
+      throw new ForbiddenException('Access denied. Role not found in token.');
     }
-    return requiredRoles.includes(user.role);
+
+    return requiredRoles.includes(userRole);
   }
 }

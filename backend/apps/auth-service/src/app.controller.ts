@@ -24,4 +24,9 @@ export class AppController {
   loginUser(@Payload(new ValidationPipe()) loginUserDto: LoginUserDto) {
     return this.appService.loginUser(loginUserDto);
   }
+
+  @MessagePattern({ cmd: 'change_role' })
+  changeRole(@Payload() data: { userId: string; newRole: string }) {
+    return this.appService.changeRole(data.userId, data.newRole);
+  }
 }
