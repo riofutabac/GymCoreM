@@ -406,7 +406,7 @@ Distribuido bajo la **Licencia MIT**. Ver [LICENSE](./LICENSE) para más detalle
 
 ## 📧 Contacto
 
-- **Desarrollador Principal**: Tu Nombre – [GitHub](https://github.com/riofutabac) – [riofutabac](alexislapo1@gmail.com)
+- **Desarrollador Principal**: Alexis Lapo – [GitHub](https://github.com/riofutabac) – [riofutabac](alexislapo1@gmail.com)
 - **Repositorio del Proyecto**: [https://github.com/riofutabac/GymCoreM](https://github.com/riofutabac/GymCoreM)
 - **Issues**: [Reportar un bug o solicitar una característica](https://github.com/riofutabac/GymCoreM/issues)
 
