@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/gym-client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  PENDING_PAYMENT
+  EXPIRED
+  CANCELLED
+  GRACE_PERIOD
+}
+
+enum AccessType {
+  BIOMETRIC
+  MANUAL
+}
+
+model User {
+  id         String       @id
+  firstName  String?
+  lastName   String?
+  email      String       @unique
+  memberships Membership[]
+  accessLogs  AccessLog[]
+  activatedMemberships Membership[] @relation("ActivatedBy")
+}
+
+model Gym {
+  id         String       @id @default(uuid())
+  name       String
+  uniqueCode String       @unique @default(cuid())
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  memberships Membership[]
+  accessLogs  AccessLog[]
+}
+
+model Membership {
+  id            String           @id @default(uuid())
+  status        MembershipStatus @default(ACTIVE)
+  startDate     DateTime
+  endDate       DateTime
+  cancellationReason String?
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gymId         String
+  gym           Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  activatedById String?
+  activatedBy   User?            @relation("ActivatedBy", fields: [activatedById], references: [id], onDelete: SetNull)
+}
+
+model AccessLog {
+  id         String     @id @default(uuid())
+  accessTime DateTime   @default(now())
+  accessType AccessType
+  isSuccess  Boolean
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  gymId      String
+  gym        Gym        @relation(fields: [gymId], references: [id], onDelete: Restrict)
+}

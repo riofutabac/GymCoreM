@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/auth-client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  RECEPTIONIST
+  MEMBER
+}
+
+model User {
+  id                String              @id @default(uuid())
+  email             String              @unique
+  firstName         String?
+  lastName          String?
+  role              Role                @default(MEMBER)
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt @default(now())
+  gymId             String?
+  biometricTemplate BiometricTemplate?
+  auditLogs         AuditLog[]
+}
+
+model BiometricTemplate {
+  id        String   @id @default(uuid())
+  template  String
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  details   Json?
+  timestamp DateTime @default(now())
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+}
