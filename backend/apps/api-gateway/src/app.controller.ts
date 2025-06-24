@@ -5,6 +5,9 @@ import {
   Post,
   Inject,
   Body,
+  Patch,
+  Param,
+  Request,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -57,5 +60,18 @@ export class AppController {
   @HttpCode(HttpStatus.OK)
   findAllGyms() {
     return this.gymClient.send({ cmd: 'find_all_gyms' }, {});
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('memberships/:id/activate')
+  @HttpCode(HttpStatus.OK)
+  activateMembership(@Param('id') membershipId: string, @Request() req: any) {
+    const managerId = req.user.sub;
+    const payload = {
+      membershipId,
+      managerId,
+    };
+
+    return this.gymClient.send({ cmd: 'activate_membership' }, payload);
   }
 }
