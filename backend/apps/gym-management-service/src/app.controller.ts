@@ -22,10 +22,21 @@ export class AppController {
     return this.appService.findAllGyms();
   }
 
+  @MessagePattern({ cmd: 'find_all_public_gyms' })
+  findAllPublicGyms() {
+    return this.appService.findAllPublicGyms();
+  }
+
   @EventPattern('user_created')
   handleUserCreated(
     @Payload() data: { id: string; email: string; firstName?: string; lastName?: string },
   ) {
     return this.appService.createLocalUser(data);
+  }
+
+  @EventPattern('user_role_updated')
+  handleUserRoleUpdated(@Payload() data: { userId: string; newRole: string }) {
+    console.log(`🎧 Evento 'user_role_updated' recibido para el usuario ${data.userId}`);
+    return this.appService.updateLocalUserRole(data.userId, data.newRole);
   }
 }

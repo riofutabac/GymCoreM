@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 
 @Module({
   imports: [
@@ -46,6 +47,6 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
     ]),
   ],
   controllers: [AppController],
-  providers: [JwtAuthGuard],
+  providers: [JwtAuthGuard, RolesGuard],
 })
 export class AppModule {}
