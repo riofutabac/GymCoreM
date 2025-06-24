@@ -22,6 +22,11 @@ export class AppController {
     return this.appService.findAllGyms();
   }
 
+  @MessagePattern({ cmd: 'find_all_public_gyms' })
+  findAllPublicGyms() {
+    return this.appService.findAllPublicGyms();
+  }
+
   @EventPattern('user_created')
   handleUserCreated(
     @Payload() data: { id: string; email: string; firstName?: string; lastName?: string },

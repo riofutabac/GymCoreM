@@ -13,6 +13,8 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
+import { Roles } from './auth/roles.decorator';
 
 @Controller('v1') // Prefijo para todas las rutas de este controlador
 export class AppController {
@@ -45,17 +47,25 @@ export class AppController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
   @Post('gyms')
   @HttpCode(HttpStatus.CREATED)
   createGym(@Body() body: any) {
     return this.gymClient.send({ cmd: 'create_gym' }, body);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
   @Get('gyms')
   @HttpCode(HttpStatus.OK)
   findAllGyms() {
     return this.gymClient.send({ cmd: 'find_all_gyms' }, {});
+  }
+
+  @Get('public/gyms')
+  @HttpCode(HttpStatus.OK)
+  findAllPublicGyms() {
+    return this.gymClient.send({ cmd: 'find_all_public_gyms' }, {});
   }
 }
