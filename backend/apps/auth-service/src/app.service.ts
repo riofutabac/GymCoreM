@@ -179,5 +179,28 @@ export class AppService {
       });
     }
   }
+
+  async changeRole(userId: string, newRole: string) {
+    const validRoles = ['OWNER', 'MANAGER', 'RECEPTIONIST', 'MEMBER'];
+    if (!validRoles.includes(newRole)) {
+      throw new RpcException({ message: 'Rol inválido', status: 400 });
+    }
+
+    console.log(`🔄 Intentando cambiar el rol del usuario ${userId} a ${newRole}`);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: newRole as any },
+    });
+
+    this.gymClient.emit('user_role_updated', {
+      userId: updatedUser.id,
+      newRole: updatedUser.role,
+    });
+
+    console.log(`📢 Evento 'user_role_updated' emitido.`);
+
+    return updatedUser;
+  }
 }
 

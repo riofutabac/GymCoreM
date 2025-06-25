@@ -33,4 +33,10 @@ export class AppController {
   ) {
     return this.appService.createLocalUser(data);
   }
+
+  @EventPattern('user_role_updated')
+  handleUserRoleUpdated(@Payload() data: { userId: string; newRole: string }) {
+    console.log(`🎧 Evento 'user_role_updated' recibido para el usuario ${data.userId}`);
+    return this.appService.updateLocalUserRole(data.userId, data.newRole);
+  }
 }

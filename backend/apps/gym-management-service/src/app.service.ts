@@ -3,6 +3,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { CreateGymDto } from './dto/create-gym.dto';
 import { PublicGymDto } from './dto/public-gym.dto';
 import { AdminGymDto } from './dto/admin-gym.dto';
+import { Role } from '../prisma/generated/gym-client';
 
 @Injectable()
 export class AppService {
@@ -47,5 +48,17 @@ export class AppService {
         lastName: data.lastName,
       },
     });
+  }
+
+  async updateLocalUserRole(userId: string, newRole: string) {
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { role: newRole as Role },
+      });
+      console.log(`💾 Rol del usuario local ${userId} actualizado a ${newRole}.`);
+    } catch (error) {
+      console.error(`❌ No se pudo actualizar el rol para el usuario local ${userId}:`, error.message);
+    }
   }
 }
