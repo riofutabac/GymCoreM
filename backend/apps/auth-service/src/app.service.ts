@@ -180,25 +180,29 @@ export class AppService {
     }
   }
 
-  async changeRole(userId: string, newRole: string) {
+  async changeRole(userId: string, newRole: string, gymId?: string) {
     const validRoles = ['OWNER', 'MANAGER', 'RECEPTIONIST', 'MEMBER'];
     if (!validRoles.includes(newRole)) {
       throw new RpcException({ message: 'Rol inválido', status: 400 });
     }
 
-    console.log(`🔄 Intentando cambiar el rol del usuario ${userId} a ${newRole}`);
+    console.log(`🔄 Intentando cambiar el rol del usuario ${userId} a ${newRole} y asignar gym ${gymId}`);
 
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
-      data: { role: newRole as any },
+      data: { 
+        role: newRole as any,
+        gymId: gymId,
+      },
     });
 
     this.gymClient.emit('user_role_updated', {
       userId: updatedUser.id,
       newRole: updatedUser.role,
+      gymId: updatedUser.gymId,
     });
 
-    console.log(`📢 Evento 'user_role_updated' emitido.`);
+    console.log(`📢 Evento 'user_role_updated' emitido con datos completos.`);
 
     return updatedUser;
   }

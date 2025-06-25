@@ -48,6 +48,9 @@ async function inicializarOwner() {
     email: ownerEmail,
     password: ownerPassword,
     email_confirm: true, // Lo creamos ya confirmado para evitar el paso de verificación por email
+    app_metadata: { // <-- AÑADIR ESTO
+      role: 'OWNER'
+    }
   });
 
   if (authError) {

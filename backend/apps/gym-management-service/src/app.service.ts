@@ -1,12 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
 import { CreateGymDto } from './dto/create-gym.dto';
 import { PublicGymDto } from './dto/public-gym.dto';
 import { AdminGymDto } from './dto/admin-gym.dto';
 import { Role } from '../prisma/generated/gym-client';
 
+interface UserPayload {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role?: Role;
+  gymId?: string;
+}
+
 @Injectable()
 export class AppService {
+  private readonly logger = new Logger(AppService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   getHello(): string {
@@ -39,26 +50,41 @@ export class AppService {
     }));
   }
 
-  async createLocalUser(data: { id: string; email: string; firstName?: string; lastName?: string }) {
-    return this.prisma.user.create({
-      data: {
+  async createLocalUser(data: UserPayload) {
+    this.logger.log(`Sincronizando nuevo usuario: ${data.email} con gymId: ${data.gymId}`);
+    return this.prisma.user.upsert({
+      where: { id: data.id },
+      update: {
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role || 'MEMBER',
+        gymId: data.gymId,
+      },
+      create: {
         id: data.id,
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
+        role: data.role || 'MEMBER',
+        gymId: data.gymId,
       },
     });
   }
 
-  async updateLocalUserRole(userId: string, newRole: string) {
+  async updateLocalUserRole(data: { userId: string; newRole: string; gymId?: string }) {
+    this.logger.log(`Actualizando rol/gym del usuario local ${data.userId} a rol ${data.newRole} y gymId ${data.gymId}`);
     try {
       await this.prisma.user.update({
-        where: { id: userId },
-        data: { role: newRole as Role },
+        where: { id: data.userId },
+        data: {
+          role: data.newRole as Role,
+          ...(data.gymId && { gymId: data.gymId }),
+        },
       });
-      console.log(`💾 Rol del usuario local ${userId} actualizado a ${newRole}.`);
+      this.logger.log(`💾 Rol/gym del usuario local ${data.userId} actualizado.`);
     } catch (error) {
-      console.error(`❌ No se pudo actualizar el rol para el usuario local ${userId}:`, error.message);
+      this.logger.error(`❌ No se pudo actualizar el rol/gym para el usuario local ${data.userId}:`, error.message);
     }
   }
 }

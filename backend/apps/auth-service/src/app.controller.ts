@@ -26,7 +26,7 @@ export class AppController {
   }
 
   @MessagePattern({ cmd: 'change_role' })
-  changeRole(@Payload() data: { userId: string; newRole: string }) {
-    return this.appService.changeRole(data.userId, data.newRole);
+  changeRole(@Payload() data: { userId: string; newRole: string; gymId?: string }) {
+    return this.appService.changeRole(data.userId, data.newRole, data.gymId);
   }
 }

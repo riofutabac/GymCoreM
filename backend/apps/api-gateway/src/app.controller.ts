@@ -10,12 +10,15 @@ import {
   HttpCode,
   HttpStatus,
   HttpException,
+  Req,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { Roles } from './auth/roles.decorator';
+import { ActivateMembershipDto } from './dto/activate-membership.dto';
+import { RenewMembershipDto } from './dto/renew-membership.dto';
 
 @Controller('v1') // Prefijo para todas las rutas de este controlador
 export class AppController {
@@ -73,7 +76,29 @@ export class AppController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
   @Post('users/:id/role')
-  changeUserRole(@Param('id') userId: string, @Body() body: { role: string }) {
-    return this.authClient.send({ cmd: 'change_role' }, { userId, newRole: body.role });
+  changeUserRole(@Param('id') userId: string, @Body() body: { role: string; gymId?: string }) {
+    return this.authClient.send({ cmd: 'change_role' }, { 
+      userId, 
+      newRole: body.role,
+      gymId: body.gymId,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('memberships/activate')
+  @HttpCode(HttpStatus.CREATED)
+  async activateMembership(@Body() dto: ActivateMembershipDto, @Req() req) {
+    const managerId = req.user.sub;
+    return this.gymClient.send({ cmd: 'activate_membership' }, { dto, managerId });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('memberships/renew')
+  @HttpCode(HttpStatus.OK)
+  async renewMembership(@Body() dto: RenewMembershipDto, @Req() req) {
+    const managerId = req.user.sub;
+    return this.gymClient.send({ cmd: 'renew_membership' }, { dto, managerId });
   }
 }

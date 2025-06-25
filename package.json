@@ -68,7 +68,7 @@
     "postinstall": "pnpm db:generate:all",
     "precommit": "pnpm lint && pnpm test",
     "prepare": "husky install || true",
-    "db:init:owner": "ts-node backend/apps/auth-service/src/inicializar-owner.ts"
+    "db:init:owner": "pnpm exec ts-node backend/apps/auth-service/src/inicializar-owner.ts"
   },
   "keywords": [
     "gym",
