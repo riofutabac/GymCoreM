@@ -22,6 +22,7 @@ async function bootstrap() {
 
   // Start all microservice listeners
   await app.startAllMicroservices();
-  console.log(`Payment microservice is listening on port ${port}`);
+  await app.listen(port);
+  console.log(`Payment service listening on http://localhost:${port}`);
 }
 bootstrap();
