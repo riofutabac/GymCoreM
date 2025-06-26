@@ -7,6 +7,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { SupabaseService } from './supabase/supabase.service';
 import { PrismaService } from './prisma/prisma.service';
 import { RegisterUserDto } from './dto/register-user.dto';
@@ -22,6 +23,7 @@ export class AppService {
     private readonly supabaseService: SupabaseService,
     private readonly prisma: PrismaService,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    private readonly amqpConnection: AmqpConnection,
   ) {
     this.supabase = this.supabaseService.getClient();
     this.supabaseAdmin = this.supabaseService.getAdminClient();
@@ -44,7 +46,6 @@ export class AppService {
             data: {
               firstName,
               lastName,
-              role: 'MEMBER',
             },
           },
         });
@@ -110,13 +111,17 @@ export class AppService {
         });
       }
 
-      // Emitir evento para que otros servicios sincronicen el nuevo usuario
-      this.gymClient.emit('user_created', {
-        id: authData.user.id,
-        email,
-        firstName,
-        lastName,
-      });
+      // Emitir evento asíncrono via RabbitMQ
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'user.created',
+        {
+          id: authData.user.id,
+          email,
+          firstName,
+          lastName,
+        },
+      );
 
       return {
         id: authData.user.id,
@@ -243,7 +248,7 @@ export class AppService {
       },
     });
 
-    this.gymClient.emit('user_role_updated', {
+    await this.amqpConnection.publish('gymcore-exchange', 'user.role.updated', {
       userId: updatedUser.id,
       newRole: updatedUser.role,
       gymId: updatedUser.gymId,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
@@ -14,6 +15,16 @@ import { PrismaModule } from './prisma/prisma.module';
     }),
     SupabaseModule,
     PrismaModule,
+    RabbitMQModule.forRoot({
+      exchanges: [
+        {
+          name: 'gymcore-exchange',
+          type: 'topic',
+        },
+      ],
+      uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
+      connectionInitOptions: { wait: false },
+    }),
     ClientsModule.registerAsync([
       {
         name: 'GYM_SERVICE',

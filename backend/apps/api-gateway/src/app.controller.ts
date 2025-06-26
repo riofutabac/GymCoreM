@@ -6,11 +6,11 @@ import {
   Inject,
   Body,
   Param,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
   HttpException,
-  Req,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
@@ -25,21 +25,13 @@ export class AppController {
   constructor(
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
   @HttpCode(HttpStatus.CREATED)
-  async register(@Body() body: any) {
-    try {
-      const response = await firstValueFrom(
-        this.authClient.send({ cmd: 'register' }, body),
-      );
-      return response;
-    } catch (error) {
-      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
-      const message = error.message || 'Internal server error';
-      throw new HttpException(message, status);
-    }
+  register(@Body() body: any) {
+    return this.authClient.send({ cmd: 'register' }, body);
   }
 
   @Post('auth/login')
@@ -85,12 +77,8 @@ export class AppController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
   @Post('users/:id/role')
-  changeUserRole(@Param('id') userId: string, @Body() body: { role: string; gymId?: string }) {
-    return this.authClient.send({ cmd: 'change_role' }, { 
-      userId, 
-      newRole: body.role,
-      gymId: body.gymId,
-    });
+  changeUserRole(@Param('id') userId: string, @Body() body: { role: string }) {
+    return this.authClient.send({ cmd: 'change_role' }, { userId, newRole: body.role });
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -109,5 +97,16 @@ export class AppController {
   async renewMembership(@Body() dto: RenewMembershipDto, @Req() req) {
     const managerId = req.user.sub;
     return this.gymClient.send({ cmd: 'renew_membership' }, { dto, managerId });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('payments/create-checkout-session')
+  @HttpCode(HttpStatus.CREATED)
+  createCheckoutSession(@Body() body: any, @Req() req) {
+    const payload = {
+      membershipId: body.membershipId,
+      userId: req.user.sub,
+    };
+    return this.paymentClient.send({ cmd: 'create_checkout_session' }, payload);
   }
 }

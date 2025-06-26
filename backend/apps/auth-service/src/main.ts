@@ -6,28 +6,24 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  // 1. Crea un contexto de la aplicación para poder leer la configuración
-  const appContext = await NestFactory.createApplicationContext(AppModule);
-  const configService = appContext.get(ConfigService);
+  // Create the Nest application directly
+  const app = await NestFactory.create(AppModule);
+
+  // Get configuration service from the app itself
+  const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 3001;
 
-  // 2. Crea la aplicación como un MICROSERVICIO, no como una app web
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.TCP, // Usa el protocolo TCP
-      options: {
-        host: '0.0.0.0',
-        port: port, // Usa el puerto de tu .env
-      },
+  // Connect the microservice listener
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      host: '0.0.0.0',
+      port: port,
     },
-  );
+  });
 
-  // 3. Usa app.listen() que, para microservicios, inicia el listener
-  await app.listen();
+  // Start all microservice listeners
+  await app.startAllMicroservices();
   console.log(`Auth microservice is listening on port ${port}`);
-
-  // Cierra el contexto que solo usamos para leer la config
-  await appContext.close();
 }
 bootstrap();

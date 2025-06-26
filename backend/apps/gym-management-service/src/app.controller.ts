@@ -1,5 +1,6 @@
 import { Controller, UsePipes, ValidationPipe } from '@nestjs/common';
-import { MessagePattern, Payload, EventPattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { AppService } from './app.service';
 import { CreateGymDto } from './dto/create-gym.dto';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
@@ -49,13 +50,21 @@ export class AppController {
     return this.appService.findAllPublicGyms();
   }
 
-  @EventPattern('user_created')
-  handleUserCreated(@Payload() data: UserEventPayload) {
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.created',
+    queue: 'gym-management.user.created',
+  })
+  handleUserCreated(data: UserEventPayload) {
     return this.appService.createLocalUser(data);
   }
 
-  @EventPattern('user_role_updated')
-  handleUserRoleUpdated(@Payload() data: RoleUpdatePayload) {
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.role.updated',
+    queue: 'gym-management.user.role.updated',
+  })
+  handleUserRoleUpdated(data: RoleUpdatePayload) {
     console.log(`🎧 Evento 'user_role_updated' recibido para el usuario ${data.userId}`);
     return this.appService.updateLocalUserRole(data);
   }
@@ -70,5 +79,22 @@ export class AppController {
   @UsePipes(new ValidationPipe({ whitelist: true }))
   renewMembership(@Payload() payload: { dto: RenewMembershipDto; managerId: string }) {
     return this.membershipService.renew(payload.dto, payload.managerId);
+  }
+
+  @MessagePattern({ cmd: 'get_membership_details' })
+  getMembershipDetails(@Payload() data: { membershipId: string }) {
+    // Aquí, idealmente, llamarías a un método en tu `membershipService`
+    // Por ahora, podemos simular la respuesta que el `payment-service` espera.
+    // Futuro: return this.membershipService.getDetailsById(data.membershipId);
+    
+    console.log(`Buscando detalles para la membresía: ${data.membershipId}`);
+    
+    // Simulación de una membresía encontrada en la base de datos
+    // En una implementación real, esto vendría de this.prisma.membership.findUnique(...)
+    return {
+      id: data.membershipId,
+      name: 'Membresía Premium',
+      price: 29.99, // El precio REAL que no puede ser manipulado por el cliente
+    };
   }
 }
