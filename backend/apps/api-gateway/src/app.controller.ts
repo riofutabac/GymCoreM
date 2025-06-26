@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  HttpException,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
@@ -29,14 +30,33 @@ export class AppController {
 
   @Post('auth/register')
   @HttpCode(HttpStatus.CREATED)
-  register(@Body() body: any) {
-    return this.authClient.send({ cmd: 'register' }, body);
+  async register(@Body() body: any) {
+    try {
+      const response = await firstValueFrom(
+        this.authClient.send({ cmd: 'register' }, body),
+      );
+      return response;
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
   }
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() body: any) {
-    return this.authClient.send({ cmd: 'login' }, body);
+  async login(@Body() body: any) {
+    try {
+      // Convertimos la respuesta del microservicio en una Promesa
+      const response = await firstValueFrom(
+        this.authClient.send({ cmd: 'login' }, body),
+      );
+      return response;
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -64,8 +84,12 @@ export class AppController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
   @Post('users/:id/role')
-  changeUserRole(@Param('id') userId: string, @Body() body: { role: string }) {
-    return this.authClient.send({ cmd: 'change_role' }, { userId, newRole: body.role });
+  changeUserRole(@Param('id') userId: string, @Body() body: { role: string; gymId?: string }) {
+    return this.authClient.send({ cmd: 'change_role' }, { 
+      userId, 
+      newRole: body.role,
+      gymId: body.gymId,
+    });
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -86,14 +110,24 @@ export class AppController {
     return this.gymClient.send({ cmd: 'renew_membership' }, { dto, managerId });
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('payments/create-checkout-session')
   @HttpCode(HttpStatus.CREATED)
-  createCheckoutSession(@Body() body: any, @Req() req) {
-    const payload = {
-      membershipId: body.membershipId,
-      userId: req.user.sub,
-    };
-    return this.paymentClient.send({ cmd: 'create_checkout_session' }, payload);
+  async createCheckoutSession(
+    @Body() body: { amount: number; membershipId: string },
+  ) {
+    try {
+      const response = await firstValueFrom(
+        this.paymentClient.send({ cmd: 'create_checkout_session' }, body),
+      );
+      return response;
+    } catch (error) {
+      const status =
+        typeof error.status === 'number'
+          ? error.status
+          : HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
   }
 }

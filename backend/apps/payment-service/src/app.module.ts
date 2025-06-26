@@ -4,6 +4,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PaymentsController } from './payments.controller';
+import { PaymentsService } from './payments.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { PaypalModule } from './paypal/paypal.module';
 
@@ -41,7 +43,7 @@ import { PaypalModule } from './paypal/paypal.module';
       },
     ]),
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, PaymentsController],
+  providers: [AppService, PaymentsService],
 })
 export class AppModule {}

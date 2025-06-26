@@ -4,25 +4,24 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  // Create the Nest application directly
-  const app = await NestFactory.create(AppModule);
+  const appContext = await NestFactory.createApplicationContext(AppModule);
+  const configService = appContext.get(ConfigService);
+  const port = configService.get<number>('PORT') || 3003;
 
-  // Get configuration service from the app itself
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3004;
-
-  // Connect the microservice listener
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
-    options: {
-      host: '0.0.0.0',
-      port: port,
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+    AppModule,
+    {
+      transport: Transport.TCP,
+      options: {
+        host: '0.0.0.0',
+        port,
+      },
     },
-  });
+  );
 
-  // Start all microservice listeners
-  await app.startAllMicroservices();
+  await app.listen();
   console.log(`Payment microservice is listening on port ${port}`);
+  await appContext.close();
 }
 bootstrap();
 
