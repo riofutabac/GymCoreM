@@ -11,6 +11,7 @@ import { SupabaseService } from './supabase/supabase.service';
 import { PrismaService } from './prisma/prisma.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
+import { Prisma } from '../prisma/generated/auth-client';
 
 @Injectable()
 export class AppService {
@@ -50,17 +51,22 @@ export class AppService {
 
       if (authError) {
         if (authError.message.includes('already_registered')) {
-          throw new ConflictException('El email ya está registrado.');
+          throw new RpcException({
+            message: 'El email ya está registrado.',
+            status: 409,
+          });
         }
-        throw new BadRequestException(
-          `Error en el registro: ${authError.message}`,
-        );
+        throw new RpcException({
+          message: `Error en el registro: ${authError.message}`,
+          status: 400,
+        });
       }
 
       if (!authData.user) {
-        throw new InternalServerErrorException(
-          'No se pudo crear el usuario en el sistema de autenticación.',
-        );
+        throw new RpcException({
+          message: 'No se pudo crear el usuario en el sistema de autenticación.',
+          status: 500,
+        });
       }
 
       // Asegurar que el rol esté disponible dentro del JWT
@@ -82,11 +88,26 @@ export class AppService {
           },
         });
       } catch (profileError) {
-        console.error('Error creando perfil:', profileError);
+        // Clean up Supabase user first in any case of profile creation failure
         await this.supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-        throw new InternalServerErrorException(
-          'Error creando el perfil del usuario:' + profileError.message,
-        );
+
+        // Handle Prisma unique constraint violation (duplicate email)
+        if (
+          profileError instanceof Prisma.PrismaClientKnownRequestError &&
+          profileError.code === 'P2002'
+        ) {
+          throw new RpcException({
+            message: 'El email ya está en uso en la base de datos.',
+            status: 409,
+          });
+        }
+
+        // For any other profile creation error
+        console.error('Error creando perfil:', profileError);
+        throw new RpcException({
+          message: 'Error interno creando el perfil del usuario.',
+          status: 500,
+        });
       }
 
       // Emitir evento para que otros servicios sincronicen el nuevo usuario
@@ -108,18 +129,17 @@ export class AppService {
           'Usuario registrado exitosamente. Por favor verifica tu email para activar tu cuenta.',
       };
     } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof ConflictException ||
-        error instanceof InternalServerErrorException
-      ) {
+      // If error is already RpcException, re-throw it
+      if (error instanceof RpcException) {
         throw error;
       }
 
+      // For any other unexpected error, convert to RpcException
       console.error('Error inesperado en registro:', error);
-      throw new InternalServerErrorException(
-        'Error interno del servidor durante el registro.',
-      );
+      throw new RpcException({
+        message: 'Error interno del servidor durante el registro.',
+        status: 500,
+      });
     }
   }
 

@@ -29,8 +29,17 @@ export class AppController {
 
   @Post('auth/register')
   @HttpCode(HttpStatus.CREATED)
-  register(@Body() body: any) {
-    return this.authClient.send({ cmd: 'register' }, body);
+  async register(@Body() body: any) {
+    try {
+      const response = await firstValueFrom(
+        this.authClient.send({ cmd: 'register' }, body),
+      );
+      return response;
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
   }
 
   @Post('auth/login')
