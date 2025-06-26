@@ -11,6 +11,8 @@ import {
   HttpCode,
   HttpStatus,
   HttpException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
@@ -19,6 +21,7 @@ import { RolesGuard } from './auth/roles.guard';
 import { Roles } from './auth/roles.decorator';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
+import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 
 @Controller('v1') // Prefijo para todas las rutas de este controlador
 export class AppController {
@@ -110,23 +113,23 @@ export class AppController {
     return this.gymClient.send({ cmd: 'renew_membership' }, { dto, managerId });
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard)
   @Post('payments/create-checkout-session')
   @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async createCheckoutSession(
-    @Body() body: { amount: number; membershipId: string },
+    @Body() dto: CreateCheckoutSessionDto,
+    @Req() req: any,
   ) {
     try {
+      const payload = { userId: req.user.sub, membershipId: dto.membershipId };
       const response = await firstValueFrom(
-        this.paymentClient.send({ cmd: 'create_checkout_session' }, body),
+        this.paymentClient.send({ cmd: 'create_checkout_session' }, payload),
       );
       return response;
     } catch (error) {
-      const status =
-        typeof error.status === 'number'
-          ? error.status
-          : HttpStatus.INTERNAL_SERVER_ERROR;
-      const message = error.message || 'Internal server error';
+      const status = error?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error?.message || 'Internal server error';
       throw new HttpException(message, status);
     }
   }

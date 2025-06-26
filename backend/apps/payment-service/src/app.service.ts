@@ -8,7 +8,6 @@ import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import * as paypal from '@paypal/checkout-server-sdk';
 import { firstValueFrom } from 'rxjs';
 
-// Define una interfaz para la respuesta que esperas
 interface MembershipDetails {
   id: string;
   name: string;
@@ -34,7 +33,6 @@ export class AppService {
   async createCheckoutSession(dto: CreateCheckoutDto) {
     this.logger.log(`Iniciando checkout para membresía ${dto.membershipId}`);
 
-    // AQUÍ ESTÁ EL CAMBIO: Añade <MembershipDetails> para tipar la respuesta
     const membershipDetails = await firstValueFrom(
       this.gymClient.send<MembershipDetails>({ cmd: 'get_membership_details' }, { membershipId: dto.membershipId }),
     ).catch((err) => {
@@ -44,6 +42,13 @@ export class AppService {
         status: HttpStatus.BAD_REQUEST
       });
     });
+
+    if (!membershipDetails || typeof membershipDetails.price !== 'number') {
+      throw new RpcException({
+        message: 'No se pudo obtener un precio válido para la membresía.',
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
 
     const amount = membershipDetails.price.toFixed(2);
     const currency = 'USD';
@@ -68,7 +73,7 @@ export class AppService {
       },
     });
 
-    let order: paypal.orders.OrdersGetResponse;
+    let order: any; // Usamos 'any' para evitar problemas con los tipos complejos de PayPal SDK
     try {
       order = await this.paypalSvc.client.execute(request);
     } catch (err) {

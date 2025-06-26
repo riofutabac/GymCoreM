@@ -4,8 +4,6 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PaymentsController } from './payments.controller';
-import { PaymentsService } from './payments.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { PaypalModule } from './paypal/paypal.module';
 
@@ -13,7 +11,7 @@ import { PaypalModule } from './paypal/paypal.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: './.env', // <--- RUTA CORRECTA
+      envFilePath: './.env',
     }),
     PrismaModule,
     PaypalModule,
@@ -32,7 +30,7 @@ import { PaypalModule } from './paypal/paypal.module';
         name: 'GYM_SERVICE',
         imports: [ConfigModule],
         useFactory: (config: ConfigService) => {
-          const url = config.get<string>('GYM_MGMT_SERVICE_URL') || 'tcp://localhost:3002';
+          const url = config.get<string>('GYM_SERVICE_URL') || 'tcp://localhost:3002';
           const [host, port] = url.replace('tcp://', '').split(':');
           return {
             transport: Transport.TCP,
@@ -43,7 +41,7 @@ import { PaypalModule } from './paypal/paypal.module';
       },
     ]),
   ],
-  controllers: [AppController, PaymentsController],
-  providers: [AppService, PaymentsService],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
