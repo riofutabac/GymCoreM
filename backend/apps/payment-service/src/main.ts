@@ -9,7 +9,7 @@ async function bootstrap() {
 
   // Get configuration service from the app itself
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3003;
+  const port = configService.get<number>('PORT') || 3004;
 
   // Connect the microservice listener
   app.connectMicroservice<MicroserviceOptions>({
@@ -22,7 +22,7 @@ async function bootstrap() {
 
   // Start all microservice listeners
   await app.startAllMicroservices();
-  await app.listen(port);
-  console.log(`Payment service listening on http://localhost:${port}`);
+  console.log(`Payment microservice is listening on port ${port}`);
 }
 bootstrap();
+

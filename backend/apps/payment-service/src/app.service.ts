@@ -1,5 +1,5 @@
-import { Injectable, Inject, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { Injectable, Inject, HttpStatus, Logger } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './prisma/prisma.service';
@@ -38,8 +38,11 @@ export class AppService {
     const membershipDetails = await firstValueFrom(
       this.gymClient.send<MembershipDetails>({ cmd: 'get_membership_details' }, { membershipId: dto.membershipId }),
     ).catch((err) => {
-      this.logger.error(`Membresía no encontrada: ${dto.membershipId}`, err);
-      throw new HttpException('Membresía no válida', HttpStatus.BAD_REQUEST);
+      this.logger.error(`Error al obtener detalles de la membresía: ${dto.membershipId}`, err);
+      throw new RpcException({
+        message: 'Membresía no válida o el servicio de gimnasios no responde.',
+        status: HttpStatus.BAD_REQUEST
+      });
     });
 
     const amount = membershipDetails.price.toFixed(2);
@@ -70,7 +73,10 @@ export class AppService {
       order = await this.paypalSvc.client.execute(request);
     } catch (err) {
       this.logger.error('Error creando la orden en PayPal', err);
-      throw new HttpException('Error de PayPal', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new RpcException({
+          message: 'Error de PayPal al crear la orden.',
+          status: HttpStatus.INTERNAL_SERVER_ERROR
+      });
     }
 
     await this.prisma.payment.create({
@@ -87,7 +93,10 @@ export class AppService {
 
     const approvalLink = order.result.links.find((l) => l.rel === 'approve');
     if (!approvalLink) {
-      throw new HttpException('Link de aprobación no encontrado', HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new RpcException({
+            message: 'No se pudo obtener el link de aprobación de PayPal.',
+            status: HttpStatus.INTERNAL_SERVER_ERROR
+        });
     }
 
     return { approvalUrl: approvalLink.href };
