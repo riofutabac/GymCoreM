@@ -29,15 +29,27 @@ enum Role {
   MEMBER
 }
 
+enum MembershipAction {
+  CREATED
+  ACTIVATED
+  RENEWED
+  CANCELLED
+  EXPIRED
+  UPDATED
+}
+
 model User {
   id         String       @id
   firstName  String?
   lastName   String?
   email      String       @unique
   role       Role         @default(MEMBER)
+  gymId      String?
+  gym        Gym?         @relation(fields: [gymId], references: [id])
   memberships Membership[]
   accessLogs  AccessLog[]
   activatedMemberships Membership[] @relation("ActivatedBy")
+  membershipLogs MembershipLog[]
 }
 
 model Gym {
@@ -49,6 +61,7 @@ model Gym {
   updatedAt  DateTime     @updatedAt
   memberships Membership[]
   accessLogs  AccessLog[]
+  users      User[]
 }
 
 model Membership {
@@ -63,6 +76,7 @@ model Membership {
   gym           Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
   activatedById String?
   activatedBy   User?            @relation("ActivatedBy", fields: [activatedById], references: [id], onDelete: SetNull)
+  logs          MembershipLog[]
 }
 
 model AccessLog {
@@ -74,4 +88,18 @@ model AccessLog {
   user       User       @relation(fields: [userId], references: [id], onDelete: Restrict)
   gymId      String
   gym        Gym        @relation(fields: [gymId], references: [id], onDelete: Restrict)
+}
+
+model MembershipLog {
+  id            String           @id @default(uuid())
+  action        MembershipAction
+  details       Json?
+  reason        String?
+  createdAt     DateTime         @default(now())
+
+  membershipId  String
+  membership    Membership       @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  performedById String
+  performedBy   User             @relation(fields: [performedById], references: [id], onDelete: Restrict)
 }

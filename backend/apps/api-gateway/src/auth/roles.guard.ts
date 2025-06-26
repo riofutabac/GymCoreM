@@ -17,7 +17,7 @@ export class RolesGuard implements CanActivate {
 
     const { user } = context.switchToHttp().getRequest();
 
-    // El rol personalizado ahora estará en app_metadata
+    // Le decimos que busque el rol dentro de app_metadata en el payload del token
     const userRole = user?.app_metadata?.role;
 
     if (!userRole) {

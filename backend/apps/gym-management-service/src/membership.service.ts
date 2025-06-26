@@ -1,0 +1,106 @@
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from './prisma/prisma.service';
+import { ActivateMembershipDto } from './dto/activate-membership.dto';
+import { RenewMembershipDto } from './dto/renew-membership.dto';
+import { Role } from '../prisma/generated/gym-client';
+
+@Injectable()
+export class MembershipService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async activate(dto: ActivateMembershipDto, managerId: string) {
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+
+    if (start >= end) {
+      throw new BadRequestException('startDate must be before endDate');
+    }
+
+    await this.validatePermissions(managerId, dto.userId, dto.gymId);
+
+    const existing = await this.prisma.membership.findFirst({
+      where: { userId: dto.userId, gymId: dto.gymId, status: 'ACTIVE', endDate: { gt: new Date() } },
+    });
+
+    if (existing) {
+      throw new ConflictException('User already has active membership');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const membership = await tx.membership.create({
+        data: {
+          userId: dto.userId,
+          gymId: dto.gymId,
+          startDate: start,
+          endDate: end,
+          status: 'ACTIVE',
+          activatedById: managerId,
+        },
+      });
+
+      await tx.membershipLog.create({
+        data: {
+          membershipId: membership.id,
+          action: 'ACTIVATED',
+          performedById: managerId,
+          reason: dto.reason ?? 'Manual activation',
+          details: { startDate: dto.startDate, endDate: dto.endDate },
+        },
+      });
+
+      return membership;
+    });
+  }
+
+  async renew(dto: RenewMembershipDto, managerId: string) {
+    const membership = await this.prisma.membership.findUnique({ where: { id: dto.membershipId } });
+    if (!membership) throw new NotFoundException('Membership not found');
+
+    const newEnd = new Date(dto.newEndDate);
+    if (newEnd <= membership.endDate) {
+      throw new BadRequestException('newEndDate must be after current endDate');
+    }
+
+    await this.validatePermissions(managerId, membership.userId, membership.gymId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.membership.update({
+        where: { id: membership.id },
+        data: { endDate: newEnd, status: 'ACTIVE' },
+      });
+
+      await tx.membershipLog.create({
+        data: {
+          membershipId: membership.id,
+          action: 'RENEWED',
+          performedById: managerId,
+          reason: dto.reason ?? 'Manual renewal',
+          details: { oldEndDate: membership.endDate, newEndDate: newEnd },
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  private async validatePermissions(managerId: string, userId: string, gymId: string) {
+    const [manager, user, gym] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: managerId } }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+      this.prisma.gym.findUnique({ where: { id: gymId } }),
+    ]);
+
+    if (!manager) throw new NotFoundException('Manager not found');
+    if (!user) throw new NotFoundException('User not found');
+    if (!gym) throw new NotFoundException('Gym not found');
+
+    const allowedRoles: Role[] = [Role.MANAGER, Role.OWNER];
+    if (!allowedRoles.includes(manager.role)) {
+      throw new ForbiddenException('Insufficient role to perform this action');
+    }
+
+    if (manager.role === Role.MANAGER && manager.gymId !== gymId) {
+      throw new ForbiddenException('Manager can only operate in their assigned gym');
+    }
+  }
+}
