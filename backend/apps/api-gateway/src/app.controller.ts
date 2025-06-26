@@ -6,6 +6,7 @@ import {
   Inject,
   Body,
   Param,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -22,6 +23,7 @@ export class AppController {
   constructor(
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
@@ -75,5 +77,16 @@ export class AppController {
   @Post('users/:id/role')
   changeUserRole(@Param('id') userId: string, @Body() body: { role: string }) {
     return this.authClient.send({ cmd: 'change_role' }, { userId, newRole: body.role });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('payments/create-checkout-session')
+  @HttpCode(HttpStatus.CREATED)
+  createCheckoutSession(@Body() body: any, @Req() req) {
+    const payload = {
+      membershipId: body.membershipId,
+      userId: req.user.sub,
+    };
+    return this.paymentClient.send({ cmd: 'create_checkout_session' }, payload);
   }
 }

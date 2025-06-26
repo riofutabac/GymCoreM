@@ -1,4 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UsePipes, ValidationPipe } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { AppService } from './app.service';
 
 @Controller()
@@ -8,5 +10,16 @@ export class AppController {
   @Get()
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  @MessagePattern({ cmd: 'create_checkout_session' })
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  createCheckout(@Payload() dto: CreateCheckoutDto) {
+    return this.appService.createCheckoutSession(dto);
+  }
+
+  @MessagePattern({ cmd: 'handle_paypal_webhook' })
+  handleWebhook(@Payload() payload: { body: any; signature: string }) {
+    return this.appService.handlePaypalWebhook(payload.body, payload.signature);
   }
 }

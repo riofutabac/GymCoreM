@@ -10,27 +10,29 @@ datasource db {
 }
 
 enum PaymentMethod {
+  PAYPAL
+  STRIPE
   CASH
   TRANSFER
-  CREDIT_CARD_STRIPE
-  CREDIT_CARD_KUSHKI
 }
 
 enum PaymentStatus {
   PENDING
   COMPLETED
   FAILED
-  VERIFIED
+  REFUNDED
 }
 
 model Payment {
-  id              String        @id @default(uuid())
-  amount          Float
-  method          PaymentMethod
-  status          PaymentStatus @default(PENDING)
-  transactionId   String?
-  receiptImageUrl String?
-  createdAt       DateTime      @default(now())
-  membershipId    String
-  verifiedById    String?
+  id            String        @id @default(cuid())
+  amount        Float
+  currency      String        @default("USD")
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  transactionId String?       @unique
+  membershipId  String
+  userId        String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  completedAt   DateTime?
 }
