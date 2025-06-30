@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaService } from './prisma/prisma.service';
+import { MembershipService } from './membership.service';
 
 describe('AppController', () => {
   let appController: AppController;
@@ -26,6 +27,10 @@ describe('AppController', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: MembershipService,
+          useValue: {},
         },
       ],
     }).compile();
