@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { ClientProxy } from '@nestjs/microservices';
 import { of, throwError } from 'rxjs';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 
 describe('AppController', () => {
   let controller: AppController;
@@ -22,7 +24,12 @@ describe('AppController', () => {
         { provide: 'GYM_SERVICE', useValue: { send: jest.fn() } },
         { provide: 'PAYMENT_SERVICE', useValue: { send: jest.fn() } },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = app.get<AppController>(AppController);
   });
