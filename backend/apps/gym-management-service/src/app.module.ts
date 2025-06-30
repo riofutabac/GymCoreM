@@ -24,12 +24,12 @@ import { PrismaModule } from './prisma/prisma.module';
         },
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
-      connectionInitOptions: { 
+      enableControllerDiscovery: true,
+      connectionInitOptions: {
         wait: false,
         reject: false,
         timeout: 10000,
       },
-      enableControllerDiscovery: true,
     }),
   ],
   controllers: [AppController],

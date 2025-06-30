@@ -56,6 +56,7 @@ export class AppController {
     exchange: 'gymcore-exchange',
     routingKey: 'user.created',
     queue: 'gym-management.user.created',
+    queueOptions: { durable: true }, // <-- Make queue durable
   })
   async handleUserCreated(data: UserEventPayload) {
     this.logger.log(`🎧 Evento 'user.created' recibido para el email: ${data.email}`);
@@ -74,6 +75,7 @@ export class AppController {
     exchange: 'gymcore-exchange',
     routingKey: 'user.role.updated',
     queue: 'gym-management.user.role.updated',
+    queueOptions: { durable: true }, // <-- Make queue durable
   })
   async handleUserRoleUpdated(data: RoleUpdatePayload) {
     this.logger.log(`🎧 Evento 'user.role.updated' recibido para el usuario ${data.userId}`);

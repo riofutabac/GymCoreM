@@ -123,6 +123,7 @@ export class AppService {
           role: 'MEMBER',
           gymId: gymId || null,
         },
+        { persistent: true }, // <-- Make message persistent
       );
 
       return {
@@ -254,7 +255,7 @@ export class AppService {
       userId: updatedUser.id,
       newRole: updatedUser.role,
       gymId: updatedUser.gymId,
-    });
+    }, { persistent: true }); // <-- Make message persistent
 
     console.log(`📢 Evento 'user_role_updated' emitido con datos completos.`);
 

@@ -4,6 +4,7 @@
   "description": "Sistema de gestión integral para gimnasios con arquitectura de microservicios",
   "main": "index.js",
   "scripts": {
+    "sync:users": "infisical run --path=/auth-service -- pnpm exec ts-node backend/apps/auth-service/src/resync-users.ts",
     "dev": "pnpm --parallel --stream -r run dev",
     "dev:all": "concurrently \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:payments\" \"pnpm dev:frontend\"",
     "dev:gateway": "infisical run --path=/api-gateway -- pnpm --filter api-gateway run start:dev",
