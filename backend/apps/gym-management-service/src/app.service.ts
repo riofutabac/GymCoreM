@@ -14,11 +14,35 @@ interface UserPayload {
   gymId?: string;
 }
 
+interface RoleUpdatePayload {
+  userId: string;
+  newRole: string;
+  gymId?: string;
+}
+
 @Injectable()
 export class AppService {
   private readonly logger = new Logger(AppService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
+
+  async handleUserCreated(data: UserPayload) {
+    this.logger.log(`🎧 [DESDE MAIN.TS] Evento 'user.created' recibido para: ${data.email}`);
+    this.logger.debug(`Payload completo recibido:`, JSON.stringify(data));
+    try {
+      await this.createLocalUser(data);
+      this.logger.log(`✅ [DESDE MAIN.TS] Usuario ${data.email} sincronizado exitosamente en Gym-Management.`);
+    } catch (error) {
+      this.logger.error(`❌ [DESDE MAIN.TS] Fallo al procesar el evento 'user.created' para ${data.email}`, error.stack);
+    }
+  }
+
+  async handleUserRoleUpdated(data: RoleUpdatePayload) {
+    this.logger.log(`🎧 [DESDE MAIN.TS] Evento 'user.role.updated' recibido para el usuario ${data.userId}`);
+    return this.updateLocalUserRole(data);
+  }
 
   getHello(): string {
     return 'Gym Management Service is running! 🚀';

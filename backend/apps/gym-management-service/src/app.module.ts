@@ -18,18 +18,11 @@ import { PrismaModule } from './prisma/prisma.module';
         {
           name: 'gymcore-exchange',
           type: 'topic',
-          options: {
-            durable: true,
-          },
+          options: { durable: true },
         },
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
-      enableControllerDiscovery: true,
-      connectionInitOptions: {
-        wait: false,
-        reject: false,
-        timeout: 10000,
-      },
+      connectionInitOptions: { wait: true, timeout: 5000 },
     }),
   ],
   controllers: [AppController],
