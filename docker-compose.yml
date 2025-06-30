@@ -1,0 +1,21 @@
+# docker-compose.dev.yml
+# Este archivo es SOLO para levantar las dependencias necesarias para el desarrollo local.
+
+version: '3.8'
+
+services:
+  # Broker RabbitMQ con UI de gestión
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: gymcore-dev-rabbitmq
+    ports:
+      # Puerto para que tus servicios locales se conecten
+      - "5672:5672"
+      # Puerto para la interfaz web de administración
+      - "15672:15672"
+    networks:
+      - gymcore-dev-net
+
+networks:
+  gymcore-dev-net:
+    driver: bridge

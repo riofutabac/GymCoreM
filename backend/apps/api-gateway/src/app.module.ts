@@ -44,6 +44,24 @@ import { RolesGuard } from './auth/roles.guard';
         },
         inject: [ConfigService],
       },
+      {
+        name: 'PAYMENT_SERVICE',
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => {
+          const paymentServiceUrl =
+            configService.get<string>('PAYMENT_SERVICE_URL') ||
+            'tcp://localhost:3003';
+          const [host, port] = paymentServiceUrl.replace('tcp://', '').split(':');
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: host,
+              port: +port,
+            },
+          };
+        },
+        inject: [ConfigService],
+      },
     ]),
   ],
   controllers: [AppController],

@@ -1,22 +1,47 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PrismaService } from './prisma/prisma.service';
+import { MembershipService } from './membership.service';
 
 describe('AppController', () => {
   let appController: AppController;
+  let appService: AppService;
 
   beforeEach(async () => {
+    const mockPrismaService = {
+      gym: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+      },
+      user: {
+        upsert: jest.fn(),
+        update: jest.fn(),
+      },
+    };
+
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        AppService,
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+        {
+          provide: MembershipService,
+          useValue: {},
+        },
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);
+    appService = app.get<AppService>(AppService);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+  describe('getHello', () => {
+    it('should return "Gym Management Service is running! 🚀"', () => {
+      expect(appController.getHello()).toBe('Gym Management Service is running! 🚀');
     });
   });
 });

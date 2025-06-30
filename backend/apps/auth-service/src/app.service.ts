@@ -7,10 +7,12 @@ import {
   Inject,
 } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { SupabaseService } from './supabase/supabase.service';
 import { PrismaService } from './prisma/prisma.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
+import { Prisma } from '../prisma/generated/auth-client';
 
 @Injectable()
 export class AppService {
@@ -21,6 +23,7 @@ export class AppService {
     private readonly supabaseService: SupabaseService,
     private readonly prisma: PrismaService,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    private readonly amqpConnection: AmqpConnection,
   ) {
     this.supabase = this.supabaseService.getClient();
     this.supabaseAdmin = this.supabaseService.getAdminClient();
@@ -35,27 +38,43 @@ export class AppService {
 
     try {
       // 1. Register user with Supabase Auth (this handles password hashing and email confirmation)
-      const { data: authData, error: authError } = await this.supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            firstName,
-            lastName,
-          }
-        }
-      });
+      const { data: authData, error: authError } =
+        await this.supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              firstName,
+              lastName,
+            },
+          },
+        });
 
       if (authError) {
         if (authError.message.includes('already_registered')) {
-          throw new ConflictException('El email ya está registrado.');
+          throw new RpcException({
+            message: 'El email ya está registrado.',
+            status: 409,
+          });
         }
-        throw new BadRequestException(`Error en el registro: ${authError.message}`);
+        throw new RpcException({
+          message: `Error en el registro: ${authError.message}`,
+          status: 400,
+        });
       }
 
       if (!authData.user) {
-        throw new InternalServerErrorException('No se pudo crear el usuario en el sistema de autenticación.');
+        throw new RpcException({
+          message: 'No se pudo crear el usuario en el sistema de autenticación.',
+          status: 500,
+        });
       }
+
+      // Asegurar que el rol esté disponible dentro del JWT
+      await this.supabaseAdmin.auth.admin.updateUserById(authData.user.id, {
+        app_metadata: { role: 'MEMBER' },
+        user_metadata: { firstName, lastName, role: 'MEMBER' },
+      });
 
       // 2. Create profile in User table only if auth user was created successfully
       try {
@@ -70,40 +89,65 @@ export class AppService {
           },
         });
       } catch (profileError) {
-        console.error('Error creando perfil:', profileError);
+        // Clean up Supabase user first in any case of profile creation failure
         await this.supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-        throw new InternalServerErrorException(
-          'Error creando el perfil del usuario:' + profileError.message,
-        );
+
+        // Handle Prisma unique constraint violation (duplicate email)
+        if (
+          profileError instanceof Prisma.PrismaClientKnownRequestError &&
+          profileError.code === 'P2002'
+        ) {
+          throw new RpcException({
+            message: 'El email ya está en uso en la base de datos.',
+            status: 409,
+          });
+        }
+
+        // For any other profile creation error
+        console.error('Error creando perfil:', profileError);
+        throw new RpcException({
+          message: 'Error interno creando el perfil del usuario.',
+          status: 500,
+        });
       }
 
-      // Emitir evento para que otros servicios sincronicen el nuevo usuario
-      this.gymClient.emit('user_created', {
-        id: authData.user.id,
-        email,
-        firstName,
-        lastName,
-      });
-
-      return {
+      // Emitir evento asíncrono via RabbitMQ
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'user.created',
+        {
           id: authData.user.id,
-          email: authData.user.email,
+          email,
           firstName,
           lastName,
           role: 'MEMBER',
-          createdAt: authData.user.created_at,
-          message: 'Usuario registrado exitosamente. Por favor verifica tu email para activar tu cuenta.'
-      };
+          gymId: gymId || null,
+        },
+        { persistent: true }, // <-- Make message persistent
+      );
 
+      return {
+        id: authData.user.id,
+        email: authData.user.email,
+        firstName,
+        lastName,
+        role: 'MEMBER',
+        createdAt: authData.user.created_at,
+        message:
+          'Usuario registrado exitosamente. Por favor verifica tu email para activar tu cuenta.',
+      };
     } catch (error) {
-      if (error instanceof BadRequestException || 
-          error instanceof ConflictException || 
-          error instanceof InternalServerErrorException) {
+      // If error is already RpcException, re-throw it
+      if (error instanceof RpcException) {
         throw error;
       }
-      
+
+      // For any other unexpected error, convert to RpcException
       console.error('Error inesperado en registro:', error);
-      throw new InternalServerErrorException('Error interno del servidor durante el registro.');
+      throw new RpcException({
+        message: 'Error interno del servidor durante el registro.',
+        status: 500,
+      });
     }
   }
 
@@ -111,10 +155,11 @@ export class AppService {
     const { email, password } = loginUserDto;
 
     try {
-      const { data: authData, error } = await this.supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data: authData, error } =
+        await this.supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
       if (error) {
         // Use RpcException for microservice communication
@@ -124,7 +169,7 @@ export class AppService {
             status: 401,
           });
         }
-        
+
         // For any other Supabase error
         throw new RpcException({
           message: error.message,
@@ -162,15 +207,14 @@ export class AppService {
           lastName: profile.lastName,
           role: profile.role,
         },
-        expiresAt: authData.session.expires_at
+        expiresAt: authData.session.expires_at,
       };
-
     } catch (error) {
       // If error is already RpcException, re-throw it
       if (error instanceof RpcException) {
         throw error;
       }
-      
+
       // For any other unexpected error
       console.error('Error inesperado y no controlado en login:', error);
       throw new RpcException({
@@ -180,25 +224,40 @@ export class AppService {
     }
   }
 
-  async changeRole(userId: string, newRole: string) {
+  async changeRole(userId: string, newRole: string, gymId?: string) {
     const validRoles = ['OWNER', 'MANAGER', 'RECEPTIONIST', 'MEMBER'];
     if (!validRoles.includes(newRole)) {
       throw new RpcException({ message: 'Rol inválido', status: 400 });
     }
 
-    console.log(`🔄 Intentando cambiar el rol del usuario ${userId} a ${newRole}`);
+    console.log(
+      `🔄 Intentando cambiar el rol del usuario ${userId} a ${newRole} y asignar gym ${gymId}`,
+    );
 
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
-      data: { role: newRole as any },
+      data: {
+        role: newRole as any,
+        gymId: gymId,
+      },
     });
 
-    this.gymClient.emit('user_role_updated', {
+    await this.supabaseAdmin.auth.admin.updateUserById(userId, {
+      app_metadata: { role: newRole },
+      user_metadata: {
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        role: newRole,
+      },
+    });
+
+    await this.amqpConnection.publish('gymcore-exchange', 'user.role.updated', {
       userId: updatedUser.id,
       newRole: updatedUser.role,
-    });
+      gymId: updatedUser.gymId,
+    }, { persistent: true }); // <-- Make message persistent
 
-    console.log(`📢 Evento 'user_role_updated' emitido.`);
+    console.log(`📢 Evento 'user_role_updated' emitido con datos completos.`);
 
     return updatedUser;
   }
