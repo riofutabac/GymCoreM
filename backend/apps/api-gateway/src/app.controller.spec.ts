@@ -55,4 +55,26 @@ describe('AppController', () => {
       });
     });
   });
+
+  describe('login()', () => {
+    it('should return the response from authClient', async () => {
+      const body = { email: 'test@example.com', password: '1234' };
+      (mockAuthClient.send as jest.Mock).mockReturnValueOnce(of({ token: 'jwt-token', user: { id: 1 } }));
+
+      const result = await controller.login(body);
+
+      expect(mockAuthClient.send).toHaveBeenCalledWith({ cmd: 'login' }, body);
+      expect(result).toEqual({ token: 'jwt-token', user: { id: 1 } });
+    });
+
+    it('should propagate HttpException on invalid credentials', async () => {
+      const error = { status: 401, message: 'Invalid credentials' };
+      (mockAuthClient.send as jest.Mock).mockReturnValueOnce(throwError(() => error));
+
+      await expect(controller.login({ email: 'wrong@test.com', password: 'wrong' })).rejects.toMatchObject({
+        status: 401,
+        response: 'Invalid credentials',
+      });
+    });
+  });
 });
