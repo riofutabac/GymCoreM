@@ -6,11 +6,13 @@ import {
   Inject,
   Body,
   Param,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
   HttpException,
-  Req,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
@@ -19,12 +21,14 @@ import { RolesGuard } from './auth/roles.guard';
 import { Roles } from './auth/roles.decorator';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
+import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 
 @Controller('v1') // Prefijo para todas las rutas de este controlador
 export class AppController {
   constructor(
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
@@ -52,10 +56,8 @@ export class AppController {
       );
       return response;
     } catch (error) {
-      // Si el microservicio lanza un error, lo atrapamos aquí
       const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error.message || 'Internal server error';
-      // Y lanzamos una excepción HTTP estándar que NestJS sí entiende a la perfección
       throw new HttpException(message, status);
     }
   }
@@ -109,5 +111,26 @@ export class AppController {
   async renewMembership(@Body() dto: RenewMembershipDto, @Req() req) {
     const managerId = req.user.sub;
     return this.gymClient.send({ cmd: 'renew_membership' }, { dto, managerId });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('payments/create-checkout-session')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createCheckoutSession(
+    @Body() dto: CreateCheckoutSessionDto,
+    @Req() req: any,
+  ) {
+    try {
+      const payload = { userId: req.user.sub, membershipId: dto.membershipId };
+      const response = await firstValueFrom(
+        this.paymentClient.send({ cmd: 'create_checkout_session' }, payload),
+      );
+      return response;
+    } catch (error) {
+      const status = error?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error?.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { Catch, RpcExceptionFilter, ArgumentsHost, HttpException } from '@nestjs/common';
+import { Catch, RpcExceptionFilter, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { Observable, throwError } from 'rxjs';
 
@@ -7,16 +7,31 @@ export class CustomRpcExceptionFilter implements RpcExceptionFilter<RpcException
   catch(exception: RpcException, host: ArgumentsHost): Observable<any> {
     const rpcError = exception.getError();
 
-    let statusCode = 500;
-    let message = 'Internal server error';
+    let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'An internal server error occurred.';
 
-    // Check if the error has the expected { status, message } structure
-    if (typeof rpcError === 'object' && rpcError.hasOwnProperty('status') && rpcError.hasOwnProperty('message')) {
-        statusCode = Number(rpcError['status']);
-        message = String(rpcError['message']);
+    // Check if rpcError is an object and not null
+    if (typeof rpcError === 'object' && rpcError !== null) {
+      
+      // ONLY use rpcError.status IF IT'S A VALID HTTP status code number
+      if (typeof rpcError['status'] === 'number' && rpcError['status'] >= 100 && rpcError['status'] < 600) {
+        httpStatus = rpcError['status'];
+      }
+      
+      // Use the message if available
+      if (typeof rpcError['message'] === 'string') {
+        message = rpcError['message'];
+      }
+
+    } else if (typeof rpcError === 'string') {
+      // If the error is just a string
+      message = rpcError;
     }
 
-    // Return HTTP exception wrapped in Observable error
-    return throwError(() => new HttpException(message, statusCode));
+    // Now we're sure httpStatus is a valid number before throwing the exception
+    return throwError(() => new HttpException({
+      statusCode: httpStatus,
+      message,
+    }, httpStatus));
   }
 }
