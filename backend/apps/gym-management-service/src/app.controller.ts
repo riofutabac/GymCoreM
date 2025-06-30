@@ -1,4 +1,4 @@
-import { Controller, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, UsePipes, ValidationPipe, Logger } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { AppService } from './app.service';
@@ -25,6 +25,8 @@ interface RoleUpdatePayload {
 
 @Controller()
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   constructor(
     private readonly appService: AppService,
     private readonly membershipService: MembershipService,
@@ -55,8 +57,17 @@ export class AppController {
     routingKey: 'user.created',
     queue: 'gym-management.user.created',
   })
-  handleUserCreated(data: UserEventPayload) {
-    return this.appService.createLocalUser(data);
+  async handleUserCreated(data: UserEventPayload) {
+    this.logger.log(`🎧 Evento 'user.created' recibido para el email: ${data.email}`);
+    this.logger.debug(`Payload completo recibido:`, JSON.stringify(data));
+    try {
+      await this.appService.createLocalUser(data);
+      this.logger.log(`✅ Usuario ${data.email} sincronizado exitosamente en Gym-Management.`);
+    } catch (error) {
+      this.logger.error(`❌ Fallo al procesar el evento 'user.created' para ${data.email}`, error.stack);
+      // Es crucial manejar el error para que RabbitMQ no entre en un bucle.
+      // Aquí podrías enviar el mensaje a una "dead-letter queue" o simplemente ignorarlo para este caso.
+    }
   }
 
   @RabbitSubscribe({
@@ -64,8 +75,8 @@ export class AppController {
     routingKey: 'user.role.updated',
     queue: 'gym-management.user.role.updated',
   })
-  handleUserRoleUpdated(data: RoleUpdatePayload) {
-    console.log(`🎧 Evento 'user_role_updated' recibido para el usuario ${data.userId}`);
+  async handleUserRoleUpdated(data: RoleUpdatePayload) {
+    this.logger.log(`🎧 Evento 'user.role.updated' recibido para el usuario ${data.userId}`);
     return this.appService.updateLocalUserRole(data);
   }
 

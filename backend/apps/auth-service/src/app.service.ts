@@ -120,6 +120,8 @@ export class AppService {
           email,
           firstName,
           lastName,
+          role: 'MEMBER',
+          gymId: gymId || null,
         },
       );
 
