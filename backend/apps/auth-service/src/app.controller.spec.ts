@@ -23,7 +23,7 @@ describe('AppController', () => {
 
   describe('getHealth', () => {
     it('should confirm service health', () => {
-      expect(appController.getHealth()).toBe('Auth Service is running! 🚀');
+      expect(appController.getHealth()).toBe('Auth Service is running ! 🚀');
     });
   });
 });
