@@ -10,18 +10,27 @@ on:
       - 'hotfix/**'
 
 jobs:
-  sonar:
+  sonarcloud:
+    name: SonarCloud Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4 # Usando una versión más reciente y segura de checkout
         with:
+          # Necesario para que SonarCloud pueda analizar el historial de commits
           fetch-depth: 0
+
       - name: Set up JDK 11
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
+          distribution: 'temurin'
           java-version: '11'
+
       - name: SonarCloud Scan
-        uses: SonarSource/sonar-scanner-github-action@master
+        # --- LA CORRECCIÓN CLAVE ESTÁ AQUÍ ---
+        uses: SonarSource/sonarcloud-github-action@v3.1.0
         env:
+          # El GITHUB_TOKEN es necesario para que SonarCloud pueda decorar Pull Requests
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # El SONAR_TOKEN se usa para la autenticación con la API de SonarCloud
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
