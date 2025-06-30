@@ -28,20 +28,24 @@ export class AppService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async handleUserCreated(data: UserPayload) {
-    this.logger.log(`🎧 [DESDE MAIN.TS] Evento 'user.created' recibido para: ${data.email}`);
-    this.logger.debug(`Payload completo recibido:`, JSON.stringify(data));
+  public async handleUserCreated(data: UserPayload): Promise<void> {
+    this.logger.log(`[EVENTO] Procesando 'user.created' para: ${data.email}`);
     try {
       await this.createLocalUser(data);
-      this.logger.log(`✅ [DESDE MAIN.TS] Usuario ${data.email} sincronizado exitosamente en Gym-Management.`);
+      this.logger.log(`[SINCRONIZADO] Usuario ${data.email} guardado correctamente.`);
     } catch (error) {
-      this.logger.error(`❌ [DESDE MAIN.TS] Fallo al procesar el evento 'user.created' para ${data.email}`, error.stack);
+      this.logger.error(`[ERROR] Falló la sincronización para ${data.email}:`, error.stack);
     }
   }
 
-  async handleUserRoleUpdated(data: RoleUpdatePayload) {
-    this.logger.log(`🎧 [DESDE MAIN.TS] Evento 'user.role.updated' recibido para el usuario ${data.userId}`);
-    return this.updateLocalUserRole(data);
+  public async handleUserRoleUpdated(data: RoleUpdatePayload): Promise<void> {
+    this.logger.log(`[EVENTO] Procesando 'user.role.updated' para usuario: ${data.userId}`);
+    try {
+      await this.updateLocalUserRole(data);
+      this.logger.log(`[SINCRONIZADO] Rol del usuario ${data.userId} actualizado.`);
+    } catch (error) {
+      this.logger.error(`[ERROR] Falló la actualización de rol para ${data.userId}:`, error.message);
+    }
   }
 
   getHello(): string {
@@ -56,12 +60,12 @@ export class AppService {
 
   async findAllGyms(): Promise<AdminGymDto[]> {
     const gyms = await this.prisma.gym.findMany();
-    return gyms.map((gym) => ({
-      id: gym.id,
-      name: gym.name,
-      uniqueCode: gym.uniqueCode,
-      isActive: gym.isActive,
-      createdAt: gym.createdAt,
+    return gyms.map(({ id, name, uniqueCode, isActive, createdAt }) => ({
+      id,
+      name,
+      uniqueCode,
+      isActive,
+      createdAt,
     }));
   }
 
@@ -69,13 +73,10 @@ export class AppService {
     const gyms = await this.prisma.gym.findMany({
       where: { isActive: true },
     });
-    return gyms.map((gym) => ({
-      name: gym.name,
-    }));
+    return gyms.map(({ name }) => ({ name }));
   }
 
   async createLocalUser(data: UserPayload) {
-    this.logger.log(`Sincronizando nuevo usuario: ${data.email} con gymId: ${data.gymId}`);
     return this.prisma.user.upsert({
       where: { id: data.id },
       update: {
@@ -97,18 +98,12 @@ export class AppService {
   }
 
   async updateLocalUserRole(data: { userId: string; newRole: string; gymId?: string }) {
-    this.logger.log(`Actualizando rol/gym del usuario local ${data.userId} a rol ${data.newRole} y gymId ${data.gymId}`);
-    try {
-      await this.prisma.user.update({
-        where: { id: data.userId },
-        data: {
-          role: data.newRole as Role,
-          ...(data.gymId && { gymId: data.gymId }),
-        },
-      });
-      this.logger.log(`💾 Rol/gym del usuario local ${data.userId} actualizado.`);
-    } catch (error) {
-      this.logger.error(`❌ No se pudo actualizar el rol/gym para el usuario local ${data.userId}:`, error.message);
-    }
+    return this.prisma.user.update({
+      where: { id: data.userId },
+      data: {
+        role: data.newRole as Role,
+        ...(data.gymId && { gymId: data.gymId }),
+      },
+    });
   }
 }

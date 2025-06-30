@@ -4,32 +4,21 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { AppService } from './app.service';
+import { Logger } from '@nestjs/common';
 
-async function bootstrap() {
-  // Create the Nest application directly
-  const app = await NestFactory.create(AppModule);
+/**
+ * Configura los suscriptores de RabbitMQ manualmente para asegurar
+ * que la aplicación esté completamente inicializada antes de empezar a escuchar.
+ * Esto previene errores de "carrera de condiciones" en aplicaciones híbridas.
+ */
+async function setupRabbitMQListeners(app) {
+  const amqpConnection = app.get(AmqpConnection);
+  const appService = app.get(AppService);
+  const logger = new Logger('RabbitMQ-Setup');
 
-  // Get configuration service from the app itself
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3002;
+  logger.log('Iniciando configuración de suscriptores de RabbitMQ...');
 
-  // Connect the microservice listener
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
-    options: {
-      host: '0.0.0.0',
-      port: port,
-    },
-  });
-
-  // ¡AQUÍ ESTÁ LA SOLUCIÓN!
-  // 1. Obtenemos acceso a la conexión de RabbitMQ y al AppService
-  const amqpConnection = app.get<AmqpConnection>(AmqpConnection);
-  const appService = app.get<AppService>(AppService);
-
-  // 2. Creamos los suscriptores manualmente
   await amqpConnection.createSubscriber(
-    // La función que se ejecutará, atada al contexto del appService
     appService.handleUserCreated.bind(appService),
     {
       exchange: 'gymcore-exchange',
@@ -37,9 +26,9 @@ async function bootstrap() {
       queue: 'gym-management.user.created',
       queueOptions: { durable: true },
     },
-    'user-created-subscriber', // Un nombre para identificarlo
+    'user-created-subscriber'
   );
-  console.log('✅ Suscriptor para "user.created" configurado manualmente.');
+  logger.log('✅ Suscriptor para "user.created" configurado.');
 
   await amqpConnection.createSubscriber(
     appService.handleUserRoleUpdated.bind(appService),
@@ -49,11 +38,29 @@ async function bootstrap() {
       queue: 'gym-management.user.role.updated',
       queueOptions: { durable: true },
     },
-    'user-role-updated-subscriber',
+    'user-role-updated-subscriber'
   );
-  console.log('✅ Suscriptor para "user.role.updated" configurado manualmente.');
+  logger.log('✅ Suscriptor para "user.role.updated" configurado.');
+  
+  logger.log('Todos los suscriptores están listos y escuchando eventos.');
+}
 
-  // Start all microservice listeners
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('PORT') || 3002;
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      host: '0.0.0.0',
+      port: port,
+    },
+  });
+
+  await setupRabbitMQListeners(app);
+
   await app.startAllMicroservices();
   console.log(`Gym Management microservice is listening on port ${port}`);
 }

@@ -49,7 +49,6 @@ export class AppController {
 
   @MessagePattern({ cmd: 'get_membership_details' })
   getMembershipDetails(@Payload() data: { membershipId: string }) {
-    console.log(`Buscando detalles para la membresía: ${data.membershipId}`);
     return {
       id: data.membershipId,
       name: 'Membresía Premium',
