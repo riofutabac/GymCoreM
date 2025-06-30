@@ -1,4 +1,4 @@
-name: SonarCloud Scan
+name: CI Build and SonarCloud Scan
 
 on:
   push:
@@ -12,28 +12,43 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  sonarcloud:
-    name: SonarCloud Scan
+  build-and-scan:
+    name: Build, Test and Scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Necesario para un análisis de historial preciso
+          fetch-depth: 0
 
-      - name: Set up Node.js
+      - name: Set up Node.js v18
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Usa la misma versión de Node que tu proyecto
+          node-version: '18'
 
       - name: Install pnpm
         run: npm install -g pnpm
 
+      # --- INICIO DE LA CORRECCIÓN CLAVE ---
+      - name: Install Infisical CLI
+        run: npm install -g @infisical/cli
+
       - name: Install dependencies
-        run: pnpm install
+        # Se añade --no-script.postinstall para evitar que se ejecute antes de tiempo
+        run: pnpm install --no-script.postinstall
+      
+      - name: Generate Prisma Clients Manually
+        # Se ejecuta la generación de clientes después de la instalación y con Infisical disponible
+        run: pnpm db:generate:all
+        env:
+          # Le damos a Infisical el token para que pueda autenticarse
+          INFISICAL_TOKEN: ${{ secrets.INFISICAL_TOKEN }}
+      # --- FIN DE LA CORRECCIÓN CLAVE ---
 
       - name: Run Tests and Generate Coverage
-        run: pnpm test:cov # Asumiendo que este comando genera el reporte lcov
+        run: pnpm test:cov
+        env:
+          INFISICAL_TOKEN: ${{ secrets.INFISICAL_TOKEN }}
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v5.2.0
