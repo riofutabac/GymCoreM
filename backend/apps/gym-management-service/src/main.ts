@@ -1,112 +1,31 @@
+// backend/apps/gym-management-service/src/main.ts
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { AllExceptionsFilter } from './all-exceptions.filter';
-import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
-import { AppService } from './app.service';
-import { Role } from '../prisma/generated/gym-client';
-
-// Interfaces para tipado seguro
-interface UserPayload {
-  id: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  role?: Role;
-  gymId?: string;
-}
-
-interface RoleUpdatePayload {
-  userId: string;
-  newRole: string;
-  gymId?: string;
-}
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') ?? 3002;
+  const config = app.get(ConfigService);
+  const port = config.get<number>('PORT') ?? 3002;
 
-  // Configurar microservicio TCP
-  const microservice = app.connectMicroservice<MicroserviceOptions>({
+  const micro = app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,
-    options: {
-      host: '0.0.0.0',
-      port: port,
-    },
+    options: { host: '0.0.0.0', port },
   });
 
-  // Registrar el filtro de excepciones global SOLO para el microservicio
-  microservice.useGlobalFilters(new AllExceptionsFilter());
+  micro.useGlobalFilters(new AllExceptionsFilter());
 
-  // ========================================
-  // 🎯 CONFIGURACIÓN MANUAL DE SUSCRIPTORES
-  // ========================================
-
-  try {
-    // Obtener las instancias ya inicializadas
-    const amqpConnection = app.get<AmqpConnection>(AmqpConnection);
-    const appService = app.get<AppService>(AppService);
-
-    logger.log('Configurando suscriptores de RabbitMQ...');
-
-    // Suscriptor para eventos de creación de usuarios
-    await amqpConnection.createSubscriber(
-      async (msg: UserPayload) => {
-        await appService.handleUserCreated(msg);
-      },
-      {
-        exchange: 'gymcore-exchange',
-        routingKey: 'user.created',
-        queue: 'gym-management.user.created',
-        queueOptions: {
-          durable: true,
-          arguments: {
-            'x-dead-letter-exchange': 'gymcore-dead-letter-exchange',
-            'x-message-ttl': 300000, // 5 minutos
-          },
-        },
-      },
-      'user.created',
-    );
-
-    // Suscriptor para eventos de actualización de roles
-    await amqpConnection.createSubscriber(
-      async (msg: RoleUpdatePayload) => {
-        await appService.handleUserRoleUpdated(msg);
-      },
-      {
-        exchange: 'gymcore-exchange',
-        routingKey: 'user.role.updated',
-        queue: 'gym-management.user.role.updated',
-        queueOptions: {
-          durable: true,
-          arguments: {
-            'x-dead-letter-exchange': 'gymcore-dead-letter-exchange',
-            'x-message-ttl': 300000,
-          },
-        },
-      },
-      'user.role.updated',
-    );
-
-    logger.log('Suscriptores RabbitMQ configurados correctamente');
-  } catch (error) {
-    logger.error('Error configurando suscriptores de RabbitMQ:', error);
-    // No detenemos la aplicación, pero sí logueamos el error
-  }
-
-  // Iniciar todos los microservicios
   await app.startAllMicroservices();
-  logger.log(`Gym Management Service ejecutándose en puerto ${port}`);
+  logger.log(`Gym Management Service is running on port ${port}`);
 }
 
-bootstrap().catch((error) => {
-  const logger = new Logger('Bootstrap');
-  logger.error('Error starting application:', error);
+bootstrap().catch(err => {
+  console.error('❌ Failed to start Gym Management Service', err);
   process.exit(1);
 });

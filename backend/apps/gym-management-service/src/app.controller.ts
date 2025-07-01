@@ -6,6 +6,7 @@ import { CreateGymDto } from './dto/create-gym.dto';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
 import { MembershipService } from './membership.service';
+import { Role } from '../prisma/generated/gym-client';
 
 @Controller()
 export class AppController {
@@ -91,5 +92,56 @@ export class AppController {
   @MessagePattern({ cmd: 'join_gym' })
   joinGym(@Payload() payload: { uniqueCode: string; userId: string }) {
     return this.membershipService.joinGym(payload.uniqueCode, payload.userId);
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.created',
+    queue: 'gym-management.user.created',
+    queueOptions: {
+      durable: true,
+    },
+  })
+  public async handleUserCreated(payload: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    role?: Role;
+    gymId?: string;
+  }) {
+    this.logger.log(`[EVENTO RECIBIDO] user.created para usuario ${payload.email}`);
+
+    try {
+      await this.appService.handleUserCreated(payload);
+      this.logger.log(`✅ Usuario ${payload.email} sincronizado exitosamente`);
+    } catch (error) {
+      this.logger.error(`❌ Error sincronizando usuario ${payload.email}:`, error);
+      throw error;
+    }
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.role.updated',
+    queue: 'gym-management.user.role.updated',
+    queueOptions: {
+      durable: true,
+    },
+  })
+  public async handleUserRoleUpdated(payload: {
+    userId: string;
+    newRole: string;
+    gymId?: string;
+  }) {
+    this.logger.log(`[EVENTO RECIBIDO] user.role.updated para usuario ${payload.userId}`);
+
+    try {
+      await this.appService.handleUserRoleUpdated(payload);
+      this.logger.log(`✅ Rol del usuario ${payload.userId} actualizado exitosamente`);
+    } catch (error) {
+      this.logger.error(`❌ Error actualizando rol del usuario ${payload.userId}:`, error);
+      throw error;
+    }
   }
 }
