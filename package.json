@@ -28,7 +28,7 @@
     "db:generate:gym": "infisical run --path=/gym-management-service -- pnpm exec prisma generate --schema=./backend/apps/gym-management-service/prisma/schema.prisma",
     "db:generate:inventory": "infisical run --path=/inventory-service -- pnpm exec prisma generate --schema=./backend/apps/inventory-service/prisma/schema.prisma",
     "db:generate:payment": "infisical run --path=/payment-service -- pnpm exec prisma generate --schema=./backend/apps/payment-service/prisma/schema.prisma",
-    "db:generate:all": "pnpm db:generate:auth && pnpm db:generate:gym && pnpm db:generate:inventory && pnpm db:generate:payment",
+    "db:generate:all": "pnpm -r --parallel run db:generate",
     "db:migrate:auth": "infisical run --path=/auth-service -- pnpm exec prisma migrate dev --schema=./backend/apps/auth-service/prisma/schema.prisma",
     "db:migrate:gym": "infisical run --path=/gym-management-service -- pnpm exec prisma migrate dev --schema=./backend/apps/gym-management-service/prisma/schema.prisma",
     "db:migrate:inventory": "infisical run --path=/inventory-service -- pnpm exec prisma migrate dev --schema=./backend/apps/inventory-service/prisma/schema.prisma",

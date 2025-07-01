@@ -5,10 +5,14 @@ WORKDIR /app
 
 RUN npm install -g pnpm
 
-COPY package.json pnpm-lock.yaml ./
+# Copia los archivos de configuración del monorepo (CLAVE: incluir pnpm-workspace.yaml)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Instala solo las dependencias de producción.
-RUN pnpm install --prod --frozen-lockfile
+# Copia el package.json específico del frontend (ANTES de instalar)
+COPY frontend/web-dashboard/package.json ./frontend/web-dashboard/
+
+# Instala TODAS las dependencias (dev + prod) incluyendo Next.js
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # --- ETAPA 2: Builder ---
 FROM node:18-alpine AS builder
@@ -18,7 +22,8 @@ RUN npm install -g pnpm
 
 # Copia dependencias desde la etapa anterior.
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json pnpm-lock.yaml ./
+# Copia los archivos de configuración del monorepo
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Copia todo el código fuente.
 COPY . .
@@ -27,7 +32,10 @@ COPY . .
 # Esto genera una carpeta .next/standalone con solo lo necesario para producción.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Ejecuta el build del frontend.
+# DEBUGGING: Verificar que Next.js esté instalado
+RUN ls -la node_modules/.bin/ | grep next || echo "Next.js no encontrado en node_modules/.bin/"
+
+# Ejecuta el build del frontend usando el filtro de pnpm (desde la raíz)
 RUN pnpm --filter web-dashboard run build
 
 # --- ETAPA 3: Runner (Imagen Final) ---

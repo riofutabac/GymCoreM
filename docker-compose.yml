@@ -26,6 +26,7 @@ services:
       args:
         SERVICE_NAME: api-gateway
         PORT: 3000
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
     command: sh -c "pnpm db:generate:all && pnpm --filter api-gateway run start:prod"
     ports:
       - "3000:3000"
@@ -50,6 +51,7 @@ services:
       args:
         SERVICE_NAME: auth-service
         PORT: 3001
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
     command: sh -c "pnpm db:migrate:auth && pnpm --filter auth-service run start:prod"
     env_file: .env
     networks:
@@ -66,6 +68,7 @@ services:
       args:
         SERVICE_NAME: gym-management-service
         PORT: 3002
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
     command: sh -c "pnpm db:migrate:gym && pnpm --filter gym-management-service run start:prod"
     env_file: .env
     networks:
@@ -82,6 +85,7 @@ services:
       args:
         SERVICE_NAME: payment-service
         PORT: 3003
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
     command: sh -c "pnpm db:migrate:payment && pnpm --filter payment-service run start:prod"
     env_file: .env
     networks:
@@ -91,20 +95,7 @@ services:
         condition: service_healthy
 
   #--- Frontend Service ---#
-  web-dashboard:
-    container_name: gymcore-web-dashboard
-    build:
-      context: .
-      dockerfile: frontend/web-dashboard/Dockerfile
-    # El comando ya está en el Dockerfile de Next.js
-    ports:
-      - "3030:3030"
-    env_file: .env
-    networks:
-      - gymcore-net
-    depends_on:
-      - api-gateway
-
+ 
 #--- Red ---#
 networks:
   gymcore-net:

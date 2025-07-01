@@ -1,0 +1,28 @@
+# .dockerignore
+
+# Ignorar todas las carpetas de dependencias
+**/node_modules
+
+# Ignorar la carpeta .git para no incluir el historial del repositorio
+.git
+
+# Ignorar archivos de entorno específicos, PERO NO el .env principal
+.env.*
+!/.env.example
+
+# Ignorar directorios de build (se generan dentro del contenedor)
+**/dist
+**/out
+**/.next
+
+# Ignorar archivos de log y de debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Archivos de configuración de IDEs y SO
+.idea
+.vscode
+.DS_Store
+Thumbs.db

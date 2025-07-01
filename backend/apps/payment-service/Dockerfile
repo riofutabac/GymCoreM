@@ -1,69 +1,69 @@
-# Dockerfile para servicios NestJS (ej. api-gateway, auth-service, etc.)
-# --- ETAPA 1: Dependencias ---
-# Esta etapa instala las dependencias de producción de forma aislada.
-FROM node:18-alpine AS deps
-WORKDIR /app
-
-# Instala pnpm globalmente en el contenedor
-RUN npm install -g pnpm
-
-# Copia los archivos de definición de dependencias del monorepo.
-# Esto es más eficiente porque Docker solo reinstalará dependencias si estos archivos cambian.
-COPY package.json pnpm-lock.yaml ./
-
-# Instala ÚNICAMENTE las dependencias de producción.
-# El flag --prod omite las devDependencies, haciendo esta capa más ligera.
-RUN pnpm install --prod --frozen-lockfile
-
-
-# --- ETAPA 2: Builder ---
-# Esta etapa compila el código TypeScript a JavaScript.
+# Dockerfile para servicios NestJS (Versión Final Optimizada)
+# --- ETAPA 1: Builder ---
+# Esta etapa instala todas las dependencias y compila el código.
 FROM node:18-alpine AS builder
+
+# Recibe el argumento que le pasaste desde docker-compose.yml
+ARG INFISICAL_TOKEN
+ARG SERVICE_NAME=payment-service
+
+# Establece el argumento como una variable de entorno real dentro del build
+ENV INFISICAL_TOKEN=${INFISICAL_TOKEN}
+
+# Establece el directorio de trabajo RAÍZ
 WORKDIR /app
 
-# Instala pnpm
-RUN npm install -g pnpm
+# Instala pnpm y la CLI de Infisical en una sola capa para eficiencia.
+RUN npm install -g pnpm @infisical/cli
 
-# Copia los archivos de definición de dependencias.
-COPY package.json pnpm-lock.yaml ./
+# Copia los archivos de definición de dependencias y configuración del monorepo.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .infisical.json ./
 
-# Instala TODAS las dependencias (incluyendo devDependencies como typescript y nest-cli).
-RUN pnpm install --frozen-lockfile
+# Copia el package.json del servicio específico
+COPY backend/apps/${SERVICE_NAME}/package.json ./backend/apps/${SERVICE_NAME}/
 
-# Copia todo el código fuente del monorepo.
+# Copia el .env que contiene el INFISICAL_TOKEN para que el build pueda acceder a los secretos.
+COPY .env .
+
+# Instala TODAS las dependencias del monorepo SIN ejecutar postinstall
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Copia el resto del código fuente del monorepo.
 COPY . .
 
-# Ejecuta el script de "build" específico para el servicio.
-# El argumento SERVICE_NAME se pasará desde el docker-compose.yml.
-ARG SERVICE_NAME
-RUN pnpm --filter=${SERVICE_NAME} run build
+# CAMBIA AL DIRECTORIO DEL SERVICIO
+WORKDIR /app/backend/apps/${SERVICE_NAME}
+
+# Ejecuta los comandos desde DENTRO de la carpeta del servicio
+RUN pnpm exec prisma generate
+RUN pnpm run build
 
 
-# --- ETAPA 3: Runner (Imagen Final) ---
-# Esta es la imagen final, optimizada y ligera que irá a producción.
+# --- ETAPA 2: Runner (Imagen Final) ---
+# Esta es la imagen final, optimizada y ligera.
 FROM node:18-alpine
-WORKDIR /app
-
-# Variable de entorno para indicar que se ejecuta en producción.
+ARG SERVICE_NAME=payment-service
 ENV NODE_ENV=production
 
-# Instala pnpm para poder ejecutar comandos.
+WORKDIR /app
+
+# Instala pnpm para poder ejecutar los scripts de start:prod
 RUN npm install -g pnpm
 
-# Copia las dependencias de producción desde la etapa 'deps'.
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json .
+# Copia solo los archivos de manifiesto necesarios para ejecutar los scripts.
+COPY package.json ./
 
-# Copia el código compilado (JavaScript) desde la etapa 'builder'.
-# La ruta de destino es crucial para que coincida con la estructura de pnpm workspaces.
-ARG SERVICE_NAME
+# Copia las dependencias de producción (ya instaladas) desde la etapa 'builder'.
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copia el código compilado del servicio específico.
 COPY --from=builder /app/backend/apps/${SERVICE_NAME}/dist ./backend/apps/${SERVICE_NAME}/dist
 
 # Expone el puerto que usará el microservicio.
-# Este valor se pasará desde el docker-compose.
 ARG PORT=3000
 EXPOSE ${PORT}
 
 # Comando para iniciar el microservicio.
-# Usa el script start:prod que ejecuta el nodo directamente sobre el archivo compilado.
-CMD ["pnpm", "--filter", "${SERVICE_NAME}", "run", "start:prod"]
+# Ya no necesita 'infisical run' aquí porque las variables de entorno
+# se inyectan directamente desde el docker-compose.
+CMD ["pnpm", "--filter", "payment-service", "run", "start:prod"]
