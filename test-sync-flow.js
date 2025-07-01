@@ -93,7 +93,7 @@ async function testFullFlow() {
     }
 
     const joinResult = await joinGymResponse.json();
-    console.log(`✅ Unido al gimnasio. Membresía ID: ${joinResult.membershipId}`);
+    console.log(`✅ Unido al sgimnasio. Membresía ID: ${joinResult.membershipId}`);
     console.log(`📋 Estado inicial: PENDING_PAYMENT con fechas placeholder\n`);
 
     // 6. Crear checkout de pago
