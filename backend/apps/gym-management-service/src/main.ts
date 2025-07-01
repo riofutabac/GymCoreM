@@ -1,67 +1,97 @@
+// backend/apps/gym-management-service/src/main.ts
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
-import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
-import { AppService } from './app.service';
 import { Logger } from '@nestjs/common';
-
-/**
- * Configura los suscriptores de RabbitMQ manualmente para asegurar
- * que la aplicación esté completamente inicializada antes de empezar a escuchar.
- * Esto previene errores de "carrera de condiciones" en aplicaciones híbridas.
- */
-async function setupRabbitMQListeners(app) {
-  const amqpConnection = app.get(AmqpConnection);
-  const appService = app.get(AppService);
-  const logger = new Logger('RabbitMQ-Setup');
-
-  logger.log('Iniciando configuración de suscriptores de RabbitMQ...');
-
-  await amqpConnection.createSubscriber(
-    appService.handleUserCreated.bind(appService),
-    {
-      exchange: 'gymcore-exchange',
-      routingKey: 'user.created',
-      queue: 'gym-management.user.created',
-      queueOptions: { durable: true },
-    },
-    'user-created-subscriber'
-  );
-  logger.log('✅ Suscriptor para "user.created" configurado.');
-
-  await amqpConnection.createSubscriber(
-    appService.handleUserRoleUpdated.bind(appService),
-    {
-      exchange: 'gymcore-exchange',
-      routingKey: 'user.role.updated',
-      queue: 'gym-management.user.role.updated',
-      queueOptions: { durable: true },
-    },
-    'user-role-updated-subscriber'
-  );
-  logger.log('✅ Suscriptor para "user.role.updated" configurado.');
-  
-  logger.log('Todos los suscriptores están listos y escuchando eventos.');
-}
+import { AllExceptionsFilter } from './all-exceptions.filter';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+import { GymEventsController } from './gym-events.controller';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3002;
+  const config = app.get(ConfigService);
+  const port = config.get<number>('PORT') ?? 3002;
 
-  app.connectMicroservice<MicroserviceOptions>({
+  const micro = app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,
-    options: {
-      host: '0.0.0.0',
-      port: port,
-    },
+    options: { host: '0.0.0.0', port },
   });
 
-  await setupRabbitMQListeners(app);
+  micro.useGlobalFilters(new AllExceptionsFilter());
+
+  // 🔥 REGISTRO MANUAL TEMPORAL DE HANDLERS - hasta que funcione enableControllerDiscovery
+  try {
+    const amqp = app.get(AmqpConnection);
+    const gymEventsController = app.get(GymEventsController);
+    
+    logger.log('🔧 Registrando handlers manualmente...');
+    
+    // Handler para user.created
+    await amqp.createSubscriber(
+      (payload: any) => gymEventsController.handleUserCreated(payload),
+      {
+        exchange: 'gymcore-exchange',
+        routingKey: 'user.created',
+        queue: 'gym-management.user.created',
+        queueOptions: { 
+          durable: true, 
+          arguments: { 
+            'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' 
+          } 
+        },
+      },
+      'handleUserCreated'
+    );
+    
+    // Handler para user.role.updated
+    await amqp.createSubscriber(
+      (payload: any) => gymEventsController.handleUserRoleUpdated(payload),
+      {
+        exchange: 'gymcore-exchange',
+        routingKey: 'user.role.updated',
+        queue: 'gym-management.user.role.updated',
+        queueOptions: { 
+          durable: true, 
+          arguments: { 
+            'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' 
+          } 
+        },
+      },
+      'handleUserRoleUpdated'
+    );
+    
+    // Handler para payment.completed (con manejo de retries)
+    await amqp.createSubscriber(
+      (payload: any, raw: any) => gymEventsController.handlePaymentCompleted(payload, raw),
+      {
+        exchange: 'gymcore-exchange',
+        routingKey: 'payment.completed',
+        queue: 'gym-management.payment.completed',
+        queueOptions: {
+          durable: true,
+          arguments: {
+            'x-dead-letter-exchange': 'gymcore-dead-letter-exchange',
+            'x-dead-letter-routing-key': 'payment.completed.dead',
+          },
+        },
+      },
+      'handlePaymentCompleted'
+    );
+    
+    logger.log('✅ Handlers RabbitMQ registrados manualmente');
+  } catch (error) {
+    logger.error('❌ Error registrando handlers RabbitMQ', error);
+  }
 
   await app.startAllMicroservices();
-  console.log(`Gym Management microservice is listening on port ${port}`);
+  logger.log(`Gym Management Service is running on port ${port}`);
 }
-bootstrap();
+
+bootstrap().catch(err => {
+  console.error('❌ Failed to start Gym Management Service', err);
+  process.exit(1);
+});

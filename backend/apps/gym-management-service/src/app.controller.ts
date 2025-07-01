@@ -55,4 +55,9 @@ export class AppController {
       price: 29.99,
     };
   }
+
+  @MessagePattern({ cmd: 'join_gym' })
+  joinGym(@Payload() payload: { uniqueCode: string; userId: string }) {
+    return this.membershipService.joinGym(payload.uniqueCode, payload.userId);
+  }
 }

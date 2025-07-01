@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   ConflictException,
   Inject,
+  Logger,
 } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
@@ -18,6 +19,7 @@ import { Prisma } from '../prisma/generated/auth-client';
 export class AppService {
   private readonly supabase;
   private readonly supabaseAdmin;
+  private readonly logger = new Logger(AppService.name);
 
   constructor(
     private readonly supabaseService: SupabaseService,
@@ -112,19 +114,22 @@ export class AppService {
       }
 
       // Emitir evento asíncrono via RabbitMQ
+      const payload = {
+        id: authData.user.id,
+        email,
+        firstName,
+        lastName,
+        role: 'MEMBER',
+        gymId: gymId || null,
+      };
+
       await this.amqpConnection.publish(
         'gymcore-exchange',
         'user.created',
-        {
-          id: authData.user.id,
-          email,
-          firstName,
-          lastName,
-          role: 'MEMBER',
-          gymId: gymId || null,
-        },
+        payload,
         { persistent: true }, // <-- Make message persistent
       );
+      this.logger.log(`📤 Evento user.created publicado: ${JSON.stringify(payload)}`);
 
       return {
         id: authData.user.id,

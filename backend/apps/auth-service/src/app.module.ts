@@ -27,11 +27,12 @@ import { PrismaModule } from './prisma/prisma.module';
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
       connectionInitOptions: {
-        wait: false,
-        reject: false,
+        wait: true,
+        reject: process.env.NODE_ENV === 'production' ? true : false,
         timeout: 10000,
       },
       enableControllerDiscovery: true,
+      prefetchCount: 1,
     }),
     ClientsModule.registerAsync([
       {
