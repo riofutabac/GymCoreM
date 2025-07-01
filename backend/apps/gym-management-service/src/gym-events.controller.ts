@@ -21,7 +21,12 @@ export class GymEventsController {
     exchange: 'gymcore-exchange',
     routingKey: 'user.created',
     queue: 'gym-management.user.created',
-    queueOptions: { durable: true, arguments: { 'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' } },
+    queueOptions: { 
+      durable: true, 
+      arguments: { 
+        'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' 
+      } 
+    },
   })
   async handleUserCreated(payload: {
     id: string;
@@ -40,7 +45,12 @@ export class GymEventsController {
     exchange: 'gymcore-exchange',
     routingKey: 'user.role.updated',
     queue: 'gym-management.user.role.updated',
-    queueOptions: { durable: true, arguments: { 'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' } },
+    queueOptions: { 
+      durable: true, 
+      arguments: { 
+        'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' 
+      } 
+    },
   })
   async handleUserRoleUpdated(payload: { userId: string; newRole: string; gymId?: string }) {
     this.logger.log(`🔄 user.role.updated → ${payload.userId}`);
@@ -54,8 +64,10 @@ export class GymEventsController {
     queue: 'gym-management.payment.completed',
     queueOptions: {
       durable: true,
-      deadLetterExchange: 'gymcore-dead-letter-exchange',
-      deadLetterRoutingKey: 'payment.completed.dead',
+      arguments: {
+        'x-dead-letter-exchange': 'gymcore-dead-letter-exchange',
+        'x-dead-letter-routing-key': 'payment.completed.dead',
+      },
     },
   })
   async handlePaymentCompleted(
@@ -76,11 +88,19 @@ export class GymEventsController {
         return new Nack(false);
       }
       this.logger.warn(`Re-publicando para intento #${retry + 1}`);
+      
+      // Backoff exponencial: 10s, 40s, 90s
+      const backoffDelay = 10000 * (retry * retry);
+      
       await this.amqp.publish(
         'gymcore-exchange',
         'payment.completed',
         payload,
-        { expiration: 10000, headers: { 'x-retry-count': retry }, persistent: true },
+        { 
+          expiration: backoffDelay.toString(), // AMQP requiere string
+          headers: { 'x-retry-count': retry }, 
+          persistent: true 
+        },
       );
     }
   }

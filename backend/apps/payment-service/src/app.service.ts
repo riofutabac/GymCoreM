@@ -190,9 +190,16 @@ export class AppService {
     const eventType = body.event_type;
     this.logger.log(`[Webhook] Evento [${eventType}] recibido. ID: ${body.id}`);
 
-    // 1. VALIDACIÓN DE FIRMA (TEMPORALMENTE DESHABILITADA PARA TESTING)
-    // TODO: Reactivar después de configurar correctamente PAYPAL_WEBHOOK_ID
-    const isSignatureValid = true; // await this.verifyPaypalSignature(headers, rawBody);
+    // 1. VALIDACIÓN DE FIRMA (CONFIGURABLE VÍA ENV)
+    const skipSignatureCheck = this.config.get<string>('PAYPAL_SKIP_SIGNATURE') === 'true';
+    let isSignatureValid = true;
+    
+    if (!skipSignatureCheck) {
+      isSignatureValid = await this.verifyPaypalSignature(headers, rawBody);
+      this.logger.log(`[Seguridad] Verificación de firma: ${isSignatureValid ? 'VÁLIDA' : 'INVÁLIDA'}`);
+    } else {
+      this.logger.warn(`[Seguridad] Verificación de firma OMITIDA (PAYPAL_SKIP_SIGNATURE=true)`);
+    }
     if (!isSignatureValid) {
       this.webhookCounter.inc({ event_type: eventType, status: 'invalid_signature' });
       this.logger.warn(`[Seguridad] Firma de Webhook INVÁLIDA. ID: ${body.id}. Petición descartada.`);
@@ -263,5 +270,12 @@ export class AppService {
     this.webhookCounter.inc({ event_type: eventType, status: 'ignored_event' });
     this.logger.log(`Evento [${eventType}] no es de interés. Ignorando.`);
     return { status: 'received_and_ignored' };
+  }
+
+  async getLastPendingPayment() {
+    return this.prisma.payment.findFirst({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }

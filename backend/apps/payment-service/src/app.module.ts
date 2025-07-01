@@ -23,7 +23,11 @@ import { PaypalModule } from './paypal/paypal.module';
         },
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
-      connectionInitOptions: { wait: false },
+      connectionInitOptions: { 
+        wait: true, 
+        reject: process.env.NODE_ENV === 'production' ? true : false,
+        timeout: 10000 
+      },
     }),
     ClientsModule.registerAsync([
       {

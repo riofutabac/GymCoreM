@@ -128,12 +128,17 @@ export class AppController {
     @Req() req: any,
   ) {
     try {
+      this.logger.log(`🛒 Creando checkout para membresía ${dto.membershipId} - Usuario: ${req.user.sub}`);
+      
       const payload = { userId: req.user.sub, membershipId: dto.membershipId };
       const response = await firstValueFrom(
         this.paymentClient.send({ cmd: 'create_checkout_session' }, payload),
       );
+      
+      this.logger.log(`✅ Checkout creado exitosamente. PayPal URL: ${response.approvalUrl}`);
       return response;
     } catch (error) {
+      this.logger.error(`❌ Error creando checkout para membresía ${dto.membershipId}:`, error);
       const status = error?.status || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error?.message || 'Internal server error';
       throw new HttpException(message, status);

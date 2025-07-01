@@ -4,6 +4,8 @@ import {
   UsePipes,
   ValidationPipe,
   Res,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AppService } from './app.service';
@@ -40,16 +42,28 @@ export class AppController {
     res.end(await register.metrics());
   }
 
-  // --- ENDPOINT TEMPORAL PARA TESTING ---
+  // --- ENDPOINT TEMPORAL PARA TESTING (SOLO DESARROLLO) ---
   @Get('test-webhook')
   async testWebhook() {
+    // Proteger endpoint en producción
+    if (process.env.NODE_ENV === 'production') {
+      throw new HttpException('Endpoint no disponible en producción', 404);
+    }
+
+    // Obtener el último pago PENDING para simular su completado
+    const pendingPayment = await this.appService.getLastPendingPayment();
+    
+    if (!pendingPayment) {
+      return { error: 'No hay pagos pendientes para simular' };
+    }
+
     // Simular un webhook de PayPal para testing
     const mockWebhookData = {
       body: {
         id: 'WH-TEST-123',
         event_type: 'CHECKOUT.ORDER.APPROVED',
         resource: {
-          id: 'test-order-id-123', // Debes cambiar esto por un transactionId real de tu DB
+          id: pendingPayment.transactionId, // Usar un transactionId real
         }
       },
       headers: {

@@ -19,7 +19,11 @@ import { PrismaModule } from './prisma/prisma.module';
         { name: 'gymcore-dead-letter-exchange', type: 'fanout', options: { durable: true } },
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
-      connectionInitOptions: { wait: true, timeout: 5000 },
+      connectionInitOptions: { 
+        wait: true, 
+        reject: process.env.NODE_ENV === 'production' ? true : false,
+        timeout: 5000 
+      },
       enableControllerDiscovery: true,
     }),
   ],

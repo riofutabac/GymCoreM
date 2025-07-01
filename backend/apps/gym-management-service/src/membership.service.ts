@@ -114,36 +114,37 @@ export class MembershipService {
 
     if (!membership) {
       this.logger.error(`[Error] Membresía con ID ${payload.membershipId} no fue encontrada en la base de datos.`);
-      // Al lanzar un error, el consumidor @RabbitSubscribe lo capturará y activará la lógica de reintento.
       throw new NotFoundException(`Membresía ${payload.membershipId} no encontrada.`);
     }
 
-    const today = new Date();
-    let newExpirationDate: Date;
+    // La fecha de inicio siempre será la fecha del pago (paidAt)
+    const startDate = new Date(payload.paidAt);
+    let endDate: Date;
 
-    // Lógica para extender la membresía:
-    // Si la membresía ya está activa y su fecha de fin es en el futuro,
-    // se le suma un mes a su fecha de fin actual (renovación).
-    if (membership.status === 'ACTIVE' && membership.endDate > today) {
-      newExpirationDate = new Date(membership.endDate);
-      newExpirationDate.setMonth(newExpirationDate.getMonth() + 1);
-      this.logger.log(`Renovando membresía ${membership.id}.`);
+    // Si la membresía ya está activa y no ha expirado, extendemos desde la fecha actual de fin
+    if (membership.status === 'ACTIVE' && membership.endDate && membership.endDate > new Date()) {
+      this.logger.log(`Renovando membresía ${membership.id} - extendiéndo desde fecha actual de fin`);
+      endDate = new Date(membership.endDate);
+      endDate.setMonth(endDate.getMonth() + 1);
     } else {
-      // Si la membresía está expirada o pendiente, se activa por un mes desde hoy.
-      newExpirationDate = new Date();
-      newExpirationDate.setMonth(today.getMonth() + 1);
-      this.logger.log(`Activando membresía ${membership.id}.`);
+      // Primera activación o reactivación - 30 días desde la fecha de pago
+      this.logger.log(`Activando membresía ${membership.id} - 30 días desde fecha de pago`);
+      endDate = new Date(startDate);
+      endDate.setMonth(startDate.getMonth() + 1);
     }
 
     await this.prisma.membership.update({
       where: { id: payload.membershipId },
       data: {
         status: 'ACTIVE',
-        endDate: newExpirationDate,
+        startDate: startDate,
+        endDate: endDate,
+        // Indicamos que fue activado automáticamente por el sistema de pagos
+        activatedById: null, // Sistema automático, no un manager específico
       },
     });
 
-    this.logger.log(`Nueva fecha de expiración para ${membership.id}: ${newExpirationDate.toISOString()}`);
+    this.logger.log(`✅ Membresía ${membership.id} procesada. Inicio: ${startDate.toISOString()}, Fin: ${endDate.toISOString()}`);
   }
 
   async joinGym(uniqueCode: string, userId: string) {
@@ -156,7 +157,10 @@ export class MembershipService {
 
     if (!gym) {
       this.logger.warn(`Gimnasio no encontrado con código: ${uniqueCode}`);
-      throw new RpcException({ status: 404, message: 'Gimnasio no encontrado con ese código.' });
+      throw new RpcException({ 
+        status: 404, 
+        message: 'Gimnasio no encontrado con ese código.' 
+      });
     }
 
     this.logger.log(`Gimnasio encontrado: ${gym.name} (ID: ${gym.id})`);
@@ -171,19 +175,25 @@ export class MembershipService {
 
     if (existingMembership) {
       this.logger.warn(`Usuario ${userId} ya tiene membresía ${existingMembership.id} en gimnasio ${gym.id} con estado ${existingMembership.status}`);
-      throw new RpcException({ status: 409, message: 'El usuario ya es miembro de este gimnasio.' });
+      throw new RpcException({ 
+        status: 409, 
+        message: 'El usuario ya es miembro de este gimnasio.' 
+      });
     }
 
-    // 3. Crear la membresía en estado PENDIENTE
-    const now = new Date();
+    // 3. Crear la membresía en estado PENDIENTE con fechas placeholder
+    // ⚠️ IMPORTANTE: Las fechas 2000-01-01 son placeholders que se filtran en analytics
+    // TODO: Migrar esquema para permitir startDate/endDate nullable y usar null
+    // TODO: Alternativamente, añadir campo isPlaceholder: boolean para filtrar en reportes
+    const placeholderDate = new Date('2000-01-01T00:00:00.000Z'); // Fecha claramente placeholder
     const newMembership = await this.prisma.membership.create({
       data: {
         userId,
         gymId: gym.id,
         status: 'PENDING_PAYMENT',
-        // Ponemos fechas temporales, se actualizarán con el pago
-        startDate: now,
-        endDate: now,
+        // Fechas placeholder que se actualizarán cuando se complete el pago
+        startDate: placeholderDate,
+        endDate: placeholderDate,
       },
     });
 
