@@ -145,19 +145,21 @@ export class AppController {
     }
   }
 
-  // --- AÑADE ESTE MÉTODO COMPLETO ---
+  // --- WEBHOOK PAYPAL CON VERIFICACIÓN DE FIRMA ---
   @All('payments/paypal/webhook')
   @HttpCode(HttpStatus.OK) // Siempre respondemos 200 a PayPal para que no reintente
   async paypalWebhookProxy(@Req() req: any, @Headers() headers: any): Promise<any> {
     try {
-      // Reenviamos el cuerpo, las cabeceras y el importantísimo rawBody
+      this.logger.log(`🔔 Webhook PayPal recibido. Event: ${req.body?.event_type || 'unknown'}`);
+      
+      // Reenviamos el cuerpo, las cabeceras y el rawBody convertido a string UTF-8
       return await firstValueFrom(
         this.paymentClient.send(
           { cmd: 'handle_paypal_webhook' },
           {
             body: req.body,
             headers,
-            rawBody: req.rawBody, // La clave para la validación
+            rawBody: req.rawBody.toString('utf8'), // ← CONVERSIÓN A STRING PARA VERIFICACIÓN
           },
         ),
       );
@@ -166,7 +168,7 @@ export class AppController {
       const status = typeof err.status === 'number' ? err.status : HttpStatus.INTERNAL_SERVER_ERROR;
       const message = err.message || 'Error en webhook';
       
-      this.logger.error('Error en webhook PayPal:', err);
+      this.logger.error('❌ Error en webhook PayPal:', err);
       
       throw new HttpException(message, status);
     }

@@ -8,6 +8,7 @@ import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import * as paypal from '@paypal/checkout-server-sdk';
 import { firstValueFrom } from 'rxjs';
 import { Counter, register } from 'prom-client';
+// Usamos fetch nativo de Node.js 18+
 
 interface MembershipDetails {
   id: string;
@@ -118,16 +119,19 @@ export class AppService {
     return { approvalUrl: approvalLink.href };
   }
 
-  // --- NUEVO MÉTODO PARA VALIDAR FIRMA ---
-  private async verifyPaypalSignature(headers: any, rawBody: Buffer): Promise<boolean> {
+  // --- VERIFICACIÓN DE FIRMA MANUAL CON FETCH ---
+  private async verifyPaypalSignature(
+    headers: Record<string, string>,
+    rawBody: string
+  ): Promise<boolean> {
     try {
-      // Verificar que tenemos todas las cabeceras necesarias
+      // 1) Validar que tenemos todas las cabeceras necesarias
       const requiredHeaders = [
-        'paypal-auth-algo',
-        'paypal-cert-url', 
         'paypal-transmission-id',
-        'paypal-transmission-sig',
-        'paypal-transmission-time'
+        'paypal-transmission-time',
+        'paypal-cert-url',
+        'paypal-auth-algo',
+        'paypal-transmission-sig'
       ];
 
       for (const header of requiredHeaders) {
@@ -137,33 +141,52 @@ export class AppService {
         }
       }
 
+      // 2) Obtener access token usando el SDK
+      const accessTokenRequest = new paypal.core.AccessTokenRequest(this.paypalSvc.client.environment);
+      const accessTokenResponse: any = await this.paypalSvc.client.execute(accessTokenRequest);
+      const accessToken = accessTokenResponse.result.access_token;
+
+      // 3) Verificar que tenemos el webhook ID configurado
       const webhookId = this.config.get<string>('PAYPAL_WEBHOOK_ID');
       if (!webhookId) {
         this.logger.error('PAYPAL_WEBHOOK_ID no configurado');
         return false;
       }
 
-      // Crear la petición de verificación usando la clase correcta
-      const request = {
-        method: 'POST',
-        path: '/v1/notifications/verify-webhook-signature',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await this.getAccessToken()}`
-        },
-        body: JSON.stringify({
-          auth_algo: headers['paypal-auth-algo'],
-          cert_url: headers['paypal-cert-url'],
-          transmission_id: headers['paypal-transmission-id'],
-          transmission_sig: headers['paypal-transmission-sig'],
-          transmission_time: headers['paypal-transmission-time'],
-          webhook_id: webhookId,
-          webhook_event: JSON.parse(rawBody.toString())
-        })
-      };
+      // 4) Determinar la URL de la API de PayPal
+      const paypalApiUrl = this.config.get<string>('PAYPAL_API') || 'https://api-m.sandbox.paypal.com';
 
-      const response = await this.paypalSvc.client.execute(request);
-      return response.result?.verification_status === 'SUCCESS';
+      // 5) Llamada manual a la API de verificación
+      const response = await fetch(
+        `${paypalApiUrl}/v1/notifications/verify-webhook-signature`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            transmission_id: headers['paypal-transmission-id'],
+            transmission_time: headers['paypal-transmission-time'],
+            cert_url: headers['paypal-cert-url'],
+            auth_algo: headers['paypal-auth-algo'],
+            transmission_sig: headers['paypal-transmission-sig'],
+            webhook_id: webhookId,
+            webhook_event: JSON.parse(rawBody),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json() as { message?: string; details?: any };
+        this.logger.error('PayPal verify-webhook-signature falló:', errorData);
+        return false;
+      }
+
+      const responseData = await response.json() as { verification_status: string };
+      const { verification_status } = responseData;
+      this.logger.log(`[Verificación PayPal] Status: ${verification_status}`);
+      return verification_status === 'SUCCESS';
       
     } catch (error) {
       this.logger.error('Error al verificar la firma del webhook de PayPal', error);
@@ -172,23 +195,11 @@ export class AppService {
     }
   }
 
-  // Método auxiliar para obtener access token
-  private async getAccessToken(): Promise<string> {
-    try {
-      const request = new paypal.core.AccessTokenRequest(this.paypalSvc.client.environment);
-      const response = await this.paypalSvc.client.execute(request);
-      return response.result.access_token;
-    } catch (error) {
-      this.logger.error('Error obteniendo access token de PayPal', error);
-      throw error;
-    }
-  }
-
-  // --- LÓGICA DEL WEBHOOK ACTUALIZADA ---
-  async handlePaypalWebhook(data: { body: any; headers: any; rawBody: Buffer }) {
+  // --- LÓGICA DEL WEBHOOK SIMPLIFICADA ---
+  async handlePaypalWebhook(data: { body: any; headers: any; rawBody: string }) {
     const { body, headers, rawBody } = data;
     const eventType = body.event_type;
-    this.logger.log(`[Webhook] Evento [${eventType}] recibido. ID: ${body.id}`);
+    this.logger.log(`[Webhook] Evento ${eventType} recibido. ID: ${body.id}`);
 
     // 1. VALIDACIÓN DE FIRMA (CONFIGURABLE VÍA ENV)
     const skipSignatureCheck = this.config.get<string>('PAYPAL_SKIP_SIGNATURE') === 'true';
@@ -198,17 +209,17 @@ export class AppService {
       isSignatureValid = await this.verifyPaypalSignature(headers, rawBody);
       this.logger.log(`[Seguridad] Verificación de firma: ${isSignatureValid ? 'VÁLIDA' : 'INVÁLIDA'}`);
     } else {
-      this.logger.warn(`[Seguridad] Verificación de firma OMITIDA (PAYPAL_SKIP_SIGNATURE=true)`);
+      this.logger.warn('[Seguridad] Verificación de firma OMITIDA (PAYPAL_SKIP_SIGNATURE=true)');
     }
+    
     if (!isSignatureValid) {
       this.webhookCounter.inc({ event_type: eventType, status: 'invalid_signature' });
       this.logger.warn(`[Seguridad] Firma de Webhook INVÁLIDA. ID: ${body.id}. Petición descartada.`);
       return { status: 'ignored_invalid_signature' };
     }
-    this.logger.log(`[Seguridad] Firma del Webhook [${body.id}] validada correctamente (modo testing).`);
 
     // 2. PREVENCIÓN DE REPLAY ATTACKS (SEGURIDAD)
-    const transmissionTime = new Date(headers['paypal-transmission-time']).getTime();
+    const transmissionTime = Date.parse(headers['paypal-transmission-time']);
     const fiveMinutesInMillis = 5 * 60 * 1000;
     if (Date.now() - transmissionTime > fiveMinutesInMillis) {
       this.webhookCounter.inc({ event_type: eventType, status: 'expired_timestamp' });
@@ -239,13 +250,12 @@ export class AppService {
         return { status: 'already_processed' };
       }
 
-      // 4. PUBLICAR EVENTO "PAYMENT_COMPLETED" (ESCALABILIDAD)
+      // 4. ACTUALIZAR PAGO Y PUBLICAR EVENTO
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { status: 'COMPLETED', completedAt: new Date() },
       });
 
-      // Publicamos el evento a RabbitMQ
       await this.amqpConnection.publish(
         'gymcore-exchange',
         'payment.completed',

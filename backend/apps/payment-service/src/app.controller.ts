@@ -28,10 +28,10 @@ export class AppController {
     return this.appService.createCheckoutSession(dto);
   }
 
-  // --- MODIFICAR ESTE MÉTODO ---
+  // --- WEBHOOK CON VERIFICACIÓN DE FIRMA USANDO SDK ---
   @MessagePattern({ cmd: 'handle_paypal_webhook' })
-  handleWebhook(@Payload() data: { body: any; headers: any; rawBody: Buffer }) {
-    // Pasamos el cuerpo, las cabeceras y el rawBody al servicio
+  handleWebhook(@Payload() data: { body: any; headers: any; rawBody: string }) {
+    // Pasamos el cuerpo, las cabeceras y el rawBody (como string) al servicio
     return this.appService.handlePaypalWebhook(data);
   }
 
@@ -58,18 +58,24 @@ export class AppController {
     }
 
     // Simular un webhook de PayPal para testing
+    const mockWebhookBody = {
+      id: 'WH-TEST-123',
+      event_type: 'CHECKOUT.ORDER.APPROVED',
+      resource: {
+        id: pendingPayment.transactionId, // Usar un transactionId real
+      }
+    };
+
     const mockWebhookData = {
-      body: {
-        id: 'WH-TEST-123',
-        event_type: 'CHECKOUT.ORDER.APPROVED',
-        resource: {
-          id: pendingPayment.transactionId, // Usar un transactionId real
-        }
-      },
+      body: mockWebhookBody,
       headers: {
         'paypal-transmission-time': new Date().toISOString(),
+        'paypal-auth-algo': 'SHA256withRSA',
+        'paypal-cert-url': 'https://api.sandbox.paypal.com/v1/notifications/certs/CERT-TEST',
+        'paypal-transmission-id': 'test-transmission-id',
+        'paypal-transmission-sig': 'test-signature',
       },
-      rawBody: Buffer.from('{}')
+      rawBody: JSON.stringify(mockWebhookBody), // ← AHORA ES STRING
     };
 
     return this.appService.handlePaypalWebhook(mockWebhookData);
