@@ -13,6 +13,9 @@ import {
   HttpException,
   UsePipes,
   ValidationPipe,
+  All,
+  Headers,
+  Logger, // <-- AÑADE ESTO
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
@@ -25,6 +28,8 @@ import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 
 @Controller('v1') // Prefijo para todas las rutas de este controlador
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   constructor(
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
@@ -130,6 +135,33 @@ export class AppController {
     } catch (error) {
       const status = error?.status || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error?.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
+  }
+
+  // --- AÑADE ESTE MÉTODO COMPLETO ---
+  @All('payments/paypal/webhook')
+  @HttpCode(HttpStatus.OK) // Siempre respondemos 200 a PayPal para que no reintente
+  async paypalWebhookProxy(@Req() req: any, @Headers() headers: any): Promise<any> {
+    try {
+      // Reenviamos el cuerpo, las cabeceras y el importantísimo rawBody
+      return await firstValueFrom(
+        this.paymentClient.send(
+          { cmd: 'handle_paypal_webhook' },
+          {
+            body: req.body,
+            headers,
+            rawBody: req.rawBody, // La clave para la validación
+          },
+        ),
+      );
+    } catch (err: any) {
+      // Manejar errores RPC correctamente
+      const status = typeof err.status === 'number' ? err.status : HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = err.message || 'Error en webhook';
+      
+      this.logger.error('Error en webhook PayPal:', err);
+      
       throw new HttpException(message, status);
     }
   }

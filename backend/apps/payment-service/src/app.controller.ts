@@ -1,15 +1,15 @@
 import {
   Controller,
   Get,
-  Post,
-  Body,
-  Headers,
   UsePipes,
   ValidationPipe,
+  Res,
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AppService } from './app.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
+import { register } from 'prom-client';
+import { Response } from 'express';
 
 @Controller()
 export class AppController {
@@ -26,16 +26,38 @@ export class AppController {
     return this.appService.createCheckoutSession(dto);
   }
 
+  // --- MODIFICAR ESTE MÉTODO ---
   @MessagePattern({ cmd: 'handle_paypal_webhook' })
-  handleWebhook(@Payload() payload: { body: any; signature: string }) {
-    return this.appService.handlePaypalWebhook(payload.body, payload.signature);
+  handleWebhook(@Payload() data: { body: any; headers: any; rawBody: Buffer }) {
+    // Pasamos el cuerpo, las cabeceras y el rawBody al servicio
+    return this.appService.handlePaypalWebhook(data);
   }
 
-  @Post('paypal/webhook')
-  handleWebhookHttp(
-    @Body() body: any,
-    @Headers('paypal-transmission-sig') signature: string,
-  ) {
-    return this.appService.handlePaypalWebhook(body, signature);
+  // --- AÑADIR ESTE NUEVO MÉTODO PARA PROMETHEUS ---
+  @Get('metrics')
+  async getMetrics(@Res() res: Response) {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  }
+
+  // --- ENDPOINT TEMPORAL PARA TESTING ---
+  @Get('test-webhook')
+  async testWebhook() {
+    // Simular un webhook de PayPal para testing
+    const mockWebhookData = {
+      body: {
+        id: 'WH-TEST-123',
+        event_type: 'CHECKOUT.ORDER.APPROVED',
+        resource: {
+          id: 'test-order-id-123', // Debes cambiar esto por un transactionId real de tu DB
+        }
+      },
+      headers: {
+        'paypal-transmission-time': new Date().toISOString(),
+      },
+      rawBody: Buffer.from('{}')
+    };
+
+    return this.appService.handlePaypalWebhook(mockWebhookData);
   }
 }
