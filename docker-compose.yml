@@ -94,6 +94,23 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  notification-service:
+    container_name: gymcore-notification-service
+    build:
+      context: .
+      dockerfile: backend/apps/notification-service/Dockerfile
+      args:
+        SERVICE_NAME: notification-service
+        PORT: 3007
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+    command: sh -c "pnpm --filter notification-service run start:prod"
+    env_file: .env
+    networks:
+      - gymcore-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   #--- Frontend Service ---#
  
 #--- Red ---#

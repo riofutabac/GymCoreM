@@ -1,98 +1,217 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 📧 GymCore Notification Service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A robust microservice for handling email notifications in the GymCore ecosystem. This service integrates with SendGrid for email delivery and listens to RabbitMQ events for triggering notifications.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🚀 Features
 
-## Description
+- **SendGrid Integration**: Professional email delivery with dynamic templates
+- **RabbitMQ Event Handling**: Asynchronous event-driven architecture
+- **Multiple Email Types**: Membership activation, payment failures, and more
+- **Infisical Secret Management**: Secure credential handling
+- **Testing Endpoints**: HTTP endpoints for easy testing and debugging
+- **Docker Support**: Containerized deployment ready
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 📋 Prerequisites
 
-## Project setup
+Before setting up the notification service, ensure you have:
 
-```bash
-$ pnpm install
+1. **SendGrid Account**: Sign up at [sendgrid.com](https://sendgrid.com) (free tier available)
+2. **Infisical Account**: For production secret management
+3. **RabbitMQ**: Running instance (included in docker-compose)
+
+## 🔧 Configuration
+
+### Step 1: SendGrid Setup
+
+1. **Create SendGrid Account**
+   - Visit [sendgrid.com](https://sendgrid.com) and register
+   - Verify your email address
+
+2. **Generate API Key**
+   - Go to Settings → API Keys
+   - Click "Create API Key"
+   - Name it "GymCore_Notifier"
+   - Select "Full Access"
+   - **Save the key securely - you won't see it again!**
+
+3. **Verify Sender Email**
+   - Go to Settings → Sender Authentication
+   - Add and verify the email address you'll send from
+   - Example: `no-reply@yourdomain.com`
+
+4. **Create Email Templates (Optional)**
+   - Go to Email API → Dynamic Templates
+   - Create templates for:
+     - Membership Activation: `gymcore-membership-activated`
+     - Payment Failed: `gymcore-payment-failed`
+   - Copy the template IDs (format: `d-xxxxxxxxx`)
+
+### Step 2: Environment Variables
+
+Create a `.env` file based on `.env.example`:
+
+```env
+# SendGrid Configuration
+SENDGRID_API_KEY=SG.your_actual_api_key_here
+SENDGRID_FROM_EMAIL=no-reply@yourdomain.com
+
+# Optional: Template IDs (uses defaults if not provided)
+SENDGRID_MEMBERSHIP_ACTIVATED_TEMPLATE_ID=d-your_template_id_here
+SENDGRID_PAYMENT_FAILED_TEMPLATE_ID=d-your_template_id_here
+
+# RabbitMQ Configuration
+MESSAGE_BUS_URL=amqp://localhost:5672
+
+# Service Configuration
+PORT=3007
+RUN_HTTP_SERVER=true  # Set to true for testing
 ```
 
-## Compile and run the project
+### Step 3: Infisical Setup (Production)
+
+For production deployments, add these secrets to your Infisical project:
+
+| Key | Value | Description |
+|-----|-------|-------------|
+| `SENDGRID_API_KEY` | Your SendGrid API key | Required for email sending |
+| `SENDGRID_FROM_EMAIL` | Verified sender email | Must be verified in SendGrid |
+| `SENDGRID_MEMBERSHIP_ACTIVATED_TEMPLATE_ID` | Template ID | Optional, uses default if not set |
+| `SENDGRID_PAYMENT_FAILED_TEMPLATE_ID` | Template ID | Optional, uses default if not set |
+
+## 🏃‍♂️ Running the Service
+
+### Development Mode
 
 ```bash
-# development
-$ pnpm run start
+# Install dependencies (from workspace root)
+pnpm install
 
-# watch mode
-$ pnpm run start:dev
+# Start with HTTP server for testing
+RUN_HTTP_SERVER=true pnpm --filter notification-service run start:dev
 
-# production mode
-$ pnpm run start:prod
+# Or start as background service (production mode)
+pnpm --filter notification-service run start:dev
 ```
 
-## Run tests
+### Docker Mode
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+# From workspace root
+docker-compose up notification-service
 ```
 
-## Deployment
+## 🧪 Testing
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Test Email Endpoint
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+With `RUN_HTTP_SERVER=true`, you can test email delivery:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# Send test email
+curl -X POST http://localhost:3007/test-email \
+  -H "Content-Type: application/json" \
+  -d '{"email": "your-email@example.com"}'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Health Check
 
-## Resources
+```bash
+curl http://localhost:3007/health
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### Event Testing
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+The service automatically handles these RabbitMQ events:
 
-## Support
+- **`payment.completed`**: Triggers membership activation email
+- **`payment.failed`**: Triggers payment failure email
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 📨 Email Templates
 
-## Stay in touch
+### Template Variables
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+**Membership Activation:**
+```handlebars
+Hello {{name}}!
 
-## License
+Your membership #{{membershipId}} has been activated.
+Type: {{membershipType}}
+Activation Date: {{activationDate}}
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+**Payment Failed:**
+```handlebars
+Dear {{name}},
+
+We couldn't process your payment for membership #{{membershipId}}.
+Amount: {{amount}}
+Reason: {{failureReason}}
+Date: {{failureDate}}
+```
+
+## 📊 Monitoring
+
+The service logs all email events:
+
+- ✅ Successful email deliveries
+- ❌ Failed email attempts
+- 📧 Email service initialization
+- 🐰 RabbitMQ event processing
+
+## 🔒 Security
+
+- All secrets managed through Infisical
+- No hardcoded credentials
+- Secure SendGrid API integration
+- Environment-based configuration
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **SendGrid 401 Unauthorized**
+   - Check your API key is correct
+   - Ensure API key has proper permissions
+
+2. **SendGrid 403 Forbidden**
+   - Verify your sender email in SendGrid
+   - Check sender authentication setup
+
+3. **Template Not Found**
+   - Verify template IDs are correct
+   - Check template is published in SendGrid
+
+4. **RabbitMQ Connection Issues**
+   - Ensure RabbitMQ is running
+   - Check MESSAGE_BUS_URL configuration
+
+### Debug Mode
+
+Enable detailed logging:
+
+```bash
+DEBUG=* pnpm --filter notification-service run start:dev
+```
+
+## 🚀 Deployment
+
+The service is production-ready with:
+
+- Docker containerization
+- Infisical secret management
+- Health checks
+- Graceful shutdown handling
+- Error logging and monitoring
+
+## 📝 API Reference
+
+### Endpoints
+
+- `GET /` - Service status
+- `GET /health` - Health check
+- `POST /test-email` - Send test email (when RUN_HTTP_SERVER=true)
+
+### Events Handled
+
+- `gymcore-exchange` → `payment.completed`
+- `gymcore-exchange` → `payment.failed`
