@@ -25,6 +25,7 @@ import { Roles } from './auth/roles.decorator';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
 import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
+import { JoinGymDto } from './dto/join-gym.dto';
 
 @Controller('v1') // Prefijo para todas las rutas de este controlador
 export class AppController {
@@ -164,5 +165,19 @@ export class AppController {
       
       throw new HttpException(message, status);
     }
+  }
+
+  // --- AÑADE ESTE NUEVO MÉTODO COMPLETO ---
+  @UseGuards(JwtAuthGuard) // <-- Protegido, necesitamos saber qué usuario es
+  @Post('gyms/join')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async joinGym(@Body() dto: JoinGymDto, @Req() req: any) {
+    const userId = req.user.sub; // Obtenemos el ID del usuario del token JWT
+    const payload = { uniqueCode: dto.uniqueCode, userId };
+    
+    return await firstValueFrom(
+      this.gymClient.send({ cmd: 'join_gym' }, payload),
+    );
   }
 }

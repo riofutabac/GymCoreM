@@ -51,7 +51,7 @@ export class EmailService {
         templateId:
           this.config.get<string>(
             'SENDGRID_MEMBERSHIP_ACTIVATED_TEMPLATE_ID',
-          ) ?? 'd-YOUR_MEMBERSHIP_ACTIVATED_TEMPLATE_ID',
+          ) ?? 'd-0acea7d5b5754616bfc882ac9470c757',
         dynamicTemplateData: {
           ...data,
           activationDate:

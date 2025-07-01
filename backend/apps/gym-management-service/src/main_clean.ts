@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
-import { Logger } from '@nestjs/common';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { AppService } from './app.service';
@@ -25,7 +24,6 @@ interface RoleUpdatePayload {
 }
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
@@ -52,7 +50,7 @@ async function bootstrap() {
     const amqpConnection = app.get<AmqpConnection>(AmqpConnection);
     const appService = app.get<AppService>(AppService);
 
-    logger.log('Configurando suscriptores de RabbitMQ...');
+    console.log('🔌 Configurando suscriptores de RabbitMQ...');
 
     // Suscriptor para eventos de creación de usuarios
     await amqpConnection.createSubscriber(
@@ -94,19 +92,18 @@ async function bootstrap() {
       'user.role.updated',
     );
 
-    logger.log('Suscriptores RabbitMQ configurados correctamente');
+    console.log('✅ Suscriptores RabbitMQ configurados correctamente');
   } catch (error) {
-    logger.error('Error configurando suscriptores de RabbitMQ:', error);
+    console.error('❌ Error configurando suscriptores de RabbitMQ:', error);
     // No detenemos la aplicación, pero sí logueamos el error
   }
 
   // Iniciar todos los microservicios
   await app.startAllMicroservices();
-  logger.log(`Gym Management Service ejecutándose en puerto ${port}`);
+  console.log(`🚀 Gym Management Service ejecutándose en puerto ${port}`);
 }
 
 bootstrap().catch((error) => {
-  const logger = new Logger('Bootstrap');
-  logger.error('Error starting application:', error);
+  console.error('Error starting application:', error);
   process.exit(1);
 });

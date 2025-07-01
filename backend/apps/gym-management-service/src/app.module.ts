@@ -29,8 +29,8 @@ import { PrismaModule } from './prisma/prisma.module';
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
       connectionInitOptions: { wait: true, timeout: 5000 },
-      // Habilita el descubrimiento de @RabbitSubscribe en los controladores
-      enableControllerDiscovery: true,
+      // Deshabilitamos el descubrimiento automático porque configuramos manualmente
+      enableControllerDiscovery: false,
     }),
   ],
   controllers: [AppController],
