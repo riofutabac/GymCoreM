@@ -48,7 +48,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # Instala pnpm para poder ejecutar los scripts de start:prod
-RUN npm install -g pnpm
+RUN npm install -g pnpm @infisical/cli
 
 # Copia solo los archivos de manifiesto necesarios para ejecutar los scripts.
 COPY package.json ./
