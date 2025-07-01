@@ -15,7 +15,9 @@ export class GymEventsController {
     private readonly appService: AppService,
     private readonly membershipService: MembershipService,
     private readonly amqp: AmqpConnection,
-  ) {}
+  ) {
+    this.logger.log('🚀 GymEventsController instanciado - debería registrar handlers');
+  }
 
   @RabbitSubscribe({
     exchange: 'gymcore-exchange',

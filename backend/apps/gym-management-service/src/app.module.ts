@@ -11,23 +11,37 @@ import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: './.env' }),
+    // Configuración global de variables de entorno
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: './.env',
+    }),
+
+    // Módulo de Prisma para acceso a BD
     PrismaModule,
+
+    // Configuración de RabbitMQ
     RabbitMQModule.forRoot({
       exchanges: [
-        { name: 'gymcore-exchange', type: 'topic', options: { durable: true } },
-        { name: 'gymcore-dead-letter-exchange', type: 'fanout', options: { durable: true } },
+        {
+          name: 'gymcore-exchange',
+          type: 'topic',
+          options: { durable: true },
+        },
+        {
+          name: 'gymcore-dead-letter-exchange',
+          type: 'fanout',
+          options: { durable: true },
+        },
       ],
-      uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
-      connectionInitOptions: { 
-        wait: true, 
-        reject: process.env.NODE_ENV === 'production' ? true : false,
-        timeout: 5000 
-      },
+      uri: process.env.MESSAGE_BUS_URL ?? 'amqp://localhost:5672',
       enableControllerDiscovery: true,
     }),
   ],
-  controllers: [AppController, GymEventsController],
+  controllers: [
+    AppController, // tus endpoints HTTP/tcp
+    GymEventsController, // aquí están los @RabbitSubscribe
+  ],
   providers: [AppService, MembershipService],
 })
 export class AppModule {}

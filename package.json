@@ -6,7 +6,7 @@
   "scripts": {
     "sync:users": "infisical run --path=/auth-service -- pnpm exec ts-node backend/apps/auth-service/src/resync-users.ts",
     "dev": "pnpm --parallel --stream -r run dev",
-    "dev:all": "concurrently \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:payments\" \"pnpm dev:notifications\" \"pnpm dev:frontend\"",
+    "dev:all": "concurrently \"pnpm dev:gateway\" \"pnpm dev:gyms\"  \"pnpm dev:payments\" \"pnpm dev:notifications\" \"pnpm dev:auth\" ",
     "dev:gateway": "infisical run --path=/api-gateway -- pnpm --filter api-gateway run start:dev",
     "dev:auth": "infisical run --path=/auth-service -- pnpm --filter auth-service run start:dev",
     "dev:gyms": "infisical run --path=/gym-management-service -- pnpm --filter gym-management-service run start:dev",

@@ -32,6 +32,7 @@ import { PrismaModule } from './prisma/prisma.module';
         timeout: 10000,
       },
       enableControllerDiscovery: true,
+      prefetchCount: 1,
     }),
     ClientsModule.registerAsync([
       {
