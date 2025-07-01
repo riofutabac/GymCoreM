@@ -29,8 +29,8 @@ import { PrismaModule } from './prisma/prisma.module';
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
       connectionInitOptions: { wait: true, timeout: 5000 },
-      // Deshabilitamos el descubrimiento automático porque configuramos manualmente
-      enableControllerDiscovery: false,
+      // Habilitamos el descubrimiento automático para que NestJS encuentre los @RabbitSubscribe
+      enableControllerDiscovery: true,
     }),
   ],
   controllers: [AppController],

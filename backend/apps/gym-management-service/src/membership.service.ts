@@ -144,7 +144,9 @@ export class MembershipService {
     });
 
     this.logger.log(`Nueva fecha de expiración para ${membership.id}: ${newExpirationDate.toISOString()}`);
-  }  async joinGym(uniqueCode: string, userId: string) {
+  }
+
+  async joinGym(uniqueCode: string, userId: string) {
     this.logger.log(`Usuario ${userId} intenta unirse a gimnasio con código ${uniqueCode}`);
 
     // 1. Buscar el gimnasio por su código único
