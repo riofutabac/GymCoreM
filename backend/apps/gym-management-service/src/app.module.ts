@@ -20,9 +20,17 @@ import { PrismaModule } from './prisma/prisma.module';
           type: 'topic',
           options: { durable: true },
         },
+        // Exchange para los mensajes "muertos" (fallidos)
+        {
+          name: 'gymcore-dead-letter-exchange',
+          type: 'fanout', // fanout es simple y efectivo para DLQs
+          options: { durable: true },
+        },
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
       connectionInitOptions: { wait: true, timeout: 5000 },
+      // Habilita el descubrimiento de @RabbitSubscribe en los controladores
+      enableControllerDiscovery: true,
     }),
   ],
   controllers: [AppController],

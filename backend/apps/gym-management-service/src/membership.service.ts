@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
@@ -6,6 +6,8 @@ import { Role } from '../prisma/generated/gym-client';
 
 @Injectable()
 export class MembershipService {
+  private readonly logger = new Logger(MembershipService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async activate(dto: ActivateMembershipDto, managerId: string) {
@@ -102,5 +104,44 @@ export class MembershipService {
     if (manager.role === Role.MANAGER && manager.gymId !== gymId) {
       throw new ForbiddenException('Manager can only operate in their assigned gym');
     }
+  }
+
+  async processPaidMembership(payload: { userId: string; membershipId: string; paidAt: string }) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { id: payload.membershipId },
+    });
+
+    if (!membership) {
+      this.logger.error(`[Error] Membresía con ID ${payload.membershipId} no fue encontrada en la base de datos.`);
+      // Al lanzar un error, el consumidor @RabbitSubscribe lo capturará y activará la lógica de reintento.
+      throw new NotFoundException(`Membresía ${payload.membershipId} no encontrada.`);
+    }
+
+    const today = new Date();
+    let newExpirationDate: Date;
+
+    // Lógica para extender la membresía:
+    // Si la membresía ya está activa y su fecha de fin es en el futuro,
+    // se le suma un mes a su fecha de fin actual (renovación).
+    if (membership.status === 'ACTIVE' && membership.endDate > today) {
+      newExpirationDate = new Date(membership.endDate);
+      newExpirationDate.setMonth(newExpirationDate.getMonth() + 1);
+      this.logger.log(`Renovando membresía ${membership.id}.`);
+    } else {
+      // Si la membresía está expirada o pendiente, se activa por un mes desde hoy.
+      newExpirationDate = new Date();
+      newExpirationDate.setMonth(today.getMonth() + 1);
+      this.logger.log(`Activando membresía ${membership.id}.`);
+    }
+
+    await this.prisma.membership.update({
+      where: { id: payload.membershipId },
+      data: {
+        status: 'ACTIVE',
+        endDate: newExpirationDate,
+      },
+    });
+
+    this.logger.log(`Nueva fecha de expiración para ${membership.id}: ${newExpirationDate.toISOString()}`);
   }
 }
