@@ -1,37 +1,76 @@
-import { Catch, RpcExceptionFilter, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { Observable, throwError } from 'rxjs';
+// backend/apps/api-gateway/src/rpc-exception.filter.ts
 
-@Catch(RpcException)
-export class CustomRpcExceptionFilter implements RpcExceptionFilter<RpcException> {
-  catch(exception: RpcException, host: ArgumentsHost): Observable<any> {
-    const rpcError = exception.getError();
+import {
+  Catch,
+  ExceptionFilter,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
+import { Response } from 'express';
+
+@Catch() // Captura TODOS los errores
+export class CustomRpcExceptionFilter implements ExceptionFilter {
+  catch(exception: any, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
 
     let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'An internal server error occurred.';
+    let message = 'Ocurrió un error inesperado en un servicio interno.';
 
-    // Check if rpcError is an object and not null
-    if (typeof rpcError === 'object' && rpcError !== null) {
-      
-      // ONLY use rpcError.status IF IT'S A VALID HTTP status code number
-      if (typeof rpcError['status'] === 'number' && rpcError['status'] >= 100 && rpcError['status'] < 600) {
-        httpStatus = rpcError['status'];
+    if (exception instanceof RpcException) {
+      const result = this.handleRpcException(exception);
+      httpStatus = result.status;
+      message = result.message;
+    } else if (exception instanceof HttpException) {
+      const result = this.handleHttpException(exception);
+      httpStatus = result.status;
+      message = result.message;
+    } else {
+      // Manejo de errores genéricos
+      if (exception.message) {
+        message = exception.message;
       }
-      
-      // Use the message if available
+      if (exception.status && typeof exception.status === 'number') {
+        httpStatus = exception.status;
+      }
+    }
+
+    response.status(httpStatus).json({
+      statusCode: httpStatus,
+      message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private handleRpcException(exception: RpcException): { status: number; message: string } {
+    const rpcError = exception.getError();
+
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Ocurrió un error inesperado en un servicio interno.';
+
+    if (typeof rpcError === 'object' && rpcError !== null) {
+      if (typeof rpcError['status'] === 'number' && rpcError['status'] >= 100 && rpcError['status'] < 600) {
+        status = rpcError['status'];
+      }
       if (typeof rpcError['message'] === 'string') {
         message = rpcError['message'];
+      } else if (rpcError['error'] && typeof rpcError['error'] === 'string') {
+        message = rpcError['error'];
       }
-
     } else if (typeof rpcError === 'string') {
-      // If the error is just a string
       message = rpcError;
     }
 
-    // Now we're sure httpStatus is a valid number before throwing the exception
-    return throwError(() => new HttpException({
-      statusCode: httpStatus,
-      message,
-    }, httpStatus));
+    return { status, message };
+  }
+
+  private handleHttpException(exception: HttpException): { status: number; message: string } {
+    const status = exception.getStatus();
+    const errorResponse = exception.getResponse();
+    const message = typeof errorResponse === 'string' ? errorResponse : errorResponse['message'] ?? 'Error interno';
+
+    return { status, message };
   }
 }

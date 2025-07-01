@@ -1,21 +1,119 @@
-# docker-compose.dev.yml
-# Este archivo es SOLO para levantar las dependencias necesarias para el desarrollo local.
-
+# docker-compose.prod.yml
 version: '3.8'
 
 services:
-  # Broker RabbitMQ con UI de gestión
+  #--- Dependencias Base ---#
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: gymcore-dev-rabbitmq
+    container_name: gymcore-rabbitmq
     ports:
-      # Puerto para que tus servicios locales se conecten
       - "5672:5672"
-      # Puerto para la interfaz web de administración
       - "15672:15672"
     networks:
-      - gymcore-dev-net
+      - gymcore-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # #--- Backend Microservices ---#
+  # api-gateway:
+  #   container_name: gymcore-api-gateway
+  #   build:
+  #     context: .
+  #     dockerfile: backend/apps/api-gateway/Dockerfile
+  #     args:
+  #       SERVICE_NAME: api-gateway
+  #       PORT: 3000
+  #       INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+  #   command: sh -c "pnpm db:generate:all && pnpm --filter api-gateway run start:prod"
+  #   ports:
+  #     - "3000:3000"
+  #   env_file: .env
+  #   networks:
+  #     - gymcore-net
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     auth-service:
+  #       condition: service_started
+  #     gym-management-service:
+  #       condition: service_started
+  #     payment-service:
+  #       condition: service_started
+
+  # auth-service:
+  #   container_name: gymcore-auth-service
+  #   build:
+  #     context: .
+  #     dockerfile: backend/apps/auth-service/Dockerfile
+  #     args:
+  #       SERVICE_NAME: auth-service
+  #       PORT: 3001
+  #       INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+  #   command: sh -c "pnpm db:migrate:auth && pnpm --filter auth-service run start:prod"
+  #   env_file: .env
+  #   networks:
+  #     - gymcore-net
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  # gym-management-service:
+  #   container_name: gymcore-gym-management-service
+  #   build:
+  #     context: .
+  #     dockerfile: backend/apps/gym-management-service/Dockerfile
+  #     args:
+  #       SERVICE_NAME: gym-management-service
+  #       PORT: 3002
+  #       INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+  #   command: sh -c "pnpm db:migrate:gym && pnpm --filter gym-management-service run start:prod"
+  #   env_file: .env
+  #   networks:
+  #     - gymcore-net
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  # payment-service:
+  #   container_name: gymcore-payment-service
+  #   build:
+  #     context: .
+  #     dockerfile: backend/apps/payment-service/Dockerfile
+  #     args:
+  #       SERVICE_NAME: payment-service
+  #       PORT: 3003
+  #       INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+  #   command: sh -c "pnpm db:migrate:payment && pnpm --filter payment-service run start:prod"
+  #   env_file: .env
+  #   networks:
+  #     - gymcore-net
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  # notification-service:
+  #   container_name: gymcore-notification-service
+  #   build:
+  #     context: .
+  #     dockerfile: backend/apps/notification-service/Dockerfile
+  #     args:
+  #       SERVICE_NAME: notification-service
+  #       PORT: 3007
+  #       INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+  #   command: sh -c "pnpm --filter notification-service run start:prod"
+  #   env_file: .env
+  #   networks:
+  #     - gymcore-net
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  #--- Frontend Service ---#
+ 
+#--- Red ---#
 networks:
-  gymcore-dev-net:
+  gymcore-net:
     driver: bridge
