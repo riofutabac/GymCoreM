@@ -3,29 +3,43 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Inject,
   Body,
   Param,
   Req,
+  Res,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
   HttpException,
   UsePipes,
   ValidationPipe,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
   All,
   Headers,
   Logger, // <-- AÑADE ESTO
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as csv from 'fast-csv';
+import * as fs from 'fs';
+import * as ExcelJS from 'exceljs';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { GymManagerGuard } from './auth/gym-manager.guard';
 import { Roles } from './auth/roles.decorator';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
 import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
+import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
 
 @Controller('v1') // Prefijo para todas las rutas de este controlador
 export class AppController {
@@ -171,6 +185,155 @@ export class AppController {
       this.logger.error('❌ Error en webhook PayPal:', err);
       
       throw new HttpException(message, status);
+    }
+  }
+
+  // ─── GESTIÓN DE MIEMBROS ─────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('members')
+  async listMembers(@Query() q: ListMembersDto, @Req() req: any) {
+    const gymId = req.gymId;
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_list' }, { gymId, dto: q }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('members/:id')
+  getMember(@Param('id') id: string, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_get' }, { gymId: req.gymId, id }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('members')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  createMember(@Body() dto: CreateMemberDto, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_create' }, { gymId: req.gymId, dto }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Put('members/:id')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  updateMember(@Param('id') id: string, @Body() dto: UpdateMemberDto, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_update' }, { gymId: req.gymId, id, dto }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Delete('members/:id')
+  deleteMember(@Param('id') id: string, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_remove' }, { gymId: req.gymId, id }),
+    );
+  }
+
+  // ─── IMPORTACIÓN MASIVA CSV ───────────────────────────────────────────────────
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('members/import')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({ destination: './uploads' }),
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Solo se permiten archivos CSV'), false);
+        }
+      },
+    }),
+  )
+  async importMembers(@UploadedFile() file: Express.Multer.File, @Req() req: any) {
+    if (!file) {
+      throw new BadRequestException('Archivo CSV es requerido');
+    }
+
+    const rows: any[] = [];
+    return new Promise((resolve, reject) => {
+      fs.createReadStream(file.path)
+        .pipe(csv.parse({ headers: true }))
+        .on('error', (error) => {
+          fs.unlinkSync(file.path); // Limpiar archivo temporal
+          reject(error);
+        })
+        .on('data', (row) => rows.push(row))
+        .on('end', async () => {
+          try {
+            fs.unlinkSync(file.path); // Limpiar archivo temporal
+            const report = await firstValueFrom(
+              this.gymClient.send(
+                { cmd: 'members_bulk_create' },
+                { gymId: req.gymId, members: rows },
+              ),
+            );
+            resolve(report);
+          } catch (error) {
+            reject(error);
+          }
+        });
+    });
+  }
+
+  // ─── EXPORTACIÓN A EXCEL ──────────────────────────────────────────────────────
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('members/export')
+  async exportMembers(@Query() q: ListMembersDto, @Req() req: any, @Res() res: any) {
+    try {
+      // Exportar todos los miembros sin paginación
+      const exportQuery = { ...q, page: 1, limit: 10000 };
+      const { items } = await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_list' }, { gymId: req.gymId, dto: exportQuery }),
+      );
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="socios-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+      );
+
+      const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res });
+      const worksheet = workbook.addWorksheet('Socios');
+
+      // Configurar columnas
+      worksheet.columns = [
+        { header: 'ID', key: 'id', width: 36 },
+        { header: 'Email', key: 'email', width: 30 },
+        { header: 'Nombre', key: 'firstName', width: 20 },
+        { header: 'Apellido', key: 'lastName', width: 20 },
+        { header: 'Fecha de Creación', key: 'createdAt', width: 20 },
+      ];
+
+      // Añadir filas
+      for (const member of items) {
+        worksheet.addRow({
+          ...member,
+          createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '',
+        }).commit();
+      }
+
+      await workbook.commit();
+      this.logger.log(`✅ Exportación Excel completada: ${items.length} socios`);
+      
+    } catch (error) {
+      this.logger.error('❌ Error en exportación Excel:', error);
+      if (!res.headersSent) {
+        throw new HttpException('Error exportando datos', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
     }
   }
 

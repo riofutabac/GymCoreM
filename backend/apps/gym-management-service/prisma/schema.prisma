@@ -46,10 +46,15 @@ model User {
   role       Role         @default(MEMBER)
   gymId      String?
   gym        Gym?         @relation(fields: [gymId], references: [id])
+  deletedAt  DateTime?    // Campo para soft-delete
+  createdAt  DateTime     @default(now())
+  updatedAt DateTime @updatedAt @default(now())
   memberships Membership[]
   accessLogs  AccessLog[]
   activatedMemberships Membership[] @relation("ActivatedBy")
   membershipLogs MembershipLog[]
+
+  @@index([gymId, deletedAt]) // Índice para optimización de consultas
 }
 
 model Gym {

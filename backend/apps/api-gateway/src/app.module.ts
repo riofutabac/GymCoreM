@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { GymManagerGuard } from './auth/gym-manager.guard';
+import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-directory.middleware';
 
 @Module({
   imports: [
@@ -65,6 +67,12 @@ import { RolesGuard } from './auth/roles.guard';
     ]),
   ],
   controllers: [AppController],
-  providers: [JwtAuthGuard, RolesGuard],
+  providers: [JwtAuthGuard, RolesGuard, GymManagerGuard],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(EnsureUploadsDirectoryMiddleware)
+      .forRoutes('*');
+  }
+}
