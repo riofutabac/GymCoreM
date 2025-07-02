@@ -345,9 +345,36 @@ export class AppController {
   async joinGym(@Body() dto: JoinGymDto, @Req() req: any) {
     const userId = req.user.sub; // Obtenemos el ID del usuario del token JWT
     const payload = { uniqueCode: dto.uniqueCode, userId };
-    
-    return await firstValueFrom(
+
+    // 1) Crear la membresía en gym-service (esto ahora también actualiza el gymId local)
+    const result = await firstValueFrom(
       this.gymClient.send({ cmd: 'join_gym' }, payload),
     );
+
+    // 2) Actualizar el gymId en Auth-Service para que aparezca en futuros JWTs
+    if (result.gymId) {
+      try {
+        await firstValueFrom(
+          this.authClient.send(
+            { cmd: 'change_role' },
+            {
+              userId,
+              newRole: req.user.app_metadata?.role || 'MEMBER', // Mantener el rol actual
+              gymId: result.gymId, // Usar el gymId del resultado
+            },
+          ),
+        );
+        this.logger.log(
+          `gymId ${result.gymId} propagado al Auth Service para usuario ${userId}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Error propagando gymId al Auth Service: ${error.message}`,
+        );
+        // No fallar el join si solo falla la propagación del gymId
+      }
+    }
+
+    return result;
   }
 }
