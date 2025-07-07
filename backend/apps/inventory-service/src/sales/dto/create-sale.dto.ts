@@ -6,6 +6,7 @@ import {
   ValidateNested,
   IsInt,
   Min,
+  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -37,4 +38,8 @@ export class CreateSaleDto {
   @IsNumber()
   @IsPositive()
   total: number;
+
+  @IsOptional()
+  @IsString()
+  paymentRef?: string;
 }

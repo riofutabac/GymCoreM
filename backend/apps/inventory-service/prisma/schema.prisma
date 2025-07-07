@@ -16,6 +16,12 @@ enum SaleStatus {
   CANCELLED
 }
 
+enum PaymentType {
+  CASH
+  CARD_PRESENT   // lector físico
+  PAYPAL         // venta on-line
+}
+
 model Product {
   id          String   @id @default(uuid())
   gymId       String
@@ -39,10 +45,11 @@ model Sale {
   gymId       String
   cashierId   String
   totalAmount Float
-  status      SaleStatus  @default(PENDING)
-  paymentId   String?
-  createdAt   DateTime    @default(now())
+  paymentType PaymentType
+  status      SaleStatus  @default(PENDING)   // sigue valiendo para PayPal
+  paymentRef  String?     // id del voucher o captura
   completedAt DateTime?
+  createdAt   DateTime    @default(now())
   items       SaleItem[]
 }
 

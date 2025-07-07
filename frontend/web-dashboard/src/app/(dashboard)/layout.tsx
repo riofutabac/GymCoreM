@@ -13,7 +13,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   // 🔒 MEJORA 4: Validación defensiva del rol
   const roleFromCookie = cookieStore.get('user_role')?.value;
   const validRoles = ['owner', 'manager', 'receptionist', 'member'] as const;
-  const userRole = validRoles.includes(roleFromCookie as any) 
+  const userRole = validRoles.includes(roleFromCookie as typeof validRoles[number]) 
     ? (roleFromCookie as typeof validRoles[number]) 
     : 'member'; // Fallback seguro
 

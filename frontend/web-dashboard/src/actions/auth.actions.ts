@@ -2,7 +2,6 @@
 
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import * as z from "zod";
 
 import { loginUser } from '@/lib/api/auth';
 import { loginFormSchema } from '@/lib/validations';

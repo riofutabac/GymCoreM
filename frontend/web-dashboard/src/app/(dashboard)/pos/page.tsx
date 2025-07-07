@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { PlusIcon, TrashIcon, ShoppingCartIcon, ScanIcon } from 'lucide-react';
+import { PlusIcon, TrashIcon, ShoppingCartIcon, ScanIcon, CreditCardIcon, DollarSignIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { posApi } from '@/lib/api/pos';
 
 interface CartItem {
   id: string;
@@ -38,22 +39,13 @@ export default function POSPage() {
 
     setIsLoading(true);
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('jwt_token='))
-        ?.split('=')[1];
-
-      const response = await fetch(`/api/v1/pos/products/${barcode}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Product not found');
-      }
-
-      const product = await response.json();
+      const product = await posApi.findProductByBarcode(barcode) as {
+        id: string;
+        name: string;
+        price: number;
+        stock: number;
+        barcode: string;
+      };
       
       // Check if we have enough stock
       const existingItem = cart.find(item => item.id === product.id);
@@ -84,8 +76,9 @@ export default function POSPage() {
 
       setBarcodeInput('');
       toast.success(`${product.name} added to cart`);
-    } catch (error) {
-      toast.error('Product not found or error scanning');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Product not found or error scanning';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +115,7 @@ export default function POSPage() {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
-  const processSale = async () => {
+  const processCashSale = async () => {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
@@ -130,11 +123,6 @@ export default function POSPage() {
 
     setIsLoading(true);
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('jwt_token='))
-        ?.split('=')[1];
-
       const saleData = {
         items: cart.map(item => ({
           productId: item.id,
@@ -144,26 +132,80 @@ export default function POSPage() {
         total: calculateTotal(),
       };
 
-      const response = await fetch('/api/v1/pos/sales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(saleData),
-      });
+      await posApi.createCashSale(saleData);
+      toast.success('Cash sale completed successfully');
+      clearCart();
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error processing cash sale';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      if (!response.ok) {
-        throw new Error('Error creating sale');
-      }
+  const processCardSale = async () => {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
 
-      const result = await response.json();
+    // Get voucher/reference ID from card terminal
+    const voucherId = prompt('Enter voucher/reference ID from card terminal:');
+    if (!voucherId) {
+      toast.error('Voucher ID is required for card payments');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const saleData = {
+        items: cart.map(item => ({
+          productId: item.id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        total: calculateTotal(),
+        paymentRef: voucherId,
+      };
+
+      await posApi.createCardSale(saleData);
+      toast.success('Card sale completed successfully');
+      clearCart();
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error processing card sale';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const processPayPalSale = async () => {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const saleData = {
+        items: cart.map(item => ({
+          productId: item.id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        total: calculateTotal(),
+      };
+
+      const result = await posApi.createPayPalSale(saleData);
       
       // Redirect to PayPal for payment
       window.location.href = result.approvalUrl;
       
-    } catch (error) {
-      toast.error('Error processing sale');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error processing PayPal sale';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -333,14 +375,38 @@ export default function POSPage() {
               )}
               
               <div className="space-y-3 pt-4">
-                <Button 
-                  onClick={processSale} 
-                  disabled={cart.length === 0 || isLoading}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isLoading ? 'Processing...' : `Charge $${calculateTotal().toFixed(2)}`}
-                </Button>
+                {/* Payment Method Buttons */}
+                <div className="grid grid-cols-1 gap-2">
+                  <Button 
+                    onClick={processCashSale} 
+                    disabled={cart.length === 0 || isLoading}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    size="lg"
+                  >
+                    <DollarSignIcon className="h-5 w-5 mr-2" />
+                    {isLoading ? 'Processing...' : `Cash $${calculateTotal().toFixed(2)}`}
+                  </Button>
+                  
+                  <Button 
+                    onClick={processCardSale} 
+                    disabled={cart.length === 0 || isLoading}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    size="lg"
+                  >
+                    <CreditCardIcon className="h-5 w-5 mr-2" />
+                    {isLoading ? 'Processing...' : `Card $${calculateTotal().toFixed(2)}`}
+                  </Button>
+                  
+                  <Button 
+                    onClick={processPayPalSale} 
+                    disabled={cart.length === 0 || isLoading}
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isLoading ? 'Processing...' : `PayPal/Online $${calculateTotal().toFixed(2)}`}
+                  </Button>
+                </div>
                 
                 <Button 
                   variant="outline" 

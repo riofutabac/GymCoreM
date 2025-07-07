@@ -443,6 +443,68 @@ export class AppController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales/cash')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createCashSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create_cash' },
+          {
+            ...dto,
+            gymId: req.user.gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        status: 'COMPLETED',
+        message: 'Venta en efectivo completada exitosamente'
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating cash sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales/card-present')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createCardSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create_card_present' },
+          {
+            ...dto,
+            gymId: req.user.gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        status: 'COMPLETED',
+        message: 'Venta con tarjeta completada exitosamente'
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating card sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
   @Get('pos/products')
   @HttpCode(HttpStatus.OK)
   async findAllProducts(@Req() req: any) {

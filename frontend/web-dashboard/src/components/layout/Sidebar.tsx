@@ -27,7 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 interface MenuItem {
   href: string;
   label: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   badge?: string;
 }
 
@@ -123,7 +123,6 @@ interface SidebarProps {
 export function Sidebar({ 
   userRole = 'owner', 
   userName = "Usuario", 
-  userEmail = "usuario@gymcore.com",
   userAvatar 
 }: SidebarProps) {
   const pathname = usePathname();

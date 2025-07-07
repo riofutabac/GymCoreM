@@ -52,7 +52,7 @@ export class SaleCompletedListener {
           data: {
             status: 'COMPLETED',
             completedAt: new Date(),
-            paymentId: payload.paymentId,
+            paymentRef: payload.paymentId,
           },
         });
 
