@@ -59,19 +59,21 @@ describe('AppController', () => {
   describe('login()', () => {
     it('should return the response from authClient', async () => {
       const body = { email: 'test@example.com', password: '1234' };
-      (mockAuthClient.send as jest.Mock).mockReturnValueOnce(of({ token: 'jwt-token', user: { id: 1 } }));
+      const mockRes = { cookie: jest.fn() };
+      (mockAuthClient.send as jest.Mock).mockReturnValueOnce(of({ access_token: 'jwt-token', user: { id: 1 } }));
 
-      const result = await controller.login(body);
+      const result = await controller.login(body, mockRes);
 
       expect(mockAuthClient.send).toHaveBeenCalledWith({ cmd: 'login' }, body);
-      expect(result).toEqual({ token: 'jwt-token', user: { id: 1 } });
+      expect(result).toEqual({ access_token: 'jwt-token', user: { id: 1 } });
     });
 
     it('should propagate HttpException on invalid credentials', async () => {
       const error = { status: 401, message: 'Invalid credentials' };
+      const mockRes = { cookie: jest.fn() };
       (mockAuthClient.send as jest.Mock).mockReturnValueOnce(throwError(() => error));
 
-      await expect(controller.login({ email: 'wrong@test.com', password: 'wrong' })).rejects.toMatchObject({
+      await expect(controller.login({ email: 'wrong@test.com', password: 'wrong' }, mockRes)).rejects.toMatchObject({
         status: 401,
         response: 'Invalid credentials',
       });

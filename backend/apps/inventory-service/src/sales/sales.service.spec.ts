@@ -40,6 +40,10 @@ describe('SalesService', () => {
               findFirst: jest.fn(),
               findMany: jest.fn(),
             },
+            product: {
+              findUniqueOrThrow: jest.fn(),
+              updateMany: jest.fn(),
+            },
           },
         },
         {
