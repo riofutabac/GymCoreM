@@ -67,7 +67,7 @@
     "docker:restart": "docker-compose restart",
     "health": "node scripts/health-check.js",
     "check:services": "concurrently \"curl -f http://localhost:3000/health\" \"curl -f http://localhost:3001/auth\" \"curl -f http://localhost:3002/gyms/health\" \"curl -f http://localhost:3003/payments/health\"",
-    "dev:backend": "concurrently --kill-others-on-fail \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:payments\"",
+    "dev:backend": "concurrently --kill-others-on-fail \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:payments\" \"pnpm dev:inventory\"",
     "dev:services": "pnpm dev:backend",
     "dev:full": "pnpm dev:all",
     "postinstall": "pnpm db:generate:all",

@@ -42,11 +42,53 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
     
-    // 🔒 MEJORA 3: Proteger ruta /pos - solo para managers y receptionists
-    if (pathname === '/pos') {
-      if (role !== 'manager' && role !== 'receptionist') {
-        return NextResponse.redirect(new URL(`/${role}`, request.url));
+    // 🔒 PROTECCIÓN ESTRICTA DE RUTAS POR ROL
+    
+    // Verificar acceso a rutas de otros roles (bloqueo directo)
+    if (pathname.startsWith('/owner') && role !== 'owner') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
+    }
+    if (pathname.startsWith('/manager') && role !== 'manager') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
+    }
+    if (pathname.startsWith('/receptionist') && role !== 'receptionist') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
+    }
+    if (pathname.startsWith('/member') && role !== 'member') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
+    }
+    
+    // OWNER: Solo puede acceder a rutas /owner
+    if (role === 'owner') {
+      if (!pathname.startsWith('/owner') && pathname !== '/' && !isPublicRoute) {
+        return NextResponse.redirect(new URL('/owner', request.url));
       }
+    }
+    
+    // MANAGER: Solo puede acceder a rutas /manager y /pos
+    if (role === 'manager') {
+      if (!pathname.startsWith('/manager') && pathname !== '/pos' && pathname !== '/' && !isPublicRoute) {
+        return NextResponse.redirect(new URL('/manager', request.url));
+      }
+    }
+    
+    // RECEPTIONIST: Solo puede acceder a rutas /receptionist y /pos  
+    if (role === 'receptionist') {
+      if (!pathname.startsWith('/receptionist') && pathname !== '/pos' && pathname !== '/' && !isPublicRoute) {
+        return NextResponse.redirect(new URL('/receptionist', request.url));
+      }
+    }
+    
+    // MEMBER: Solo puede acceder a rutas /member
+    if (role === 'member') {
+      if (!pathname.startsWith('/member') && pathname !== '/' && !isPublicRoute) {
+        return NextResponse.redirect(new URL('/member', request.url));
+      }
+    }
+    
+    // 🔒 PROTEGER RUTA /pos - solo para managers, receptionists y owners
+    if (pathname === '/pos' && role !== 'manager' && role !== 'receptionist' && role !== 'owner') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
   }
 

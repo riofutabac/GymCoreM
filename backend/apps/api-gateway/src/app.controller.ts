@@ -41,7 +41,7 @@ import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
 import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
 
-@Controller('v1') // Prefijo para todas las rutas de este controlador
+@Controller() // Sin prefijo ya que main.ts usa setGlobalPrefix('api/v1')
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
@@ -78,42 +78,47 @@ export class AppController {
 
       // 🔐 Configurar cookies HTTP-Only seguras
       if (response.access_token) {
+        const isProd = process.env.NODE_ENV === 'production';
+        const oneDay = 24 * 60 * 60 * 1000; // 24 horas
+
+        // JWT token - siempre httpOnly para seguridad
         res.cookie('jwt_token', response.access_token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
+          secure: isProd,
           sameSite: 'lax',
-          maxAge: 24 * 60 * 60 * 1000, // 24 horas
+          maxAge: oneDay,
         });
 
-        // También guardamos el rol para el middleware
+        // Rol del usuario - accesible desde JS para UI/ruteo (convertir a minúsculas)
         if (response.user?.role) {
-          res.cookie('user_role', response.user.role, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+          res.cookie('user_role', response.user.role.toLowerCase(), {
+            httpOnly: false, // UI necesita leer esto
+            secure: isProd,
             sameSite: 'lax',
-            maxAge: 24 * 60 * 60 * 1000,
+            maxAge: oneDay,
           });
         }
 
-        // Información del usuario (no sensible) accesible desde el frontend
+        // Nombre del usuario - accesible desde JS para mostrar en UI
         if (response.user) {
           const fullName = `${response.user.firstName || ''} ${response.user.lastName || ''}`.trim();
           if (fullName) {
             res.cookie('user_name', fullName, {
-              httpOnly: false, // Accesible desde JS para mostrar en UI
-              secure: process.env.NODE_ENV === 'production',
+              httpOnly: false, // UI necesita leer esto
+              secure: isProd,
               sameSite: 'lax',
-              maxAge: 24 * 60 * 60 * 1000,
+              maxAge: oneDay,
             });
           }
         }
 
+        // Email del usuario - accesible desde JS para mostrar en UI
         if (response.user?.email) {
           res.cookie('user_email', response.user.email, {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
+            httpOnly: false, // UI necesita leer esto
+            secure: isProd,
             sameSite: 'lax',
-            maxAge: 24 * 60 * 60 * 1000,
+            maxAge: oneDay,
           });
         }
       }
@@ -586,9 +591,16 @@ export class AppController {
   @Get('inventory/products')
   @HttpCode(HttpStatus.OK)
   async listProducts(@Req() req: any) {
+    // Los OWNER pueden ver productos de todos los gimnasios, los MANAGER solo del suyo
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? null : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
     return this.inventoryClient.send(
       { cmd: 'products_findAll' },
-      { gymId: req.user.gymId }
+      { gymId }
     );
   }
 
@@ -630,31 +642,33 @@ export class AppController {
   @Post('auth/logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: any) {
+    const isProd = process.env.NODE_ENV === 'production';
+    
     // Limpiar todas las cookies de autenticación
     res.cookie('jwt_token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'lax',
       maxAge: 0, // Expira inmediatamente
     });
 
     res.cookie('user_role', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      httpOnly: false, // Consistente con login
+      secure: isProd,
       sameSite: 'lax',
       maxAge: 0,
     });
 
     res.cookie('user_name', '', {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'lax',
       maxAge: 0,
     });
 
     res.cookie('user_email', '', {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'lax',
       maxAge: 0,
     });
@@ -668,15 +682,21 @@ export class AppController {
   async getMe(@Req() req: any) {
     // El usuario ya está disponible gracias al JwtAuthGuard
     const user = req.user;
+    
+    // Priorizar app_metadata.role (autorativo) y convertir a minúsculas para el frontend
+    const userRole = user.app_metadata?.role || user.user_metadata?.role || user.role;
+    const roleForFrontend = userRole ? userRole.toLowerCase() : 'member';
+    
     return {
       id: user.sub || user.id,
       email: user.email,
-      role: user.role || user.app_metadata?.role || user.user_metadata?.role,
+      role: roleForFrontend, // Usar el rol correctamente extraído y convertido
       firstName: user.user_metadata?.firstName,
       lastName: user.user_metadata?.lastName,
       name: user.user_metadata?.firstName && user.user_metadata?.lastName 
         ? `${user.user_metadata.firstName} ${user.user_metadata.lastName}`
         : user.email?.split('@')[0],
+      gymId: user.app_metadata?.gymId, // Incluir gymId si está disponible
     };
   }
 }

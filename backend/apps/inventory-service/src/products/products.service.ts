@@ -29,12 +29,18 @@ export class ProductsService {
     return new ProductDto(product);
   }
 
-  async findAll(gymId: string) {
+  async findAll(gymId: string | null) {
+    const whereClause: any = {
+      deletedAt: null,
+    };
+    
+    // Si gymId es null, es un OWNER que puede ver todos los productos
+    if (gymId !== null) {
+      whereClause.gymId = gymId;
+    }
+    
     const products = await this.prisma.product.findMany({
-      where: {
-        gymId,
-        deletedAt: null,
-      },
+      where: whereClause,
       orderBy: {
         createdAt: 'desc',
       },

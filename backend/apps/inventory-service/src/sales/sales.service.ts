@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
-import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+// import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 
 @Injectable()
 export class SalesService {
@@ -9,7 +9,7 @@ export class SalesService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly amqpConnection: AmqpConnection,
+    // private readonly amqpConnection: AmqpConnection, // Temporalmente comentado
   ) {}
 
   async createSale(dto: CreateSaleDto) {
@@ -34,12 +34,14 @@ export class SalesService {
       },
     });
 
-    // Publicar evento sale.created
+    // Publicar evento sale.created (temporalmente comentado)
+    /* 
     await this.amqpConnection.publish('gymcore-exchange', 'sale.created', {
       saleId: sale.id,
       amount: sale.totalAmount,
       description: `POS sale ${sale.id}`,
     });
+    */
 
     this.logger.log(`Sale created: ${sale.id}`);
     return sale;
@@ -107,13 +109,15 @@ export class SalesService {
       this.logger.log(`Instant ${paymentType} sale completed: ${sale.id}`);
       return sale;
     }).then(async (sale) => {
-      // 3. Publicar evento para analytics (opcional)
+      // 3. Publicar evento para analytics (opcional - temporalmente comentado)
+      /*
       await this.amqpConnection.publish('gymcore-exchange', 'sale.completed', {
         saleId: sale.id,
         amount: sale.totalAmount,
         paymentType,
         description: `Instant ${paymentType} sale ${sale.id}`,
       });
+      */
 
       return sale;
     });

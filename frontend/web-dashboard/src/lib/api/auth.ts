@@ -1,7 +1,8 @@
 import { loginFormSchema, registerFormSchema } from "@/lib/validations";
 import * as z from "zod";
 
-const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:3000/api/v1';
+const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = `${API_GATEWAY_URL}/api/v1`;
 
 /**
  * Llama al endpoint de registro del API Gateway.
@@ -9,7 +10,7 @@ const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:3000/ap
  * @returns La respuesta del servidor.
  */
 export async function registerUser(userData: z.infer<typeof registerFormSchema>) {
-  const response = await fetch(`${API_GATEWAY_URL}/auth/register`, {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include', // Para enviar cookies HTTP-Only
@@ -30,7 +31,7 @@ export async function registerUser(userData: z.infer<typeof registerFormSchema>)
  * @returns La respuesta del servidor, que debe incluir el access_token.
  */
 export async function loginUser(credentials: z.infer<typeof loginFormSchema>) {
-  const response = await fetch(`${API_GATEWAY_URL}/auth/login`, {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include', // Para recibir cookies HTTP-Only
@@ -50,7 +51,7 @@ export async function loginUser(credentials: z.infer<typeof loginFormSchema>) {
  * @returns La respuesta del servidor.
  */
 export async function logoutUser() {
-  const response = await fetch(`${API_GATEWAY_URL}/auth/logout`, {
+  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: 'POST',
     credentials: 'include', // Para enviar cookies HTTP-Only
   });
@@ -68,7 +69,7 @@ export async function logoutUser() {
  * @returns La información del usuario actual
  */
 export async function getCurrentUser() {
-  const response = await fetch(`${API_GATEWAY_URL}/auth/me`, {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
     method: 'GET',
     credentials: 'include', // Para enviar cookies HTTP-Only
   });

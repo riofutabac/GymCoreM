@@ -27,9 +27,25 @@ export function SidebarWrapper() {
     );
   }
 
+  // Asegurar que el rol esté correctamente normalizado
+  const normalizeRole = (role: string): "owner" | "manager" | "receptionist" | "member" => {
+    const roleMap: Record<string, "owner" | "manager" | "receptionist" | "member"> = {
+      'OWNER': 'owner',
+      'owner': 'owner',
+      'MANAGER': 'manager', 
+      'manager': 'manager',
+      'RECEPTIONIST': 'receptionist',
+      'receptionist': 'receptionist',
+      'MEMBER': 'member',
+      'member': 'member'
+    };
+    
+    return roleMap[role] || 'member';
+  };
+
   return (
     <Sidebar
-      userRole={(user.role as "owner" | "manager" | "receptionist" | "member") || 'member'}
+      userRole={normalizeRole(user.role)}
       userName={user.name || user.email?.split('@')[0] || 'Usuario'}
       userEmail={user.email || ''}
     />

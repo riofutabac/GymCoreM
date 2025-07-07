@@ -14,7 +14,7 @@ export class ProductsController {
   }
 
   @MessagePattern({ cmd: 'products_findAll' })
-  findAll(@Payload() payload: { gymId: string }) {
+  findAll(@Payload() payload: { gymId: string | null }) {
     return this.productsService.findAll(payload.gymId);
   }
 

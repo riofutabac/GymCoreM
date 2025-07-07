@@ -4,28 +4,12 @@ import { handleAuthError } from '@/lib/auth-utils';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
 
-// Helper function to get auth token
-function getAuthToken(): string {
-  if (typeof window === 'undefined') return '';
-  return document.cookie
-    .split('; ')
-    .find(row => row.startsWith('jwt_token='))
-    ?.split('=')[1] ?? '';
-}
-
 // Helper function to make authenticated API calls
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken();
-  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
-
-  // Solo agregar Authorization header si tenemos token
-  if (token) {
-    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-  }
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1${endpoint}`, {

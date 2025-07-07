@@ -12,8 +12,16 @@ async function bootstrap() {
   // Configurar cookie-parser para leer cookies HTTP-Only
   app.use(cookieParser());
   
-  app.enableCors();
-  app.setGlobalPrefix('api');
+  // Configuración CORS estricta para credenciales
+  app.enableCors({
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:3030',
+    credentials: true,
+    allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    exposedHeaders: 'Content-Disposition', // Para descargas de archivos
+  });
+  
+  app.setGlobalPrefix('api/v1');
 
   app.useGlobalFilters(new CustomRpcExceptionFilter());
 
@@ -25,3 +33,4 @@ async function bootstrap() {
 }
 
 void bootstrap();
+
