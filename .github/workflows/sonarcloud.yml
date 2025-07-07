@@ -37,7 +37,14 @@ jobs:
         run: infisical run -- pnpm db:generate:all
 
       - name: Run tests & coverage (con infisical)
-        run: infisical run -- pnpm test:cov
+        run: infisical run -- pnpm test:sonar
+
+      - name: List coverage files (debug)
+        run: |
+          echo "Listing coverage directory structure:"
+          ls -la coverage/ || echo "No coverage directory found"
+          ls -la lcov.info || echo "No lcov.info found in root"
+          find . -name "lcov.info" -type f | head -10
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v5.2.0
@@ -46,8 +53,9 @@ jobs:
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.sources=backend,frontend
-            -Dsonar.exclusions=**/node_modules/**,**/.next/**,**/dist/**,**/coverage/**,**/*.spec.ts
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.exclusions=**/node_modules/**,**/.next/**,**/dist/**,**/coverage/**,**/*.spec.ts,**/*.test.ts,**/*.test.tsx,**/generated/**
+            -Dsonar.javascript.lcov.reportPaths=lcov.info
+            -Dsonar.typescript.lcov.reportPaths=lcov.info
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN:  ${{ secrets.SONAR_TOKEN }}

@@ -205,6 +205,7 @@ describe('SalesService', () => {
             stock: 1, // Solo 1 en stock, pero necesitamos 2
             version: 1,
           }),
+          updateMany: jest.fn(),
         },
       };
 
@@ -217,7 +218,7 @@ describe('SalesService', () => {
       );
 
       // Verificar que no se intentó actualizar stock ni crear venta
-      expect(mockTx.product.updateMany).toBeUndefined();
+      expect(mockTx.product.updateMany).not.toHaveBeenCalled();
     });
 
     // PRUEBA 4: Error de concurrencia (optimistic locking)
@@ -250,6 +251,7 @@ describe('SalesService', () => {
           findUniqueOrThrow: jest.fn()
             .mockResolvedValueOnce({ id: 'product-1', name: 'Product 1', stock: 10, version: 1 })
             .mockRejectedValueOnce(new Error('Product not found')), // Falla en segundo producto
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }), // Simular que no se actualizó nada
         },
       };
 
@@ -271,6 +273,7 @@ describe('SalesService', () => {
         id: 'sale-paypal-123',
         status: 'PENDING',
         paymentType: 'PAYPAL',
+        totalAmount: 46.00, // Agregar el campo que necesita el servicio
       };
 
       (prisma.sale.create as jest.Mock).mockResolvedValue(mockSale);

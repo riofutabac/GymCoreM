@@ -65,27 +65,50 @@ describe('AppController (API Gateway)', () => {
     });
   });
 
-  describe('login()', () => {
-    it('should return the response from authClient', async () => {
-      const body = { email: 'test@example.com', password: '1234' };
-      const mockRes = { cookie: jest.fn() };
-      (mockAuthClient.send as jest.Mock).mockReturnValueOnce(of({ access_token: 'jwt-token', user: { id: 1 } }));
+  describe('joinGym', () => {
+    it('should call gym_service to join and then auth_service to update role', async () => {
+      const joinDto = { uniqueCode: 'GYM123' };
+      const req = {
+        user: { sub: 'user-1', app_metadata: { role: 'MEMBER' } },
+      };
+      const gymResponse = {
+        membershipId: 'mem-1',
+        gymId: 'gym-1',
+        gymName: 'Test Gym',
+      };
 
-      const result = await controller.login(body, mockRes);
+      mockGymClient.send.mockReturnValue(of(gymResponse));
+      mockAuthClient.send.mockReturnValue(of({ success: true }));
 
-      expect(mockAuthClient.send).toHaveBeenCalledWith({ cmd: 'login' }, body);
-      expect(result).toEqual({ access_token: 'jwt-token', user: { id: 1 } });
+      const result = await controller.joinGym(joinDto, req);
+
+      expect(mockGymClient.send).toHaveBeenCalledWith(
+        { cmd: 'join_gym' },
+        { uniqueCode: 'GYM123', userId: 'user-1' },
+      );
+      expect(mockAuthClient.send).toHaveBeenCalledWith(
+        { cmd: 'change_role' },
+        { userId: 'user-1', newRole: 'MEMBER', gymId: 'gym-1' },
+      );
+      expect(result).toEqual(gymResponse);
     });
+  });
 
-    it('should propagate HttpException on invalid credentials', async () => {
-      const error = { status: 401, message: 'Invalid credentials' };
-      const mockRes = { cookie: jest.fn() };
-      (mockAuthClient.send as jest.Mock).mockReturnValueOnce(throwError(() => error));
+  describe('paypalWebhookProxy', () => {
+    it('should forward webhook with body, headers, and rawBody to PAYMENT_SERVICE', async () => {
+      const req = {
+        body: { event: 'test' },
+        rawBody: Buffer.from('{"event":"test"}'),
+      };
+      const headers = { 'x-paypal-header': 'value' };
+      mockPaymentClient.send.mockReturnValue(of({ status: 'processed' }));
 
-      await expect(controller.login({ email: 'wrong@test.com', password: 'wrong' }, mockRes)).rejects.toMatchObject({
-        status: 401,
-        response: 'Invalid credentials',
-      });
+      await controller.paypalWebhookProxy(req, headers);
+
+      expect(mockPaymentClient.send).toHaveBeenCalledWith(
+        { cmd: 'handle_paypal_webhook' },
+        { body: req.body, headers, rawBody: '{"event":"test"}' },
+      );
     });
   });
 });
