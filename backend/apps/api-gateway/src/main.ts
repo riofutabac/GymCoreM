@@ -4,31 +4,33 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { CustomRpcExceptionFilter } from './rpc-exception.filter';
-import * as bodyParser from 'body-parser'; // <-- AÑADE ESTE IMPORT
+import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // --- AÑADE ESTE BLOQUE COMPLETO ---
-  // Captura el rawBody para la verificación de la firma del webhook de PayPal.
-  // Es crucial que se ejecute antes de que NestJS parsee el JSON.
-  app.use(bodyParser.json({
-    verify: (req: any, _res, buf) => {
-      req.rawBody = buf;
-    },
-  }));
-  // --- FIN DEL BLOQUE AÑADIDO ---
-
-  app.enableCors();
-  app.setGlobalPrefix('api');
-
+  // Configurar cookie-parser para leer cookies HTTP-Only
+  app.use(cookieParser());
+  
+  // Configuración CORS estricta para credenciales
+  app.enableCors({
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:3030',
+    credentials: true,
+    allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    exposedHeaders: 'Content-Disposition', // Para descargas de archivos
+  });
+  
+  app.setGlobalPrefix('api/v1');
 
   app.useGlobalFilters(new CustomRpcExceptionFilter());
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3000;
+  const port = configService.get<number>('PORT') ?? 3000;
 
   await app.listen(port);
   console.log(`API Gateway is running on: ${await app.getUrl()}`);
 }
-bootstrap();
+
+void bootstrap();
+

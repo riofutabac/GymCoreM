@@ -28,6 +28,12 @@ export class AppController {
     return this.appService.createCheckoutSession(dto);
   }
 
+  @MessagePattern({ cmd: 'create_sale_checkout' })
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  createSaleCheckout(@Payload() payload: { saleId: string; amount: number }) {
+    return this.appService.createSaleCheckout(payload);
+  }
+
   // --- WEBHOOK CON VERIFICACIÓN DE FIRMA USANDO SDK ---
   @MessagePattern({ cmd: 'handle_paypal_webhook' })
   handleWebhook(@Payload() data: { body: any; headers: any; rawBody: string }) {

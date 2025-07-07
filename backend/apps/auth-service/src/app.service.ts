@@ -74,8 +74,8 @@ export class AppService {
 
       // Asegurar que el rol esté disponible dentro del JWT
       await this.supabaseAdmin.auth.admin.updateUserById(authData.user.id, {
-        app_metadata: { role: 'MEMBER' },
-        user_metadata: { firstName, lastName, role: 'MEMBER' },
+        app_metadata: { role: 'MEMBER', gymId: gymId },
+        user_metadata: { firstName, lastName, role: 'MEMBER', gymId: gymId },
       });
 
       // 2. Create profile in User table only if auth user was created successfully
@@ -248,11 +248,15 @@ export class AppService {
     });
 
     await this.supabaseAdmin.auth.admin.updateUserById(userId, {
-      app_metadata: { role: newRole },
+      app_metadata: { 
+        role: newRole,
+        gymId: gymId  // ← AÑADIR gymId aquí para que esté en el JWT
+      },
       user_metadata: {
         firstName: updatedUser.firstName,
         lastName: updatedUser.lastName,
         role: newRole,
+        gymId: gymId, // ← También en user_metadata para consistencia
       },
     });
 

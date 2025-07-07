@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { GymManagerGuard } from './auth/gym-manager.guard';
+import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-directory.middleware';
 
 @Module({
   imports: [
@@ -62,9 +64,33 @@ import { RolesGuard } from './auth/roles.guard';
         },
         inject: [ConfigService],
       },
+      {
+        name: 'INVENTORY_SERVICE',
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => {
+          const inventoryServiceUrl =
+            configService.get<string>('INVENTORY_SERVICE_URL') ||
+            'tcp://localhost:3004';
+          const [host, port] = inventoryServiceUrl.replace('tcp://', '').split(':');
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: host,
+              port: +port,
+            },
+          };
+        },
+        inject: [ConfigService],
+      },
     ]),
   ],
   controllers: [AppController],
-  providers: [JwtAuthGuard, RolesGuard],
+  providers: [JwtAuthGuard, RolesGuard, GymManagerGuard],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(EnsureUploadsDirectoryMiddleware)
+      .forRoutes('*');
+  }
+}

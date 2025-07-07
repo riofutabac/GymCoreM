@@ -3,31 +3,45 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Inject,
   Body,
   Param,
   Req,
+  Res,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
   HttpException,
   UsePipes,
   ValidationPipe,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
   All,
   Headers,
   Logger, // <-- AÑADE ESTO
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as csv from 'fast-csv';
+import * as fs from 'fs';
+import * as ExcelJS from 'exceljs';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { GymManagerGuard } from './auth/gym-manager.guard';
 import { Roles } from './auth/roles.decorator';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
 import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
+import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
 
-@Controller('v1') // Prefijo para todas las rutas de este controlador
+@Controller() // Sin prefijo ya que main.ts usa setGlobalPrefix('api/v1')
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
@@ -35,6 +49,7 @@ export class AppController {
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
+    @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
@@ -54,12 +69,60 @@ export class AppController {
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: any) {
+  async login(@Body() body: any, @Res({ passthrough: true }) res: any) {
     try {
       // Convertimos la respuesta del microservicio en una Promesa
       const response = await firstValueFrom(
         this.authClient.send({ cmd: 'login' }, body),
       );
+
+      // 🔐 Configurar cookies HTTP-Only seguras
+      if (response.access_token) {
+        const isProd = process.env.NODE_ENV === 'production';
+        const oneDay = 24 * 60 * 60 * 1000; // 24 horas
+
+        // JWT token - siempre httpOnly para seguridad
+        res.cookie('jwt_token', response.access_token, {
+          httpOnly: true,
+          secure: isProd,
+          sameSite: 'lax',
+          maxAge: oneDay,
+        });
+
+        // Rol del usuario - accesible desde JS para UI/ruteo (convertir a minúsculas)
+        if (response.user?.role) {
+          res.cookie('user_role', response.user.role.toLowerCase(), {
+            httpOnly: false, // UI necesita leer esto
+            secure: isProd,
+            sameSite: 'lax',
+            maxAge: oneDay,
+          });
+        }
+
+        // Nombre del usuario - accesible desde JS para mostrar en UI
+        if (response.user) {
+          const fullName = `${response.user.firstName || ''} ${response.user.lastName || ''}`.trim();
+          if (fullName) {
+            res.cookie('user_name', fullName, {
+              httpOnly: false, // UI necesita leer esto
+              secure: isProd,
+              sameSite: 'lax',
+              maxAge: oneDay,
+            });
+          }
+        }
+
+        // Email del usuario - accesible desde JS para mostrar en UI
+        if (response.user?.email) {
+          res.cookie('user_email', response.user.email, {
+            httpOnly: false, // UI necesita leer esto
+            secure: isProd,
+            sameSite: 'lax',
+            maxAge: oneDay,
+          });
+        }
+      }
+
       return response;
     } catch (error) {
       const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -174,6 +237,155 @@ export class AppController {
     }
   }
 
+  // ─── GESTIÓN DE MIEMBROS ─────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('members')
+  async listMembers(@Query() q: ListMembersDto, @Req() req: any) {
+    const gymId = req.gymId;
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_list' }, { gymId, dto: q }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('members/:id')
+  getMember(@Param('id') id: string, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_get' }, { gymId: req.gymId, id }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('members')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  createMember(@Body() dto: CreateMemberDto, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_create' }, { gymId: req.gymId, dto }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Put('members/:id')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  updateMember(@Param('id') id: string, @Body() dto: UpdateMemberDto, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_update' }, { gymId: req.gymId, id, dto }),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Delete('members/:id')
+  deleteMember(@Param('id') id: string, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_remove' }, { gymId: req.gymId, id }),
+    );
+  }
+
+  // ─── IMPORTACIÓN MASIVA CSV ───────────────────────────────────────────────────
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('members/import')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({ destination: './uploads' }),
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Solo se permiten archivos CSV'), false);
+        }
+      },
+    }),
+  )
+  async importMembers(@UploadedFile() file: Express.Multer.File, @Req() req: any) {
+    if (!file) {
+      throw new BadRequestException('Archivo CSV es requerido');
+    }
+
+    const rows: any[] = [];
+    return new Promise((resolve, reject) => {
+      fs.createReadStream(file.path)
+        .pipe(csv.parse({ headers: true }))
+        .on('error', (error) => {
+          fs.unlinkSync(file.path); // Limpiar archivo temporal
+          reject(error);
+        })
+        .on('data', (row) => rows.push(row))
+        .on('end', async () => {
+          try {
+            fs.unlinkSync(file.path); // Limpiar archivo temporal
+            const report = await firstValueFrom(
+              this.gymClient.send(
+                { cmd: 'members_bulk_create' },
+                { gymId: req.gymId, members: rows },
+              ),
+            );
+            resolve(report);
+          } catch (error) {
+            reject(error);
+          }
+        });
+    });
+  }
+
+  // ─── EXPORTACIÓN A EXCEL ──────────────────────────────────────────────────────
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('members/export')
+  async exportMembers(@Query() q: ListMembersDto, @Req() req: any, @Res() res: any) {
+    try {
+      // Exportar todos los miembros sin paginación
+      const exportQuery = { ...q, page: 1, limit: 10000 };
+      const { items } = await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_list' }, { gymId: req.gymId, dto: exportQuery }),
+      );
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="socios-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+      );
+
+      const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res });
+      const worksheet = workbook.addWorksheet('Socios');
+
+      // Configurar columnas
+      worksheet.columns = [
+        { header: 'ID', key: 'id', width: 36 },
+        { header: 'Email', key: 'email', width: 30 },
+        { header: 'Nombre', key: 'firstName', width: 20 },
+        { header: 'Apellido', key: 'lastName', width: 20 },
+        { header: 'Fecha de Creación', key: 'createdAt', width: 20 },
+      ];
+
+      // Añadir filas
+      for (const member of items) {
+        worksheet.addRow({
+          ...member,
+          createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '',
+        }).commit();
+      }
+
+      await workbook.commit();
+      this.logger.log(`✅ Exportación Excel completada: ${items.length} socios`);
+      
+    } catch (error) {
+      this.logger.error('❌ Error en exportación Excel:', error);
+      if (!res.headersSent) {
+        throw new HttpException('Error exportando datos', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
   // --- AÑADE ESTE NUEVO MÉTODO COMPLETO ---
   @UseGuards(JwtAuthGuard) // <-- Protegido, necesitamos saber qué usuario es
   @Post('gyms/join')
@@ -182,9 +394,372 @@ export class AppController {
   async joinGym(@Body() dto: JoinGymDto, @Req() req: any) {
     const userId = req.user.sub; // Obtenemos el ID del usuario del token JWT
     const payload = { uniqueCode: dto.uniqueCode, userId };
-    
-    return await firstValueFrom(
+
+    // 1) Crear la membresía en gym-service (esto ahora también actualiza el gymId local)
+    const result = await firstValueFrom(
       this.gymClient.send({ cmd: 'join_gym' }, payload),
     );
+
+    // 2) Actualizar el gymId en Auth-Service para que aparezca en futuros JWTs
+    if (result.gymId) {
+      try {
+        await firstValueFrom(
+          this.authClient.send(
+            { cmd: 'change_role' },
+            {
+              userId,
+              newRole: req.user.app_metadata?.role || 'MEMBER', // Mantener el rol actual
+              gymId: result.gymId, // Usar el gymId del resultado
+            },
+          ),
+        );
+        this.logger.log(
+          `gymId ${result.gymId} propagado al Auth Service para usuario ${userId}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Error propagando gymId al Auth Service: ${error.message}`,
+        );
+        // No fallar el join si solo falla la propagación del gymId
+      }
+    }
+
+    return result;
+  }
+
+  // ─── RUTAS POS (POINT OF SALE) ─────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/products/:barcode')
+  @HttpCode(HttpStatus.OK)
+  async findProductByBarcode(@Param('barcode') barcode: string, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      const response = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'products_find_by_barcode' },
+          { barcode, gymId }
+        )
+      );
+      return response;
+    } catch (error) {
+      throw new HttpException('Product not found', HttpStatus.NOT_FOUND);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      // Crear la venta en el inventory service
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create' },
+          {
+            ...dto,
+            gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      // Crear checkout session en payment service
+      const checkout = await firstValueFrom(
+        this.paymentClient.send(
+          { cmd: 'create_sale_checkout' },
+          {
+            saleId: sale.id,
+            amount: sale.totalAmount
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        approvalUrl: checkout.approvalUrl
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales/cash')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createCashSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create_cash' },
+          {
+            ...dto,
+            gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        status: 'COMPLETED',
+        message: 'Venta en efectivo completada exitosamente'
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating cash sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales/card-present')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createCardSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create_card_present' },
+          {
+            ...dto,
+            gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        status: 'COMPLETED',
+        message: 'Venta con tarjeta completada exitosamente'
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating card sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/products')
+  @HttpCode(HttpStatus.OK)
+  async findAllProducts(@Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_findAll' },
+      { gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/sales')
+  @HttpCode(HttpStatus.OK)
+  async findAllSales(@Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'sales_findAll' },
+      { gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/sales/:id')
+  @HttpCode(HttpStatus.OK)
+  async findOneSale(@Param('id') id: string, @Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'sales_findOne' },
+      { id, gymId }
+    );
+  }
+
+  // ─── GESTIÓN DE INVENTARIO (MANAGER/OWNER) ─────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('inventory/products')
+  @HttpCode(HttpStatus.OK)
+  async listProducts(@Req() req: any) {
+    // Los OWNER pueden ver productos de todos los gimnasios, los MANAGER solo del suyo
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? null : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_findAll' },
+      { gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('inventory/products')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createProduct(@Body() dto: any, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? dto.gymId : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_create' },
+      { ...dto, gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Put('inventory/products/:id')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateProduct(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? dto.gymId : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_update' },
+      { id, updateProductDto: dto, gymId },
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Delete('inventory/products/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeProduct(@Param('id') id: string, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_remove' },
+      { id, gymId },
+    );
+  }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: any) {
+    const isProd = process.env.NODE_ENV === 'production';
+    
+    // Limpiar todas las cookies de autenticación
+    res.cookie('jwt_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0, // Expira inmediatamente
+    });
+
+    res.cookie('user_role', '', {
+      httpOnly: false, // Consistente con login
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_name', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_email', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('auth/me')
+  @HttpCode(HttpStatus.OK)
+  async getMe(@Req() req: any) {
+    // El usuario ya está disponible gracias al JwtAuthGuard
+    const user = req.user;
+    
+    // Priorizar app_metadata.role (autorativo) y convertir a minúsculas para el frontend
+    const userRole = user.app_metadata?.role || user.user_metadata?.role || user.role;
+    const roleForFrontend = userRole ? userRole.toLowerCase() : 'member';
+    
+    return {
+      id: user.sub || user.id,
+      email: user.email,
+      role: roleForFrontend, // Usar el rol correctamente extraído y convertido
+      firstName: user.user_metadata?.firstName,
+      lastName: user.user_metadata?.lastName,
+      name: user.user_metadata?.firstName && user.user_metadata?.lastName 
+        ? `${user.user_metadata.firstName} ${user.user_metadata.lastName}`
+        : user.email?.split('@')[0],
+      gymId: user.app_metadata?.gymId, // Incluir gymId si está disponible
+    };
   }
 }

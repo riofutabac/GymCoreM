@@ -181,29 +181,42 @@ export class MembershipService {
       });
     }
 
-    // 3. Crear la membresía en estado PENDIENTE con fechas placeholder
-    // ⚠️ IMPORTANTE: Las fechas 2000-01-01 son placeholders que se filtran en analytics
-    // TODO: Migrar esquema para permitir startDate/endDate nullable y usar null
-    // TODO: Alternativamente, añadir campo isPlaceholder: boolean para filtrar en reportes
-    const placeholderDate = new Date('2000-01-01T00:00:00.000Z'); // Fecha claramente placeholder
-    const newMembership = await this.prisma.membership.create({
-      data: {
-        userId,
-        gymId: gym.id,
-        status: 'PENDING_PAYMENT',
-        // Fechas placeholder que se actualizarán cuando se complete el pago
-        startDate: placeholderDate,
-        endDate: placeholderDate,
-      },
+    // 3. Crear la membresía y actualizar el gymId del usuario en una transacción
+    return this.prisma.$transaction(async (tx) => {
+      // ⚠️ IMPORTANTE: Las fechas 2000-01-01 son placeholders que se filtran en analytics
+      // TODO: Migrar esquema para permitir startDate/endDate nullable y usar null
+      // TODO: Alternativamente, añadir campo isPlaceholder: boolean para filtrar en reportes
+      const placeholderDate = new Date('2000-01-01T00:00:00.000Z'); // Fecha claramente placeholder
+      
+      const newMembership = await tx.membership.create({
+        data: {
+          userId,
+          gymId: gym.id,
+          status: 'PENDING_PAYMENT',
+          // Fechas placeholder que se actualizarán cuando se complete el pago
+          startDate: placeholderDate,
+          endDate: placeholderDate,
+        },
+      });
+
+      // ← NUEVO: Actualizar el gymId en la tabla user de este servicio
+      await tx.user.update({
+        where: { id: userId },
+        data: { gymId: gym.id },
+      });
+
+      this.logger.log(
+        `Membresía ${newMembership.id} creada y gymId ${gym.id} asignado al usuario ${userId}.`,
+      );
+
+      // 4. Devolver el ID de la nueva membresía con el gymId incluido
+      return {
+        message:
+          'Te has unido al gimnasio exitosamente. Ahora puedes proceder al pago.',
+        membershipId: newMembership.id,
+        gymName: gym.name,
+        gymId: gym.id, // ← Incluir gymId en la respuesta para usar en el API Gateway
+      };
     });
-
-    this.logger.log(`Membresía ${newMembership.id} creada para usuario ${userId} en gimnasio ${gym.id} con estado PENDING_PAYMENT.`);
-
-    // 4. Devolver el ID de la nueva membresía
-    return {
-      message: 'Te has unido al gimnasio exitosamente. Ahora puedes proceder al pago.',
-      membershipId: newMembership.id,
-      gymName: gym.name,
-    };
   }
 }
