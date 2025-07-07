@@ -535,4 +535,52 @@ export class AppController {
       { id, gymId: req.user.gymId }
     );
   }
+
+  // ─── GESTIÓN DE INVENTARIO (MANAGER/OWNER) ─────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('inventory/products')
+  @HttpCode(HttpStatus.OK)
+  async listProducts(@Req() req: any) {
+    return this.inventoryClient.send(
+      { cmd: 'products_findAll' },
+      { gymId: req.user.gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('inventory/products')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createProduct(@Body() dto: any, @Req() req: any) {
+    return this.inventoryClient.send(
+      { cmd: 'products_create' },
+      { ...dto, gymId: req.user.gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Put('inventory/products/:id')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateProduct(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
+    return this.inventoryClient.send(
+      { cmd: 'products_update' },
+      { id, updateProductDto: dto, gymId: req.user.gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Delete('inventory/products/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeProduct(@Param('id') id: string, @Req() req: any) {
+    return this.inventoryClient.send(
+      { cmd: 'products_remove' },
+      { id, gymId: req.user.gymId }
+    );
+  }
 }

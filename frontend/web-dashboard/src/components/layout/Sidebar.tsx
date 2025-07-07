@@ -14,7 +14,8 @@ import {
   Calendar,
   Bell,
   LogOut,
-  ShoppingCart
+  ShoppingCart,
+  Package
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ const roleMenus: Record<string, MenuSection[]> = {
       title: "Gestión",
       items: [
         { href: '/owner/staff', label: 'Personal', icon: Users },
+        { href: '/owner/inventory', label: 'Inventario', icon: Package },
         { href: '/owner/finances', label: 'Finanzas', icon: CreditCard },
         { href: '/owner/settings', label: 'Configuración', icon: Settings },
       ]
@@ -64,6 +66,7 @@ const roleMenus: Record<string, MenuSection[]> = {
         { href: '/manager/members', label: 'Miembros', icon: Users, badge: '287' },
         { href: '/manager/staff', label: 'Personal', icon: UserCheck },
         { href: '/manager/schedule', label: 'Horarios', icon: Calendar },
+        { href: '/manager/inventory', label: 'Inventario', icon: Package },
       ]
     },
     {

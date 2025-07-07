@@ -23,6 +23,19 @@ export interface SaleResponse {
   message: string;
 }
 
+// Product types for inventory management
+export interface ProductDto {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock: number;
+  barcode: string;
+  gymId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -52,4 +65,17 @@ export interface Sale {
   completedAt?: Date;
   createdAt: Date;
   items: SaleItem[];
+}
+
+// Types for Inventory Management
+export interface ProductDto {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock: number;
+  barcode: string;
+  gymId: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
