@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { 
   Home, 
   Users, 
@@ -23,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { logoutUser } from "@/lib/api/auth";
 
 // Definir tipos para los elementos del menú
 interface MenuItem {
@@ -130,6 +132,22 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const menuSections = roleMenus[userRole] || roleMenus.owner;
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogoutClick = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logoutUser();
+      // Redirigir al login después del logout exitoso
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Incluso si hay error, redirigir al login
+      window.location.href = '/login';
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <aside className="w-64 h-screen border-r bg-sidebar flex flex-col">
@@ -246,13 +264,11 @@ export function Sidebar({
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 h-9 px-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={() => {
-            // Aquí irá la lógica de logout
-            console.log('Logout clicked');
-          }}
+          onClick={handleLogoutClick}
+          disabled={isLoggingOut}
         >
           <LogOut className="h-4 w-4" />
-          <span>Cerrar Sesión</span>
+          <span>{isLoggingOut ? 'Cerrando sesión...' : 'Cerrar Sesión'}</span>
         </Button>
       </div>
     </aside>

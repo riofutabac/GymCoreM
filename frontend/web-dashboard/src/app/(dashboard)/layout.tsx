@@ -1,34 +1,15 @@
 import { ReactNode } from 'react';
-import { cookies } from 'next/headers'; // Importamos cookies de Next.js
-import { Sidebar } from '@/components/layout/Sidebar';
+import { SidebarWrapper } from '@/components/layout/SidebarWrapper';
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-export default async function DashboardLayout({ children }: DashboardLayoutProps) {
-  // 1. Leemos la cookie del rol en el servidor
-  const cookieStore = await cookies();
-  
-  // 🔒 MEJORA 4: Validación defensiva del rol
-  const roleFromCookie = cookieStore.get('user_role')?.value;
-  const validRoles = ['owner', 'manager', 'receptionist', 'member'] as const;
-  const userRole = validRoles.includes(roleFromCookie as typeof validRoles[number]) 
-    ? (roleFromCookie as typeof validRoles[number]) 
-    : 'member'; // Fallback seguro
-
-  // 2. Leemos los datos reales del usuario desde las cookies
-  const userName = cookieStore.get('user_name')?.value || "Usuario";
-  const userEmail = cookieStore.get('user_email')?.value || "Sin email";
-
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="flex h-screen w-full bg-background">
-      {/* 3. Pasamos el rol y datos del usuario como props al Sidebar */}
-      <Sidebar 
-        userRole={userRole} // Ahora siempre será un rol válido
-        userName={userName} 
-        userEmail={userEmail} 
-      />
+      {/* Sidebar que obtiene automáticamente la información del usuario */}
+      <SidebarWrapper />
 
       {/* Contenido Principal */}
       <div className="flex flex-1 flex-col overflow-hidden">

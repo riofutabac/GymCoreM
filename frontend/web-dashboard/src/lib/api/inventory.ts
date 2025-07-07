@@ -1,5 +1,6 @@
 // Frontend API functions for Inventory Management
 import { ProductDto } from './types';
+import { handleAuthError } from '@/lib/auth-utils';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
 
@@ -16,21 +17,42 @@ function getAuthToken(): string {
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken();
   
-  const response = await fetch(`${API_BASE_URL}/api/v1${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Network error' }));
-    throw new Error(error.message ?? `HTTP ${response.status}`);
+  // Solo agregar Authorization header si tenemos token
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
 
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1${endpoint}`, {
+      ...options,
+      headers,
+      credentials: 'include', // 🔐 Clave para enviar cookies HTTP-Only
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Network error' }));
+      const errorMessage = error.message ?? `HTTP ${response.status}`;
+      const apiError = new Error(errorMessage);
+      
+      // Manejar errores de autenticación
+      handleAuthError(apiError);
+      
+      throw apiError;
+    }
+
+    return response.json();
+  } catch (error) {
+    // Manejar errores de red o parsing
+    if (error instanceof Error) {
+      handleAuthError(error);
+    }
+    throw error;
+  }
 }
 
 // Product management API

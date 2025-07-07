@@ -12,6 +12,7 @@ export async function registerUser(userData: z.infer<typeof registerFormSchema>)
   const response = await fetch(`${API_GATEWAY_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Para enviar cookies HTTP-Only
     body: JSON.stringify(userData),
   });
 
@@ -32,12 +33,52 @@ export async function loginUser(credentials: z.infer<typeof loginFormSchema>) {
   const response = await fetch(`${API_GATEWAY_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Para recibir cookies HTTP-Only
     body: JSON.stringify(credentials),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || 'Credenciales inválidas.');
+  }
+
+  return response.json();
+}
+
+/**
+ * Llama al endpoint de logout del API Gateway.
+ * @returns La respuesta del servidor.
+ */
+export async function logoutUser() {
+  const response = await fetch(`${API_GATEWAY_URL}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include', // Para enviar cookies HTTP-Only
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Error al cerrar sesión.');
+  }
+
+  return response.json();
+}
+
+/**
+ * Obtiene la información del usuario autenticado
+ * @returns La información del usuario actual
+ */
+export async function getCurrentUser() {
+  const response = await fetch(`${API_GATEWAY_URL}/auth/me`, {
+    method: 'GET',
+    credentials: 'include', // Para enviar cookies HTTP-Only
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('No autenticado');
+    }
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Error obteniendo información del usuario.');
   }
 
   return response.json();

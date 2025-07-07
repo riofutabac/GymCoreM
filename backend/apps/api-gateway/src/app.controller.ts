@@ -69,12 +69,55 @@ export class AppController {
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: any) {
+  async login(@Body() body: any, @Res({ passthrough: true }) res: any) {
     try {
       // Convertimos la respuesta del microservicio en una Promesa
       const response = await firstValueFrom(
         this.authClient.send({ cmd: 'login' }, body),
       );
+
+      // 🔐 Configurar cookies HTTP-Only seguras
+      if (response.access_token) {
+        res.cookie('jwt_token', response.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
+          sameSite: 'lax',
+          maxAge: 24 * 60 * 60 * 1000, // 24 horas
+        });
+
+        // También guardamos el rol para el middleware
+        if (response.user?.role) {
+          res.cookie('user_role', response.user.role, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000,
+          });
+        }
+
+        // Información del usuario (no sensible) accesible desde el frontend
+        if (response.user) {
+          const fullName = `${response.user.firstName || ''} ${response.user.lastName || ''}`.trim();
+          if (fullName) {
+            res.cookie('user_name', fullName, {
+              httpOnly: false, // Accesible desde JS para mostrar en UI
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              maxAge: 24 * 60 * 60 * 1000,
+            });
+          }
+        }
+
+        if (response.user?.email) {
+          res.cookie('user_email', response.user.email, {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000,
+          });
+        }
+      }
+
       return response;
     } catch (error) {
       const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -582,5 +625,58 @@ export class AppController {
       { cmd: 'products_remove' },
       { id, gymId: req.user.gymId }
     );
+  }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: any) {
+    // Limpiar todas las cookies de autenticación
+    res.cookie('jwt_token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0, // Expira inmediatamente
+    });
+
+    res.cookie('user_role', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_name', '', {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_email', '', {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('auth/me')
+  @HttpCode(HttpStatus.OK)
+  async getMe(@Req() req: any) {
+    // El usuario ya está disponible gracias al JwtAuthGuard
+    const user = req.user;
+    return {
+      id: user.sub || user.id,
+      email: user.email,
+      role: user.role || user.app_metadata?.role || user.user_metadata?.role,
+      firstName: user.user_metadata?.firstName,
+      lastName: user.user_metadata?.lastName,
+      name: user.user_metadata?.firstName && user.user_metadata?.lastName 
+        ? `${user.user_metadata.firstName} ${user.user_metadata.lastName}`
+        : user.email?.split('@')[0],
+    };
   }
 }
