@@ -8,6 +8,7 @@ import { GymEventsController } from './gym-events.controller';
 import { AppService } from './app.service';
 import { MembershipService } from './membership.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { MembersModule } from './members/members.module';
 
 @Module({
   imports: [
@@ -19,6 +20,9 @@ import { PrismaModule } from './prisma/prisma.module';
 
     // Módulo de Prisma para acceso a BD
     PrismaModule,
+
+    // Módulo de gestión de miembros
+    MembersModule,
 
     // Configuración de RabbitMQ
     RabbitMQModule.forRoot({
