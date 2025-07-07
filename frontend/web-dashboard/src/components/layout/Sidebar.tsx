@@ -13,7 +13,8 @@ import {
   BarChart3,
   Calendar,
   Bell,
-  LogOut
+  LogOut,
+  ShoppingCart
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -208,6 +209,34 @@ export function Sidebar({
             )}
           </div>
         ))}
+        
+        {/* POS Section - Only for managers and receptionists */}
+        {(userRole === 'manager' || userRole === 'receptionist') && (
+          <div className="mb-6">
+            <Separator className="mb-4 bg-sidebar-border" />
+            <h3 className="text-xs font-medium text-sidebar-foreground/70 uppercase tracking-wider mb-2 px-2">
+              Punto de Venta
+            </h3>
+            <div className="space-y-1">
+              <Button
+                variant={pathname === '/pos' ? "secondary" : "ghost"}
+                className={`
+                  w-full justify-start gap-3 h-9 px-3
+                  ${pathname === '/pos'
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' 
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  }
+                `}
+                asChild
+              >
+                <Link href="/pos">
+                  <ShoppingCart className="h-4 w-4 flex-shrink-0" />
+                  <span className="flex-1 text-left truncate">POS</span>
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Footer */}

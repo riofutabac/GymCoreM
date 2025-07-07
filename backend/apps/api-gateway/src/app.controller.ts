@@ -49,6 +49,7 @@ export class AppController {
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
+    @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
@@ -376,5 +377,100 @@ export class AppController {
     }
 
     return result;
+  }
+
+  // ─── RUTAS POS (POINT OF SALE) ─────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/products/:barcode')
+  @HttpCode(HttpStatus.OK)
+  async findProductByBarcode(@Param('barcode') barcode: string, @Req() req: any) {
+    try {
+      const response = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'products_find_by_barcode' },
+          { barcode, gymId: req.user.gymId }
+        )
+      );
+      return response;
+    } catch (error) {
+      throw new HttpException('Product not found', HttpStatus.NOT_FOUND);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createSale(@Body() dto: any, @Req() req: any) {
+    try {
+      // Crear la venta en el inventory service
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create' },
+          {
+            ...dto,
+            gymId: req.user.gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      // Crear checkout session en payment service
+      const checkout = await firstValueFrom(
+        this.paymentClient.send(
+          { cmd: 'create_sale_checkout' },
+          {
+            saleId: sale.id,
+            amount: sale.totalAmount
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        approvalUrl: checkout.approvalUrl
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/products')
+  @HttpCode(HttpStatus.OK)
+  async findAllProducts(@Req() req: any) {
+    return this.inventoryClient.send(
+      { cmd: 'products_findAll' },
+      { gymId: req.user.gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/sales')
+  @HttpCode(HttpStatus.OK)
+  async findAllSales(@Req() req: any) {
+    return this.inventoryClient.send(
+      { cmd: 'sales_findAll' },
+      { gymId: req.user.gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/sales/:id')
+  @HttpCode(HttpStatus.OK)
+  async findOneSale(@Param('id') id: string, @Req() req: any) {
+    return this.inventoryClient.send(
+      { cmd: 'sales_findOne' },
+      { id, gymId: req.user.gymId }
+    );
   }
 }

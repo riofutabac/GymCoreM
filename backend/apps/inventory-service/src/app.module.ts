@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductsModule } from './products/products.module';
+import { SalesModule } from './sales/sales.module';
+import { SaleCompletedListener } from './listeners/sale-completed.listener';
 
 @Module({
   imports: [
@@ -10,9 +12,19 @@ import { PrismaModule } from './prisma/prisma.module';
       isGlobal: true,
       envFilePath: 'backend/apps/inventory-service/.env',
     }),
+    RabbitMQModule.forRoot({
+      exchanges: [
+        {
+          name: 'gymcore-exchange',
+          type: 'topic',
+        },
+      ],
+      uri: process.env.RABBITMQ_URL || 'amqp://localhost:5672',
+    }),
     PrismaModule,
+    ProductsModule,
+    SalesModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  providers: [SaleCompletedListener],
 })
 export class AppModule {}

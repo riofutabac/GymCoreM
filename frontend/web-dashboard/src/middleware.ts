@@ -41,6 +41,13 @@ export function middleware(request: NextRequest) {
     if (pathname === '/dashboard') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
+    
+    // 🔒 MEJORA 3: Proteger ruta /pos - solo para managers y receptionists
+    if (pathname === '/pos') {
+      if (role !== 'manager' && role !== 'receptionist') {
+        return NextResponse.redirect(new URL(`/${role}`, request.url));
+      }
+    }
   }
 
   return NextResponse.next();
