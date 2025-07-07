@@ -435,10 +435,16 @@ export class AppController {
   @HttpCode(HttpStatus.OK)
   async findProductByBarcode(@Param('barcode') barcode: string, @Req() req: any) {
     try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
       const response = await firstValueFrom(
         this.inventoryClient.send(
           { cmd: 'products_find_by_barcode' },
-          { barcode, gymId: req.user.gymId }
+          { barcode, gymId }
         )
       );
       return response;
@@ -454,13 +460,19 @@ export class AppController {
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async createSale(@Body() dto: any, @Req() req: any) {
     try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
       // Crear la venta en el inventory service
       const sale = await firstValueFrom(
         this.inventoryClient.send(
           { cmd: 'sales_create' },
           {
             ...dto,
-            gymId: req.user.gymId,
+            gymId,
             cashierId: req.user.sub
           }
         )
@@ -496,12 +508,18 @@ export class AppController {
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async createCashSale(@Body() dto: any, @Req() req: any) {
     try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
       const sale = await firstValueFrom(
         this.inventoryClient.send(
           { cmd: 'sales_create_cash' },
           {
             ...dto,
-            gymId: req.user.gymId,
+            gymId,
             cashierId: req.user.sub
           }
         )
@@ -527,12 +545,18 @@ export class AppController {
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async createCardSale(@Body() dto: any, @Req() req: any) {
     try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
       const sale = await firstValueFrom(
         this.inventoryClient.send(
           { cmd: 'sales_create_card_present' },
           {
             ...dto,
-            gymId: req.user.gymId,
+            gymId,
             cashierId: req.user.sub
           }
         )
@@ -556,9 +580,15 @@ export class AppController {
   @Get('pos/products')
   @HttpCode(HttpStatus.OK)
   async findAllProducts(@Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
     return this.inventoryClient.send(
       { cmd: 'products_findAll' },
-      { gymId: req.user.gymId }
+      { gymId }
     );
   }
 
@@ -567,9 +597,15 @@ export class AppController {
   @Get('pos/sales')
   @HttpCode(HttpStatus.OK)
   async findAllSales(@Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
     return this.inventoryClient.send(
       { cmd: 'sales_findAll' },
-      { gymId: req.user.gymId }
+      { gymId }
     );
   }
 
@@ -578,9 +614,15 @@ export class AppController {
   @Get('pos/sales/:id')
   @HttpCode(HttpStatus.OK)
   async findOneSale(@Param('id') id: string, @Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
     return this.inventoryClient.send(
       { cmd: 'sales_findOne' },
-      { id, gymId: req.user.gymId }
+      { id, gymId }
     );
   }
 
@@ -610,9 +652,16 @@ export class AppController {
   @HttpCode(HttpStatus.CREATED)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async createProduct(@Body() dto: any, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? dto.gymId : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
     return this.inventoryClient.send(
       { cmd: 'products_create' },
-      { ...dto, gymId: req.user.gymId }
+      { ...dto, gymId }
     );
   }
 
@@ -622,9 +671,16 @@ export class AppController {
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async updateProduct(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? dto.gymId : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
     return this.inventoryClient.send(
       { cmd: 'products_update' },
-      { id, updateProductDto: dto, gymId: req.user.gymId }
+      { id, updateProductDto: dto, gymId },
     );
   }
 
@@ -633,9 +689,16 @@ export class AppController {
   @Delete('inventory/products/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeProduct(@Param('id') id: string, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
     return this.inventoryClient.send(
       { cmd: 'products_remove' },
-      { id, gymId: req.user.gymId }
+      { id, gymId },
     );
   }
 

@@ -84,6 +84,74 @@ export const posApi = {
   async getSale(saleId: string) {
     return apiCall(`/pos/sales/${saleId}`);
   },
+
+  // Inventory Management Functions
+  // List all products (inventory)
+  async listInventoryProducts() {
+    return apiCall('/inventory/products');
+  },
+
+  // Create a new product
+  async createProduct(product: {
+    name: string;
+    description?: string;
+    price: number;
+    stock: number;
+    barcode: string;
+  }) {
+    return apiCall('/inventory/products', {
+      method: 'POST',
+      body: JSON.stringify(product),
+    });
+  },
+
+  // Update an existing product
+  async updateProduct(id: string, product: {
+    name?: string;
+    description?: string;
+    price?: number;
+    stock?: number;
+    barcode?: string;
+  }) {
+    return apiCall(`/inventory/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(product),
+    });
+  },
+
+  // Delete a product
+  async deleteProduct(id: string) {
+    return apiCall(`/inventory/products/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Diagnostic function to test API connectivity and permissions
+  async testConnection() {
+    try {
+      console.log('🔍 Testing API connection...');
+      
+      // Test user authentication
+      const authTest = await apiCall('/auth/me');
+      console.log('✅ Auth check:', authTest);
+      
+      // Test products list
+      const productsTest = await apiCall('/inventory/products');
+      console.log('✅ Products list:', productsTest.length, 'products found');
+      
+      return {
+        success: true,
+        auth: authTest,
+        productCount: productsTest.length
+      };
+    } catch (error) {
+      console.error('❌ Connection test failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  },
 };
 
 // Legacy exports for backward compatibility
