@@ -14,6 +14,14 @@ node_modules
 # Salida de compilación de TypeScript/NestJS
 **/dist
 
+# Coverage reports y test results
+**/coverage
+coverage/
+lcov.info
+**/*.lcov
+**/test-results
+**/.nyc_output
+
 # Artefactos de compilación y caché de Next.js
 **/frontend/web-dashboard/.next
 **/frontend/web-dashboard/out
