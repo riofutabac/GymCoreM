@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { 
   Home, 
   Users, 
@@ -13,7 +14,9 @@ import {
   BarChart3,
   Calendar,
   Bell,
-  LogOut
+  LogOut,
+  ShoppingCart,
+  Package
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -21,12 +24,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { logoutUser } from "@/lib/api/auth";
 
 // Definir tipos para los elementos del menú
 interface MenuItem {
   href: string;
   label: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   badge?: string;
 }
 
@@ -50,6 +54,7 @@ const roleMenus: Record<string, MenuSection[]> = {
       title: "Gestión",
       items: [
         { href: '/owner/staff', label: 'Personal', icon: Users },
+        { href: '/owner/inventory', label: 'Inventario', icon: Package },
         { href: '/owner/finances', label: 'Finanzas', icon: CreditCard },
         { href: '/owner/settings', label: 'Configuración', icon: Settings },
       ]
@@ -63,6 +68,7 @@ const roleMenus: Record<string, MenuSection[]> = {
         { href: '/manager/members', label: 'Miembros', icon: Users, badge: '287' },
         { href: '/manager/staff', label: 'Personal', icon: UserCheck },
         { href: '/manager/schedule', label: 'Horarios', icon: Calendar },
+        { href: '/manager/inventory', label: 'Inventario', icon: Package },
       ]
     },
     {
@@ -122,11 +128,26 @@ interface SidebarProps {
 export function Sidebar({ 
   userRole = 'owner', 
   userName = "Usuario", 
-  userEmail = "usuario@gymcore.com",
   userAvatar 
 }: SidebarProps) {
   const pathname = usePathname();
   const menuSections = roleMenus[userRole] || roleMenus.owner;
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogoutClick = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logoutUser();
+      // Redirigir al login después del logout exitoso
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Incluso si hay error, redirigir al login
+      window.location.href = '/login';
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <aside className="w-64 h-screen border-r bg-sidebar flex flex-col">
@@ -208,6 +229,34 @@ export function Sidebar({
             )}
           </div>
         ))}
+        
+        {/* POS Section - Only for managers and receptionists */}
+        {(userRole === 'manager' || userRole === 'receptionist') && (
+          <div className="mb-6">
+            <Separator className="mb-4 bg-sidebar-border" />
+            <h3 className="text-xs font-medium text-sidebar-foreground/70 uppercase tracking-wider mb-2 px-2">
+              Punto de Venta
+            </h3>
+            <div className="space-y-1">
+              <Button
+                variant={pathname === '/pos' ? "secondary" : "ghost"}
+                className={`
+                  w-full justify-start gap-3 h-9 px-3
+                  ${pathname === '/pos'
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' 
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  }
+                `}
+                asChild
+              >
+                <Link href="/pos">
+                  <ShoppingCart className="h-4 w-4 flex-shrink-0" />
+                  <span className="flex-1 text-left truncate">POS</span>
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Footer */}
@@ -215,13 +264,11 @@ export function Sidebar({
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 h-9 px-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={() => {
-            // Aquí irá la lógica de logout
-            console.log('Logout clicked');
-          }}
+          onClick={handleLogoutClick}
+          disabled={isLoggingOut}
         >
           <LogOut className="h-4 w-4" />
-          <span>Cerrar Sesión</span>
+          <span>{isLoggingOut ? 'Cerrando sesión...' : 'Cerrar Sesión'}</span>
         </Button>
       </div>
     </aside>

@@ -41,7 +41,7 @@ import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
 import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
 
-@Controller('v1') // Prefijo para todas las rutas de este controlador
+@Controller() // Sin prefijo ya que main.ts usa setGlobalPrefix('api/v1')
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
@@ -49,6 +49,7 @@ export class AppController {
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
+    @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
@@ -68,12 +69,60 @@ export class AppController {
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: any) {
+  async login(@Body() body: any, @Res({ passthrough: true }) res: any) {
     try {
       // Convertimos la respuesta del microservicio en una Promesa
       const response = await firstValueFrom(
         this.authClient.send({ cmd: 'login' }, body),
       );
+
+      // 🔐 Configurar cookies HTTP-Only seguras
+      if (response.access_token) {
+        const isProd = process.env.NODE_ENV === 'production';
+        const oneDay = 24 * 60 * 60 * 1000; // 24 horas
+
+        // JWT token - siempre httpOnly para seguridad
+        res.cookie('jwt_token', response.access_token, {
+          httpOnly: true,
+          secure: isProd,
+          sameSite: 'lax',
+          maxAge: oneDay,
+        });
+
+        // Rol del usuario - accesible desde JS para UI/ruteo (convertir a minúsculas)
+        if (response.user?.role) {
+          res.cookie('user_role', response.user.role.toLowerCase(), {
+            httpOnly: false, // UI necesita leer esto
+            secure: isProd,
+            sameSite: 'lax',
+            maxAge: oneDay,
+          });
+        }
+
+        // Nombre del usuario - accesible desde JS para mostrar en UI
+        if (response.user) {
+          const fullName = `${response.user.firstName || ''} ${response.user.lastName || ''}`.trim();
+          if (fullName) {
+            res.cookie('user_name', fullName, {
+              httpOnly: false, // UI necesita leer esto
+              secure: isProd,
+              sameSite: 'lax',
+              maxAge: oneDay,
+            });
+          }
+        }
+
+        // Email del usuario - accesible desde JS para mostrar en UI
+        if (response.user?.email) {
+          res.cookie('user_email', response.user.email, {
+            httpOnly: false, // UI necesita leer esto
+            secure: isProd,
+            sameSite: 'lax',
+            maxAge: oneDay,
+          });
+        }
+      }
+
       return response;
     } catch (error) {
       const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -376,5 +425,341 @@ export class AppController {
     }
 
     return result;
+  }
+
+  // ─── RUTAS POS (POINT OF SALE) ─────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/products/:barcode')
+  @HttpCode(HttpStatus.OK)
+  async findProductByBarcode(@Param('barcode') barcode: string, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      const response = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'products_find_by_barcode' },
+          { barcode, gymId }
+        )
+      );
+      return response;
+    } catch (error) {
+      throw new HttpException('Product not found', HttpStatus.NOT_FOUND);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      // Crear la venta en el inventory service
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create' },
+          {
+            ...dto,
+            gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      // Crear checkout session en payment service
+      const checkout = await firstValueFrom(
+        this.paymentClient.send(
+          { cmd: 'create_sale_checkout' },
+          {
+            saleId: sale.id,
+            amount: sale.totalAmount
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        approvalUrl: checkout.approvalUrl
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales/cash')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createCashSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create_cash' },
+          {
+            ...dto,
+            gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        status: 'COMPLETED',
+        message: 'Venta en efectivo completada exitosamente'
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating cash sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('pos/sales/card-present')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createCardSale(@Body() dto: any, @Req() req: any) {
+    try {
+      const gymId = req.user.app_metadata?.gymId;
+      
+      if (!gymId) {
+        throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+      }
+      
+      const sale = await firstValueFrom(
+        this.inventoryClient.send(
+          { cmd: 'sales_create_card_present' },
+          {
+            ...dto,
+            gymId,
+            cashierId: req.user.sub
+          }
+        )
+      );
+
+      return {
+        saleId: sale.id,
+        status: 'COMPLETED',
+        message: 'Venta con tarjeta completada exitosamente'
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Error creating card sale',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/products')
+  @HttpCode(HttpStatus.OK)
+  async findAllProducts(@Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_findAll' },
+      { gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/sales')
+  @HttpCode(HttpStatus.OK)
+  async findAllSales(@Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'sales_findAll' },
+      { gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('pos/sales/:id')
+  @HttpCode(HttpStatus.OK)
+  async findOneSale(@Param('id') id: string, @Req() req: any) {
+    const gymId = req.user.app_metadata?.gymId;
+      
+    if (!gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'sales_findOne' },
+      { id, gymId }
+    );
+  }
+
+  // ─── GESTIÓN DE INVENTARIO (MANAGER/OWNER) ─────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('inventory/products')
+  @HttpCode(HttpStatus.OK)
+  async listProducts(@Req() req: any) {
+    // Los OWNER pueden ver productos de todos los gimnasios, los MANAGER solo del suyo
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? null : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('User must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_findAll' },
+      { gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('inventory/products')
+  @HttpCode(HttpStatus.CREATED)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async createProduct(@Body() dto: any, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? dto.gymId : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_create' },
+      { ...dto, gymId }
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Put('inventory/products/:id')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateProduct(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.role === 'OWNER' ? dto.gymId : req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_update' },
+      { id, updateProductDto: dto, gymId },
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Delete('inventory/products/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeProduct(@Param('id') id: string, @Req() req: any) {
+    // Consistent gymId extraction for both OWNER and MANAGER
+    const gymId = req.user.app_metadata?.gymId;
+    
+    if (req.user.app_metadata?.role !== 'OWNER' && !gymId) {
+      throw new HttpException('Manager must be assigned to a gym', HttpStatus.FORBIDDEN);
+    }
+    
+    return this.inventoryClient.send(
+      { cmd: 'products_remove' },
+      { id, gymId },
+    );
+  }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: any) {
+    const isProd = process.env.NODE_ENV === 'production';
+    
+    // Limpiar todas las cookies de autenticación
+    res.cookie('jwt_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0, // Expira inmediatamente
+    });
+
+    res.cookie('user_role', '', {
+      httpOnly: false, // Consistente con login
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_name', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_email', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('auth/me')
+  @HttpCode(HttpStatus.OK)
+  async getMe(@Req() req: any) {
+    // El usuario ya está disponible gracias al JwtAuthGuard
+    const user = req.user;
+    
+    // Priorizar app_metadata.role (autorativo) y convertir a minúsculas para el frontend
+    const userRole = user.app_metadata?.role || user.user_metadata?.role || user.role;
+    const roleForFrontend = userRole ? userRole.toLowerCase() : 'member';
+    
+    return {
+      id: user.sub || user.id,
+      email: user.email,
+      role: roleForFrontend, // Usar el rol correctamente extraído y convertido
+      firstName: user.user_metadata?.firstName,
+      lastName: user.user_metadata?.lastName,
+      name: user.user_metadata?.firstName && user.user_metadata?.lastName 
+        ? `${user.user_metadata.firstName} ${user.user_metadata.lastName}`
+        : user.email?.split('@')[0],
+      gymId: user.app_metadata?.gymId, // Incluir gymId si está disponible
+    };
   }
 }

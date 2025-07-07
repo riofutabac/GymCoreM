@@ -64,6 +64,24 @@ import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-di
         },
         inject: [ConfigService],
       },
+      {
+        name: 'INVENTORY_SERVICE',
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => {
+          const inventoryServiceUrl =
+            configService.get<string>('INVENTORY_SERVICE_URL') ||
+            'tcp://localhost:3004';
+          const [host, port] = inventoryServiceUrl.replace('tcp://', '').split(':');
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: host,
+              port: +port,
+            },
+          };
+        },
+        inject: [ConfigService],
+      },
     ]),
   ],
   controllers: [AppController],

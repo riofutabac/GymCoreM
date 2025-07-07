@@ -119,6 +119,68 @@ export class AppService {
     return { approvalUrl: approvalLink.href };
   }
 
+  async createSaleCheckout(payload: { saleId: string; amount: number }) {
+    this.logger.log(`Iniciando checkout para venta POS ${payload.saleId}`);
+
+    const amount = payload.amount.toFixed(2);
+    const currency = 'USD';
+    const frontendUrl = this.config.get<string>('FRONTEND_URL');
+
+    const request = new paypal.orders.OrdersCreateRequest();
+    request.prefer('return=representation');
+    request.requestBody({
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          description: `POS Sale ${payload.saleId}`,
+          amount: { currency_code: currency, value: amount },
+          custom_id: payload.saleId,
+        },
+      ],
+      application_context: {
+        return_url: `${frontendUrl}/pos/success`,
+        cancel_url: `${frontendUrl}/pos/cancelled`,
+        brand_name: 'GymCore POS',
+        user_action: 'PAY_NOW',
+      },
+    });
+
+    let order: any;
+    try {
+      order = await this.paypalSvc.client.execute(request);
+    } catch (err) {
+      this.logger.error('Error creando la orden en PayPal para venta POS', err);
+      throw new RpcException({
+        message: 'Error de PayPal al crear la orden.',
+        status: HttpStatus.INTERNAL_SERVER_ERROR
+      });
+    }
+
+    // Guardar el pago en la base de datos
+    await this.prisma.payment.create({
+      data: {
+        userId: null, // Para ventas POS no hay userId específico
+        membershipId: null,
+        saleId: payload.saleId, // Nueva columna para ventas POS
+        amount: payload.amount,
+        currency,
+        method: 'PAYPAL',
+        status: 'PENDING',
+        transactionId: order.result.id,
+      },
+    });
+
+    const approvalLink = order.result.links.find((l) => l.rel === 'approve');
+    if (!approvalLink) {
+      throw new RpcException({
+        message: 'No se pudo obtener el link de aprobación de PayPal.',
+        status: HttpStatus.INTERNAL_SERVER_ERROR
+      });
+    }
+
+    return { approvalUrl: approvalLink.href };
+  }
+
   // --- VERIFICACIÓN DE FIRMA MANUAL CON FETCH ---
   private async verifyPaypalSignature(
     headers: Record<string, string>,
@@ -256,22 +318,41 @@ export class AppService {
         data: { status: 'COMPLETED', completedAt: new Date() },
       });
 
-      await this.amqpConnection.publish(
-        'gymcore-exchange',
-        'payment.completed',
-        {
-          userId: payment.userId,
-          membershipId: payment.membershipId,
-          paymentId: payment.id,
-          paidAt: new Date().toISOString(),
-          amount: payment.amount,
-          currency: payment.currency,
-        },
-        { persistent: true },
-      );
+      // Determinar el tipo de evento a publicar basado en el tipo de pago
+      if (payment.saleId) {
+        // Es una venta POS
+        await this.amqpConnection.publish(
+          'gymcore-exchange',
+          'sale.completed',
+          {
+            saleId: payment.saleId,
+            paymentId: payment.id,
+            paidAt: new Date().toISOString(),
+            amount: payment.amount,
+            currency: payment.currency,
+          },
+          { persistent: true },
+        );
+        this.logger.log(`✅ Venta POS [${payment.saleId}] procesada y evento 'sale.completed' publicado.`);
+      } else {
+        // Es una membresía
+        await this.amqpConnection.publish(
+          'gymcore-exchange',
+          'payment.completed',
+          {
+            userId: payment.userId,
+            membershipId: payment.membershipId,
+            paymentId: payment.id,
+            paidAt: new Date().toISOString(),
+            amount: payment.amount,
+            currency: payment.currency,
+          },
+          { persistent: true },
+        );
+        this.logger.log(`✅ Membresía [${payment.membershipId}] procesada y evento 'payment.completed' publicado.`);
+      }
 
       this.webhookCounter.inc({ event_type: eventType, status: 'processed_success' });
-      this.logger.log(`✅ Orden [${orderId}] procesada y evento 'payment.completed' publicado.`);
 
       return { status: 'processed' };
     }
