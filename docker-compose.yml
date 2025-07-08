@@ -17,6 +17,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # AÑADE ESTE SERVICIO NUEVO PARA REDIS
+  redis:
+    image: redis:7-alpine # Usamos una imagen oficial y ligera
+    container_name: gymcore-redis
+    ports:
+      - "6379:6379" # Expones el puerto a tu máquina local
+    networks:
+      - gymcore-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # #--- Backend Microservices ---#
   # api-gateway:
   #   container_name: gymcore-api-gateway

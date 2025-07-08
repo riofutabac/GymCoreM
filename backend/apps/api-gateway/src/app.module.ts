@@ -82,6 +82,24 @@ import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-di
         },
         inject: [ConfigService],
       },
+      {
+        name: 'ANALYTICS_SERVICE',
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => {
+          const analyticsServiceUrl =
+            configService.get<string>('ANALYTICS_SERVICE_URL') ||
+            'tcp://localhost:3005';
+          const [host, port] = analyticsServiceUrl.replace('tcp://', '').split(':');
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: host,
+              port: +port,
+            },
+          };
+        },
+        inject: [ConfigService],
+      },
     ]),
   ],
   controllers: [AppController],
