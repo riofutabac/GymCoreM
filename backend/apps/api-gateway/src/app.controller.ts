@@ -50,6 +50,7 @@ export class AppController {
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
+    @Inject('ANALYTICS_SERVICE') private readonly analyticsClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
@@ -761,5 +762,24 @@ export class AppController {
         : user.email?.split('@')[0],
       gymId: user.app_metadata?.gymId, // Incluir gymId si está disponible
     };
+  }
+
+  // --- ANALYTICS ENDPOINT ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER')
+  @Get('analytics/kpis')
+  @HttpCode(HttpStatus.OK)
+  async getAnalyticsKPIs() {
+    try {
+      return await firstValueFrom(
+        this.analyticsClient.send({ cmd: 'get_kpis' }, {}),
+      );
+    } catch (error) {
+      this.logger.error('Error obteniendo KPIs de Analytics Service', error);
+      throw new HttpException(
+        'No se pudo obtener las métricas.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
   }
 }
