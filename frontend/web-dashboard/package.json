@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 3030",
+    "start:dev": "next dev --turbopack -p 3030",
     "build": "next build",
     "start": "next start -p 3030",
+    "start:prod": "next start -p 3030",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
