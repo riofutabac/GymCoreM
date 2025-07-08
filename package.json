@@ -64,8 +64,8 @@
     "test:unit:all": "concurrently \"pnpm test:unit:backend\" \"pnpm test:frontend\"",
     "test:sonar": "pnpm test:cov && node scripts/merge-coverage.js",
     "test:cov": "pnpm -r run test:cov",
-    "lint": "pnpm -r run lint",
-    "lint:fix": "pnpm -r run lint --fix",
+    "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false pnpm -r run lint",
+    "lint:fix": "cross-env ESLINT_USE_FLAT_CONFIG=false pnpm -r run lint --fix",
     "format": "pnpm -r run format",
     "format:check": "pnpm -r run format:check",
     "install:all": "pnpm install && pnpm -r install",
@@ -100,7 +100,14 @@
   "license": "ISC",
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-prettier": "^5.5.1",
     "husky": "^9.0.11",
     "lint-staged": "^15.2.10",
     "prisma": "^6.9.0",
@@ -118,6 +125,10 @@
     "overrides": {
       "@prisma/client": "^6.9.0"
     }
+  },
+  "eslintConfig": {
+    "env": {
+      "es6": true
+    }
   }
 }
-
