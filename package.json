@@ -9,7 +9,7 @@
     "dev": "pnpm --parallel --stream -r run start:dev",
     "rebuild": "pnpm clean:dist && pnpm build",
     "dev:all": "concurrently \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:inventory\" \"pnpm dev:notifications\" \"pnpm dev:payments\" \"pnpm dev:analytics\"",
-    "dev:backend": "concurrently \"pnpm --filter api-gateway run start:dev\" \"pnpm --filter auth-service run start:dev\" \"pnpm --filter gym-management-service run start:dev\" \"pnpm --filter payment-service run start:dev\" \"pnpm --filter inventory-service run start:dev\" \"pnpm --filter analytics-service run start:dev\" \"pnpm --filter notification-service run start:dev\"",
+    "dev:backend": "concurrently \"pnpm dev:gateway\" \"pnpm dev:auth\" \"pnpm dev:gyms\" \"pnpm dev:inventory\" \"pnpm dev:notifications\" \"pnpm dev:payments\" \"pnpm dev:analytics\"",
     "dev:gateway": "infisical run --path=/api-gateway -- pnpm --filter api-gateway run start:dev",
     "dev:auth": "infisical run --path=/auth-service -- pnpm --filter auth-service run start:dev",
     "dev:gyms": "infisical run --path=/gym-management-service -- pnpm --filter gym-management-service run start:dev",
