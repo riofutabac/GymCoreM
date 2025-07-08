@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as SendGrid from '@sendgrid/mail';
+import sgMail from '@sendgrid/mail';
 
 export interface MembershipActivatedData {
   name: string;
@@ -27,7 +27,7 @@ export class EmailService {
       this.logger.error('SENDGRID_API_KEY is not configured');
       throw new Error('SendGrid API Key is required');
     }
-    SendGrid.setApiKey(apiKey);
+    sgMail.setApiKey(apiKey);
     this.logger.log('SendGrid API Key configured successfully');
   }
 
@@ -45,7 +45,7 @@ export class EmailService {
     this.logger.log(`Sending 'membership-activated' email to: ${to}`);
 
     try {
-      await SendGrid.send({
+      await sgMail.send({
         to,
         from,
         templateId:
@@ -82,7 +82,7 @@ export class EmailService {
     this.logger.log(`Sending 'payment-failed' email to: ${to}`);
 
     try {
-      await SendGrid.send({
+      await sgMail.send({
         to,
         from,
         templateId:
@@ -115,7 +115,7 @@ export class EmailService {
     this.logger.log(`Sending test email to: ${to}`);
 
     try {
-      await SendGrid.send({
+      await sgMail.send({
         to,
         from,
         subject: 'GymCore Notification Service - Test Email',
