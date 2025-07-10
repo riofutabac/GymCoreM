@@ -28,6 +28,8 @@ import { PaypalModule } from './paypal/paypal.module';
         reject: process.env.NODE_ENV === 'production' ? true : false,
         timeout: 10000 
       },
+      // Habilita el descubrimiento automático de suscriptores @RabbitSubscribe en controladores
+      enableControllerDiscovery: true,
     }),
     ClientsModule.registerAsync([
       {

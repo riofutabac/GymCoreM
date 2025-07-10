@@ -381,6 +381,10 @@ export class AppService {
     this.logger.log(`Creando registro de pago manual para membresía ${payload.membershipId}`);
     
     try {
+      // Generar un transactionId único usando timestamp para evitar duplicados
+      const timestamp = Date.now();
+      const transactionId = `manual-${payload.membershipId}-${timestamp}`;
+      
       await this.prisma.payment.create({
         data: {
           userId: payload.userId,
@@ -390,11 +394,11 @@ export class AppService {
           method: 'CASH', // Usamos directamente 'CASH' que está en el enum
           status: 'COMPLETED',
           completedAt: new Date(),
-          transactionId: `manual-${payload.membershipId}`, // ID de transacción único y predecible
+          transactionId: transactionId,
         },
       });
       
-      this.logger.log(`✅ Pago manual para membresía ${payload.membershipId} registrado exitosamente.`);
+      this.logger.log(`✅ Pago manual para membresía ${payload.membershipId} registrado exitosamente con ID: ${transactionId}`);
     } catch (error) {
       this.logger.error(`❌ Error creando pago manual para membresía ${payload.membershipId}`, error);
       // Re-lanzar el error para que RabbitMQ pueda manejarlo (e.g., Dead Letter Queue)
