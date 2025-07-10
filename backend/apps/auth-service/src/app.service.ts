@@ -270,5 +270,28 @@ export class AppService {
 
     return updatedUser;
   }
+
+  async findUserById(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        message: `Usuario con ID ${userId} no encontrado.`,
+        status: 404,
+      });
+    }
+
+    return {
+      email: user.email,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    };
+  }
 }
 

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { PrismaService } from './prisma/prisma.service';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
@@ -9,49 +10,109 @@ import { Role } from '../prisma/generated/gym-client';
 export class MembershipService {
   private readonly logger = new Logger(MembershipService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly amqpConnection: AmqpConnection,
+  ) {}
 
   async activate(dto: ActivateMembershipDto, managerId: string) {
-    const start = new Date(dto.startDate);
-    const end = new Date(dto.endDate);
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
 
-    if (start >= end) {
-      throw new BadRequestException('startDate must be before endDate');
+    if (startDate >= endDate) {
+      throw new BadRequestException('La fecha de inicio debe ser anterior a la fecha de fin.');
     }
 
-    await this.validatePermissions(managerId, dto.userId, dto.gymId);
+    // 1. OBTENER DATOS DEL MANAGER QUE HACE LA PETICIÓN (VALIDACIÓN DE SEGURIDAD)
+    const manager = await this.prisma.user.findUnique({ where: { id: managerId } });
+    if (!manager) {
+      throw new NotFoundException('Manager no encontrado');
+    }
+    if (!manager.gymId) {
+      throw new ForbiddenException('No tienes permisos o no estás asignado a un gimnasio.');
+    }
 
-    const existing = await this.prisma.membership.findFirst({
-      where: { userId: dto.userId, gymId: dto.gymId, status: 'ACTIVE', endDate: { gt: new Date() } },
+    // 2. LA VALIDACIÓN DE SEGURIDAD CLAVE
+    // Buscamos una membresía que cumpla TRES condiciones a la vez:
+    //   a) Pertenece al `userId` que se quiere activar.
+    //   b) Está asociada al `gymId` DEL MANAGER que está logueado.
+    //   c) Su estado es 'PENDING_PAYMENT'.
+    const pendingMembership = await this.prisma.membership.findFirst({
+      where: {
+        userId: dto.userId,
+        gymId: manager.gymId, // <-- ¡ESTA ES LA "FLAG" DE SEGURIDAD!
+        status: 'PENDING_PAYMENT',
+      },
     });
 
-    if (existing) {
-      throw new ConflictException('User already has active membership');
+    // 3. SI NO SE ENCUENTRA, SE RECHAZA LA OPERACIÓN
+    if (!pendingMembership) {
+      throw new NotFoundException(
+        `Acción denegada. No se encontró una membresía pendiente para este usuario en tu gimnasio. El usuario debe usar el "código de invitación" del gimnasio primero.`
+      );
     }
 
+    // 4. SI LA VALIDACIÓN PASA, PROCEDEMOS CON LA ACTIVACIÓN
     return this.prisma.$transaction(async (tx) => {
-      const membership = await tx.membership.create({
+      // Actualizar la membresía a ACTIVA (no crear una nueva)
+      const activatedMembership = await tx.membership.update({
+        where: { id: pendingMembership.id },
         data: {
-          userId: dto.userId,
-          gymId: dto.gymId,
-          startDate: start,
-          endDate: end,
           status: 'ACTIVE',
+          startDate: startDate,
+          endDate: endDate,
           activatedById: managerId,
         },
       });
 
+      // Crear el log de auditoría
       await tx.membershipLog.create({
         data: {
-          membershipId: membership.id,
+          membershipId: activatedMembership.id,
           action: 'ACTIVATED',
           performedById: managerId,
-          reason: dto.reason ?? 'Manual activation',
-          details: { startDate: dto.startDate, endDate: dto.endDate },
+          reason: dto.reason ?? 'Activación manual (pago en efectivo)',
+          details: { startDate: dto.startDate, endDate: dto.endDate, amount: dto.amount },
         },
       });
 
-      return membership;
+      // Emitir el evento para que Payment Service cree el pago
+      const eventPayload = {
+        userId: dto.userId,
+        membershipId: activatedMembership.id,
+        amount: dto.amount,
+        method: 'CASH', // Método para activación manual
+        reason: dto.reason ?? 'Activación manual (pago en efectivo)',
+        activatedBy: managerId,
+      };
+
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'membership.activated.manually',
+        eventPayload,
+        { persistent: true }
+      );
+      
+      this.logger.log(`Evento 'membership.activated.manually' emitido para membresía ${activatedMembership.id}`);
+
+      // También emitir evento para notificación por email
+      const notificationPayload = {
+        membershipId: activatedMembership.id,
+        userId: dto.userId,
+        activationDate: new Date().toISOString(),
+        membershipType: 'Activación Manual (Efectivo)',
+      };
+
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'membership.activated.notification',
+        notificationPayload,
+        { persistent: true }
+      );
+
+      this.logger.log(`Evento de notificación emitido para membresía ${activatedMembership.id}`);
+
+      return activatedMembership;
     });
   }
 

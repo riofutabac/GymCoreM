@@ -29,4 +29,9 @@ export class AppController {
   changeRole(@Payload() data: { userId: string; newRole: string; gymId?: string }) {
     return this.appService.changeRole(data.userId, data.newRole, data.gymId);
   }
+
+  @MessagePattern({ cmd: 'get_user_info' })
+  async getUserInfo(@Payload() data: { userId: string }) {
+    return this.appService.findUserById(data.userId);
+  }
 }

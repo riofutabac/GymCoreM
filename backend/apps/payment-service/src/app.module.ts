@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { PaypalModule } from './paypal/paypal.module';
+import { RabbitBindingsService } from './rabbit-bindings.service';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PaypalModule } from './paypal/paypal.module';
         {
           name: 'gymcore-exchange',
           type: 'topic',
+          options: { durable: true }, // Asegúrate que el exchange sea durable
         },
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
@@ -28,6 +30,9 @@ import { PaypalModule } from './paypal/paypal.module';
         reject: process.env.NODE_ENV === 'production' ? true : false,
         timeout: 10000 
       },
+      // --- ESTA ES LA LÍNEA MÁS IMPORTANTE ---
+      // Le dice a NestJS que busque los @RabbitSubscribe en tus controladores.
+      enableControllerDiscovery: true, 
     }),
     ClientsModule.registerAsync([
       {
@@ -46,6 +51,13 @@ import { PaypalModule } from './paypal/paypal.module';
     ]),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    RabbitBindingsService,
+  ],
 })
-export class AppModule {}
+export class AppModule {
+  constructor() {
+    // Constructor limpio sin logs
+  }
+}

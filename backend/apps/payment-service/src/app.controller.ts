@@ -6,8 +6,10 @@ import {
   Res,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
+import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { AppService } from './app.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { register } from 'prom-client';
@@ -15,6 +17,8 @@ import { Response } from 'express';
 
 @Controller()
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   constructor(private readonly appService: AppService) {}
 
   @Get()
@@ -85,5 +89,26 @@ export class AppController {
     };
 
     return this.appService.handlePaypalWebhook(mockWebhookData);
+  }
+
+  // --- LISTENER PARA ACTIVACIONES MANUALES DE MEMBRESÍA ---
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'membership.activated.manually',
+    queue: 'payments.membership.activated.manually', // Una queue dedicada
+    queueOptions: { durable: true },    // ← Aquí
+  })
+  public async handleManualMembershipActivation(payload: {
+    userId: string;
+    membershipId: string;
+    amount: number;
+    method: string;
+    reason?: string;
+    activatedBy: string;
+  }) {
+    this.logger.log(`Evento de activación manual recibido para membresía ${payload.membershipId}`);
+    
+    // Llamar a un método en AppService para manejar la lógica
+    await this.appService.createManualPayment(payload);
   }
 }
