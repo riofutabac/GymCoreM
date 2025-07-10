@@ -8,6 +8,7 @@ import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import * as paypal from '@paypal/checkout-server-sdk';
 import { firstValueFrom } from 'rxjs';
 import { Counter, register } from 'prom-client';
+import { randomBytes } from 'crypto';
 // Usamos fetch nativo de Node.js 18+
 
 interface MembershipDetails {
@@ -369,9 +370,9 @@ export class AppService {
     this.logger.log(`Creando registro de pago manual para membresía ${payload.membershipId}`);
     
     try {
-      // Generar un transactionId único usando timestamp para evitar duplicados
-      const timestamp = Date.now();
-      const transactionId = `manual-${payload.membershipId}-${timestamp}`;
+      // Generar un transactionId más limpio y profesional
+      const randomPart = randomBytes(6).toString('hex').toUpperCase(); // Genera 12 caracteres aleatorios
+      const transactionId = `MANUAL-${randomPart}`; // Ejemplo: MANUAL-A1B2C3D4E5F6
       
       await this.prisma.payment.create({
         data: {
@@ -382,7 +383,7 @@ export class AppService {
           method: 'CASH', // Usamos directamente 'CASH' que está en el enum
           status: 'COMPLETED',
           completedAt: new Date(),
-          transactionId: transactionId,
+          transactionId: transactionId, // ✨ Usamos el nuevo ID, más limpio
         },
       });
       
