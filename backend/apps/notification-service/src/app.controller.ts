@@ -8,8 +8,9 @@ interface PaymentCompletedPayload {
   membershipId: string;
   paidAt: string;
   amount: number;
-  userEmail?: string;
-  userName?: string;
+  // These fields aren't included in the actual payload
+  // userEmail?: string;
+  // userName?: string;
 }
 
 interface PaymentFailedPayload {
@@ -79,20 +80,23 @@ export class AppController {
     );
 
     try {
-      // In a real implementation, you would fetch user details from auth-service or database
-      // For now, we'll use the payload data or fallback values
-      const userEmail = payload.userEmail || 'user@example.com';
-      const userName = payload.userName || 'Valued Member';
+      // Get user information from the app service
+      const userInfo = await this.appService.getUserInfo(payload.userId);
 
-      await this.emailService.sendMembershipActivated(userEmail, {
-        name: userName,
+      if (!userInfo || !userInfo.email) {
+        this.logger.error(`No se pudo obtener la información del usuario ${payload.userId}. Abortando notificación.`);
+        return;
+      }
+
+      await this.emailService.sendMembershipActivated(userInfo.email, {
+        name: userInfo.name || 'Valued Member',
         membershipId: payload.membershipId,
         membershipType: 'Premium', // You could get this from payload or fetch from DB
-        activationDate: new Date().toLocaleDateString(),
+        activationDate: new Date(payload.paidAt).toLocaleDateString(),
       });
 
       this.logger.log(
-        `✅ Membership activation email sent for user ${payload.userId}`,
+        `✅ Membership activation email sent for user ${payload.userId} to ${userInfo.email}`,
       );
     } catch (error) {
       const errorMessage =
