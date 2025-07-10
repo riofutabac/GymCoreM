@@ -5,12 +5,23 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { CustomRpcExceptionFilter } from './rpc-exception.filter';
 import cookieParser from 'cookie-parser';
+import { json } from 'express'; // <--- Importa el parser de Express
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
+  const app = await NestFactory.create(AppModule, {
+    // Añade esta configuración para el rawBody
+    bodyParser: false, 
+  });
+
   // Configurar cookie-parser para leer cookies HTTP-Only
   app.use(cookieParser());
+
+  // Configurar el parser de JSON manualmente con la opción 'verify'
+  app.use(json({
+    verify: (req: any, res, buf) => {
+      req.rawBody = buf;
+    }
+  }));
   
   // Configuración CORS estricta para credenciales
   app.enableCors({

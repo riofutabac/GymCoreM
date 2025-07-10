@@ -8,6 +8,7 @@ import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import * as paypal from '@paypal/checkout-server-sdk';
 import { firstValueFrom } from 'rxjs';
 import { Counter, register } from 'prom-client';
+import { randomBytes } from 'crypto';
 // Usamos fetch nativo de Node.js 18+
 
 interface MembershipDetails {
@@ -34,7 +35,7 @@ export class AppService {
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     private readonly amqpConnection: AmqpConnection,
   ) {
-    // Registrar la métrica con un nombre de servicio para mejor filtrado en Grafana
+    // Constructor limpio sin logs
     register.setDefaultLabels({ service: 'payment-service' });
   }
 
@@ -43,12 +44,9 @@ export class AppService {
   }
 
   async createCheckoutSession(dto: CreateCheckoutDto) {
-    this.logger.log(`Iniciando checkout para membresía ${dto.membershipId}`);
-
     const membershipDetails = await firstValueFrom(
       this.gymClient.send<MembershipDetails>({ cmd: 'get_membership_details' }, { membershipId: dto.membershipId }),
     ).catch((err) => {
-      this.logger.error(`Error al obtener detalles de la membresía: ${dto.membershipId}`, err);
       throw new RpcException({
         message: 'Membresía no válida o el servicio de gimnasios no responde.',
         status: HttpStatus.BAD_REQUEST
@@ -85,11 +83,10 @@ export class AppService {
       },
     });
 
-    let order: any; // Usamos 'any' para evitar problemas con los tipos complejos de PayPal SDK
+    let order: any;
     try {
       order = await this.paypalSvc.client.execute(request);
     } catch (err) {
-      this.logger.error('Error creando la orden en PayPal', err);
       throw new RpcException({
           message: 'Error de PayPal al crear la orden.',
           status: HttpStatus.INTERNAL_SERVER_ERROR
@@ -120,8 +117,6 @@ export class AppService {
   }
 
   async createSaleCheckout(payload: { saleId: string; amount: number }) {
-    this.logger.log(`Iniciando checkout para venta POS ${payload.saleId}`);
-
     const amount = payload.amount.toFixed(2);
     const currency = 'USD';
     const frontendUrl = this.config.get<string>('FRONTEND_URL');
@@ -149,7 +144,6 @@ export class AppService {
     try {
       order = await this.paypalSvc.client.execute(request);
     } catch (err) {
-      this.logger.error('Error creando la orden en PayPal para venta POS', err);
       throw new RpcException({
         message: 'Error de PayPal al crear la orden.',
         status: HttpStatus.INTERNAL_SERVER_ERROR
@@ -198,7 +192,6 @@ export class AppService {
 
       for (const header of requiredHeaders) {
         if (!headers[header]) {
-          this.logger.warn(`Cabecera faltante: ${header}`);
           return false;
         }
       }
@@ -211,7 +204,6 @@ export class AppService {
       // 3) Verificar que tenemos el webhook ID configurado
       const webhookId = this.config.get<string>('PAYPAL_WEBHOOK_ID');
       if (!webhookId) {
-        this.logger.error('PAYPAL_WEBHOOK_ID no configurado');
         return false;
       }
 
@@ -241,17 +233,14 @@ export class AppService {
 
       if (!response.ok) {
         const errorData = await response.json() as { message?: string; details?: any };
-        this.logger.error('PayPal verify-webhook-signature falló:', errorData);
         return false;
       }
 
       const responseData = await response.json() as { verification_status: string };
       const { verification_status } = responseData;
-      this.logger.log(`[Verificación PayPal] Status: ${verification_status}`);
       return verification_status === 'SUCCESS';
       
     } catch (error) {
-      this.logger.error('Error al verificar la firma del webhook de PayPal', error);
       // Por seguridad, si hay cualquier error en la verificación, rechazamos
       return false;
     }
@@ -368,5 +357,41 @@ export class AppService {
       where: { status: 'PENDING' },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async createManualPayment(payload: {
+    userId: string;
+    membershipId: string;
+    amount: number;
+    method: string;
+    reason?: string;
+    activatedBy: string;
+  }) {
+    this.logger.log(`Creando registro de pago manual para membresía ${payload.membershipId}`);
+    
+    try {
+      // Generar un transactionId más limpio y profesional
+      const randomPart = randomBytes(6).toString('hex').toUpperCase(); // Genera 12 caracteres aleatorios
+      const transactionId = `MANUAL-${randomPart}`; // Ejemplo: MANUAL-A1B2C3D4E5F6
+      
+      await this.prisma.payment.create({
+        data: {
+          userId: payload.userId,
+          membershipId: payload.membershipId,
+          amount: payload.amount,
+          currency: 'USD',
+          method: 'CASH', // Usamos directamente 'CASH' que está en el enum
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          transactionId: transactionId, // ✨ Usamos el nuevo ID, más limpio
+        },
+      });
+      
+      this.logger.log(`✅ Pago manual para membresía ${payload.membershipId} registrado exitosamente con ID: ${transactionId}`);
+    } catch (error) {
+      this.logger.error(`❌ Error creando pago manual para membresía ${payload.membershipId}`, error);
+      // Re-lanzar el error para que RabbitMQ pueda manejarlo (e.g., Dead Letter Queue)
+      throw error;
+    }
   }
 }
