@@ -34,6 +34,8 @@ export class AppService {
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     private readonly amqpConnection: AmqpConnection,
   ) {
+    console.log('🏗️ AppService constructor ejecutado - Payment Service cargando');
+    this.logger.log('🏗️ AppService constructor ejecutado - Payment Service cargando');
     // Registrar la métrica con un nombre de servicio para mejor filtrado en Grafana
     register.setDefaultLabels({ service: 'payment-service' });
   }

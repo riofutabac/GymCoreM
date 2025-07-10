@@ -6,27 +6,36 @@ import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 export class RabbitBindingsService implements OnModuleInit {
   private readonly logger = new Logger(RabbitBindingsService.name);
 
-  constructor(private readonly amqp: AmqpConnection) {}
+  constructor(private readonly amqp: AmqpConnection) {
+    console.log('🐰 RabbitBindingsService.constructor() cargado');
+    this.logger.log('🐰 RabbitBindingsService constructor ejecutado');
+  }
 
   async onModuleInit() {
-    this.logger.log('Initializing RabbitMQ bindings...');
+    console.log('🔧 onModuleInit de RabbitBindingsService arrancó');
+    this.logger.log('🔧 onModuleInit de RabbitBindingsService arrancó');
     
     try {
       const channel = await this.amqp.managedChannel;
+      console.log('📡 Channel obtenido correctamente');
 
-      // Create durable queue for manual membership activations
+      // 1) Creamos (assert) la cola durable
       await channel.assertQueue('payments.membership.activated.manually', { durable: true });
+      console.log('📦 Queue creada: payments.membership.activated.manually');
 
-      // Bind queue to exchange with routing key
+      // 2) La enlazamos al exchange con la routing key correcta
       await channel.bindQueue(
         'payments.membership.activated.manually',
         'gymcore-exchange',
         'membership.activated.manually',
       );
+      console.log('🔗 Binding creado correctamente');
 
-      this.logger.log('RabbitMQ queue and bindings created successfully');
+      this.logger.log('✅ Queue y binding creados: payments.membership.activated.manually ← membership.activated.manually');
+      console.log('✅ Queue y binding creados: payments.membership.activated.manually ← membership.activated.manually');
     } catch (error) {
-      this.logger.error('Failed to initialize RabbitMQ bindings', error);
+      console.error('❌ Error en onModuleInit:', error);
+      this.logger.error('❌ Error en onModuleInit:', error);
     }
   }
 }
