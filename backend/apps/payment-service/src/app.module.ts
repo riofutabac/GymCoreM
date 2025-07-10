@@ -58,6 +58,6 @@ import { RabbitBindingsService } from './rabbit-bindings.service';
 })
 export class AppModule {
   constructor() {
-    console.log('🏛️ AppModule del Payment Service inicializado');
+    // Constructor limpio sin logs
   }
 }
