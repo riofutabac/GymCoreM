@@ -171,6 +171,9 @@ export class AppController {
   @HttpCode(HttpStatus.CREATED)
   async activateMembership(@Body() dto: ActivateMembershipDto, @Req() req) {
     const managerId = req.user.sub;
+
+    // Ya no necesitamos manipular el gymId aquí
+    // El servicio se encargará de la validación de seguridad usando el managerId
     return this.gymClient.send({ cmd: 'activate_membership' }, { dto, managerId });
   }
 

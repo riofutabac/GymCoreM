@@ -52,6 +52,7 @@
     "db:reset:gym": "infisical run --path=/gym-management-service -- pnpm exec prisma migrate reset --schema=./backend/apps/gym-management-service/prisma/schema.prisma",
     "db:reset:inventory": "infisical run --path=/inventory-service -- pnpm exec prisma migrate reset --schema=./backend/apps/inventory-service/prisma/schema.prisma",
     "db:reset:payment": "infisical run --path=/payment-service -- pnpm exec prisma migrate reset --schema=./backend/apps/payment-service/prisma/schema.prisma",
+    "db:reset:all": "pnpm db:reset:auth && pnpm db:reset:gym && pnpm db:reset:inventory && pnpm db:reset:payment",
     "test": "pnpm -r run test",
     "test:auth": "infisical run --path=/auth-service -- pnpm --filter auth-service run test",
     "test:gyms": "infisical run --path=/gym-management-service -- pnpm --filter gym-management-service run test",

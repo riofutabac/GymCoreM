@@ -369,4 +369,36 @@ export class AppService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  async createManualPayment(payload: {
+    userId: string;
+    membershipId: string;
+    amount: number;
+    method: string;
+    reason?: string;
+    activatedBy: string;
+  }) {
+    this.logger.log(`Creando registro de pago manual para membresía ${payload.membershipId}`);
+    
+    try {
+      await this.prisma.payment.create({
+        data: {
+          userId: payload.userId,
+          membershipId: payload.membershipId,
+          amount: payload.amount,
+          currency: 'USD',
+          method: 'CASH', // Usamos directamente 'CASH' que está en el enum
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          transactionId: `manual-${payload.membershipId}`, // ID de transacción único y predecible
+        },
+      });
+      
+      this.logger.log(`✅ Pago manual para membresía ${payload.membershipId} registrado exitosamente.`);
+    } catch (error) {
+      this.logger.error(`❌ Error creando pago manual para membresía ${payload.membershipId}`, error);
+      // Re-lanzar el error para que RabbitMQ pueda manejarlo (e.g., Dead Letter Queue)
+      throw error;
+    }
+  }
 }

@@ -136,4 +136,51 @@ export class AppController {
       );
     }
   }
+
+  // --- LISTENER PARA ACTIVACIONES MANUALES DE MEMBRESÍA ---
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'membership.activated.notification',
+    queue: 'notifications.membership.activated',
+  })
+  async handleMembershipActivatedNotification(payload: {
+    membershipId: string;
+    userId: string;
+    activationDate: string;
+    membershipType: string;
+  }) {
+    this.logger.log(
+      `Procesando notificación de activación para membresía ${payload.membershipId}`,
+    );
+
+    try {
+      // Obtener información del usuario para enviar el email
+      const userInfo = await this.appService.getUserInfo(payload.userId);
+
+      if (!userInfo || !userInfo.email) {
+        this.logger.warn(
+          `No se pudo obtener información del usuario ${payload.userId} para enviar email`,
+        );
+        return;
+      }
+
+      await this.emailService.sendMembershipActivated(userInfo.email, {
+        name: userInfo.name || 'Usuario',
+        membershipId: payload.membershipId,
+        membershipType: payload.membershipType,
+        activationDate: new Date(payload.activationDate).toLocaleDateString(),
+      });
+
+      this.logger.log(
+        `✅ Email de activación de membresía enviado para usuario ${payload.userId}`,
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `❌ Error enviando email de activación para usuario ${payload.userId}`,
+        errorMessage,
+      );
+    }
+  }
 }
