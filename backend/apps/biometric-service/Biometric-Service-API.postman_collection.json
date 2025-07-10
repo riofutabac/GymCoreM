@@ -120,6 +120,60 @@
           "body": "{\n  \"message\": \"Comando PING enviado. Revisa los logs o el LED del Arduino.\"\n}"
         }
       ]
+    },
+    {
+      "name": "Enroll Biometric",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"test-user-123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/enroll",
+          "host": ["{{baseUrl}}"],
+          "path": ["enroll"]
+        },
+        "description": "Iniciar proceso de inscripción de huella dactilar para un usuario"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"test-user-123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/enroll",
+              "host": ["{{baseUrl}}"],
+              "path": ["enroll"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "body": "{\n  \"success\": true,\n  \"message\": \"Huella registrada exitosamente.\",\n  \"data\": {\n    \"message\": \"Proceso de inscripción iniciado para usuario test-user-123\",\n    \"status\": \"started\",\n    \"enrollmentId\": \"1\",\n    \"template\": \"template_test-user-123_1_1641234567890\"\n  }\n}"
+        }
+      ]
     }
   ]
 }

@@ -270,5 +270,18 @@ export class AppService {
 
     return updatedUser;
   }
+
+  async enrollBiometric(userId: string, template: string) {
+    this.logger.log(`Registrando plantilla biométrica para el usuario: ${userId}`);
+
+    return this.prisma.biometricTemplate.upsert({
+      where: { userId: userId },
+      update: { template: template },
+      create: {
+        userId: userId,
+        template: template,
+      },
+    });
+  }
 }
 

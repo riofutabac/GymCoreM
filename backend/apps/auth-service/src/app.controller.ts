@@ -29,4 +29,9 @@ export class AppController {
   changeRole(@Payload() data: { userId: string; newRole: string; gymId?: string }) {
     return this.appService.changeRole(data.userId, data.newRole, data.gymId);
   }
+
+  @MessagePattern({ cmd: 'enroll_biometric' })
+  enrollBiometric(@Payload() data: { userId: string; template: string }) {
+    return this.appService.enrollBiometric(data.userId, data.template);
+  }
 }

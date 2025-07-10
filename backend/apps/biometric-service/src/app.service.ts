@@ -75,4 +75,57 @@ export class AppService {
       };
     }
   }
+
+  async startEnrollment(userId: string): Promise<any> {
+    this.logger.log(`Iniciando inscripción para el usuario: ${userId}`);
+    
+    try {
+      // Verificar que el Arduino esté conectado
+      if (!this.serialService.isArduinoConnected()) {
+        throw new Error('Arduino no está conectado');
+      }
+
+      // Enviar comando ENROLL al Arduino
+      this.logger.log(`Enviando comando ENROLL al Arduino...`);
+      const response = await this.serialService.sendCommand('ENROLL');
+      
+      this.logger.log(`Respuesta del Arduino: ${response}`);
+      
+      // Procesar la respuesta del Arduino
+      if (response === 'ENROLL_START') {
+        return {
+          message: `Proceso de inscripción iniciado para usuario ${userId}`,
+          status: 'started',
+          instructions: 'Sigue las instrucciones del Arduino para completar la inscripción'
+        };
+      } else if (response.startsWith('ENROLL_SUCCESS:ID=')) {
+        const enrollmentId = response.split('=')[1];
+        this.logger.log(`Inscripción exitosa en Arduino con ID: ${enrollmentId}`);
+        
+        // TODO: Aquí implementaremos la comunicación con auth-service
+        // Por ahora, simulamos el guardado de la plantilla
+        const mockTemplate = `template_${userId}_${enrollmentId}_${Date.now()}`;
+        
+        return {
+          message: `Huella para ${userId} registrada exitosamente con ID ${enrollmentId}`,
+          enrollmentId: enrollmentId,
+          template: mockTemplate,
+          status: 'completed'
+        };
+      } else if (response.startsWith('ENROLL_ERROR:')) {
+        const errorDetails = response.split(':')[1];
+        throw new Error(`Error en inscripción: ${errorDetails}`);
+      } else {
+        // Para otras respuestas del proceso de inscripción
+        return {
+          message: `Proceso de inscripción en progreso para usuario ${userId}`,
+          status: 'in_progress',
+          currentStep: response
+        };
+      }
+    } catch (error) {
+      this.logger.error(`Error al iniciar inscripción: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
 }

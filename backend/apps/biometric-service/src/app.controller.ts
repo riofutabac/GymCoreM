@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
@@ -18,5 +18,18 @@ export class AppController {
   @Get('ping')
   async pingArduino(): Promise<{ success: boolean; message: string; response?: string; error?: string }> {
     return await this.appService.pingArduino();
+  }
+
+  @Post('enroll')
+  async startEnrollment(@Body() body: { userId: string }) {
+    try {
+      const result = await this.appService.startEnrollment(body.userId);
+      return { success: true, message: 'Huella registrada exitosamente.', data: result };
+    } catch (error) {
+      throw new HttpException(
+        error instanceof Error ? error.message : 'Error desconocido',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 }
