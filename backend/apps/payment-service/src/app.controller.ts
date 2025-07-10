@@ -96,6 +96,7 @@ export class AppController {
     exchange: 'gymcore-exchange',
     routingKey: 'membership.activated.manually',
     queue: 'payments.membership.activated.manually', // Una queue dedicada
+    queueOptions: { durable: true },    // ← Aquí
   })
   public async handleManualMembershipActivation(payload: {
     userId: string;
