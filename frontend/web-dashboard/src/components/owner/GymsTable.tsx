@@ -11,7 +11,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Pencil, Trash2 } from "lucide-react";
+import { Building2, Pencil, Trash2, RotateCcw } from "lucide-react";
 
 // Definimos el tipo para los datos de un gimnasio
 interface Gym {
@@ -20,6 +20,7 @@ interface Gym {
   uniqueCode?: string;
   isActive: boolean;
   createdAt?: string;
+  deletedAt?: string | null;
   memberCount?: number;
   location?: string;
 }
@@ -28,9 +29,10 @@ interface GymsTableProps {
   gyms: Gym[];
   onEdit: (gym: Gym) => void;
   onDelete: (id: string) => void;
+  onReactivate: (id: string) => void;
 }
 
-export function GymsTable({ gyms, onEdit, onDelete }: GymsTableProps) {
+export function GymsTable({ gyms, onEdit, onDelete, onReactivate }: GymsTableProps) {
   // Estado para cuando no hay gimnasios
   if (!gyms || gyms.length === 0) {
     return (
@@ -77,8 +79,8 @@ export function GymsTable({ gyms, onEdit, onDelete }: GymsTableProps) {
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={gym.isActive ? "default" : "destructive"}>
-                    {gym.isActive ? "Activo" : "Inactivo"}
+                  <Badge variant={gym.isActive && !gym.deletedAt ? "default" : "destructive"}>
+                    {gym.isActive && !gym.deletedAt ? "Activo" : "Inactivo"}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -91,14 +93,25 @@ export function GymsTable({ gyms, onEdit, onDelete }: GymsTableProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => onEdit(gym)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Editar
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => onDelete(gym.id)}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Eliminar
-                  </Button>
+                  {gym.isActive && !gym.deletedAt ? (
+                    // Gimnasio activo: mostrar editar y eliminar
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => onEdit(gym)}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Editar
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => onDelete(gym.id)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Eliminar
+                      </Button>
+                    </>
+                  ) : (
+                    // Gimnasio inactivo: solo mostrar reactivar
+                    <Button variant="default" size="sm" onClick={() => onReactivate(gym.id)}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Reactivar
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

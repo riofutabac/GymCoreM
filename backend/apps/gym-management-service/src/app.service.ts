@@ -200,22 +200,36 @@ export class AppService {
     });
   }
 
-  async findAllGyms(): Promise<AdminGymDto[]> {
-    // Solo gimnasios activos (usando isActive por ahora)
-    const gyms = await this.prisma.gym.findMany({
-      where: {
-        isActive: true // Solo gimnasios activos
+  async updateLocalUserProfile(data: {
+    userId: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }) {
+    return this.prisma.user.update({
+      where: { id: data.userId },
+      data: {
+        ...(data.firstName && { firstName: data.firstName }),
+        ...(data.lastName && { lastName: data.lastName }),
+        ...(data.email && { email: data.email }),
       },
+    });
+  }
+
+  async findAllGyms(): Promise<AdminGymDto[]> {
+    // Devolver TODOS los gimnasios (activos e inactivos)
+    const gyms = await this.prisma.gym.findMany({
       orderBy: {
         createdAt: 'desc'
       }
     });
-    return gyms.map(({ id, name, uniqueCode, isActive, createdAt }) => ({
+    return gyms.map(({ id, name, uniqueCode, isActive, createdAt, deletedAt }) => ({
       id,
       name,
       uniqueCode,
       isActive,
       createdAt,
+      deletedAt,
     }));
   }
 
@@ -236,5 +250,58 @@ export class AppService {
         deletedAt: null // Excluir gimnasios con soft-delete
       } 
     });
+  }
+
+  async reactivateGym(id: string) {
+    this.logger.log(`Reactivando gimnasio ${id}`);
+    
+    try {
+      // Verificar que el gimnasio existe y está desactivado
+      const existingGym = await this.prisma.gym.findUnique({
+        where: { id },
+        select: { id: true, name: true, isActive: true, deletedAt: true }
+      });
+
+      if (!existingGym) {
+        throw new Error(`Gimnasio con ID ${id} no encontrado`);
+      }
+
+      if (existingGym.isActive && !existingGym.deletedAt) {
+        throw new Error(`El gimnasio ${existingGym.name} ya está activo`);
+      }
+
+      // Reactivar el gimnasio
+      const reactivatedGym = await this.prisma.gym.update({
+        where: { id },
+        data: {
+          isActive: true,
+          deletedAt: null,
+        },
+      });
+
+      this.logger.log(`Gimnasio ${reactivatedGym.name} reactivado exitosamente`);
+      
+      // Publicar evento gym.reactivated para otros servicios
+      const eventPayload = {
+        gymId: reactivatedGym.id,
+        gymName: reactivatedGym.name,
+        reactivatedAt: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
+      };
+      
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'gym.reactivated',
+        eventPayload,
+        { persistent: true }
+      );
+      
+      this.logger.log(`✅ Evento 'gym.reactivated' publicado para gimnasio ${reactivatedGym.id}`);
+
+      return reactivatedGym;
+    } catch (error) {
+      this.logger.error(`Error reactivando gimnasio ${id}:`, error);
+      throw error;
+    }
   }
 }

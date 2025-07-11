@@ -55,6 +55,9 @@ export const ownerApi = {
   deleteGym: (id: string) => apiCall<void>(`/gyms/${id}`, {
     method: 'DELETE',
   }),
+  reactivateGym: (id: string) => apiCall<any>(`/gyms/${id}/reactivate`, {
+    method: 'PUT',
+  }),
 
   // Gestión de Staff
   getStaff: () => apiCall<any[]>('/staff'),
@@ -69,7 +72,7 @@ export const ownerApi = {
     body: JSON.stringify({ userId }),
   }),
   updateUserRole: (userId: string, data: { role: string; gymId?: string }) => apiCall<any>(`/users/${userId}/role`, {
-    method: 'PUT',
+    method: 'POST',
     body: JSON.stringify(data),
   }),
   requestPasswordReset: (email: string) => apiCall<any>('/auth/request-password-reset', {

@@ -49,6 +49,12 @@ export class AppController {
     return this.appService.deactivateGym(payload.id);
   }
 
+  @MessagePattern({ cmd: 'reactivate_gym' })
+  reactivateGym(@Payload() payload: { id: string }) {
+    this.logger.log(`Reactivando gimnasio ${payload.id}`);
+    return this.appService.reactivateGym(payload.id);
+  }
+
   @MessagePattern({ cmd: 'activate_membership' })
   @UsePipes(new ValidationPipe({ whitelist: true }))
   activateMembership(@Payload() payload: { dto: ActivateMembershipDto; managerId: string }) {

@@ -15,6 +15,7 @@ interface Gym {
   id: string;
   name: string;
   isActive: boolean;
+  deletedAt?: string | null;
   memberCount?: number;
   location?: string;
   createdAt?: string;
@@ -72,6 +73,21 @@ export default function GymsManagementPage() {
     }
   };
 
+  const handleReactivate = async (id: string) => {
+    if (!window.confirm("¿Estás seguro de que quieres reactivar este gimnasio?")) {
+        return;
+    }
+    try {
+        await ownerApi.reactivateGym(id);
+        toast.success('Gimnasio reactivado exitosamente');
+        await refresh();
+    } catch (err) {
+        console.error("Error reactivando gimnasio:", err);
+        const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+        toast.error(`Error al reactivar el gimnasio: ${errorMessage}`);
+    }
+  };
+
   if (isLoading) {
     return <LoadingSkeleton />;
   }
@@ -102,7 +118,7 @@ export default function GymsManagementPage() {
         </Button>
       </div>
       
-      <GymsTable gyms={gyms || []} onEdit={handleOpenModal} onDelete={handleDelete} />
+      <GymsTable gyms={gyms || []} onEdit={handleOpenModal} onDelete={handleDelete} onReactivate={handleReactivate} />
 
       <GymFormModal
         open={isModalOpen}

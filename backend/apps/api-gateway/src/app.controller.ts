@@ -1030,4 +1030,24 @@ export class AppController {
       throw new HttpException('No se pudieron cargar las tendencias globales.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Put('gyms/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  async reactivateGym(@Param('id') id: string) {
+    this.logger.log(`Reactivando gimnasio ${id}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'reactivate_gym' }, { id }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error reactivando gimnasio: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo reactivar el gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
