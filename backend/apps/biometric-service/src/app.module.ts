@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { SerialModule } from './serial/serial.module'; // <-- IMPORTA ESTO
+import { SerialModule } from './serial/serial.module';
 
 @Module({
   imports: [
@@ -10,8 +11,18 @@ import { SerialModule } from './serial/serial.module'; // <-- IMPORTA ESTO
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ClientsModule.register([
+      {
+        name: 'AUTH_SERVICE',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3001,
+        },
+      },
+    ]),
     SerialModule
-  ], // <-- AÑADE ESTO
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

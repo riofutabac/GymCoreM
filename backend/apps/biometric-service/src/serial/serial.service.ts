@@ -10,6 +10,7 @@ export class SerialService implements OnModuleInit {
   private isConnected: boolean = false;
   private lastResponse: string | null = null;
   private connectionError: string | null = null;
+  private dataCallbacks: ((data: string) => void)[] = [];
 
   onModuleInit() {
     // Configuración del puerto serial - verificando estado del Arduino
@@ -30,9 +31,18 @@ export class SerialService implements OnModuleInit {
       });
 
       this.parser.on('data', (data) => {
-        this.logger.log(`⬅️ Dato recibido de Arduino: ${data}`);
-        this.lastResponse = data.toString().trim();
-        // Aquí emitiremos eventos en el futuro para que otros métodos reaccionen.
+        const response = data.toString().trim();
+        this.logger.log(`⬅️ Dato recibido de Arduino: ${response}`);
+        this.lastResponse = response;
+        
+        // Notificar a todos los callbacks registrados
+        this.dataCallbacks.forEach(callback => {
+          try {
+            callback(response);
+          } catch (error) {
+            this.logger.error(`❌ Error en callback de datos: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        });
       });
 
       this.port.on('error', (err) => {
@@ -120,12 +130,46 @@ export class SerialService implements OnModuleInit {
     }
   }
 
+  // Método para iniciar el proceso de inscripción
+  async startEnrollment(userId: string): Promise<string> {
+    if (!this.isArduinoConnected()) {
+      throw new Error('Arduino no está conectado');
+    }
+
+    try {
+      this.logger.log(`🔄 Iniciando inscripción de huella para usuario: ${userId}`);
+      
+      // Enviar comando ENROLL al Arduino
+      const response = await this.sendCommand('ENROLL');
+      
+      this.logger.log(`📡 Respuesta del Arduino: ${response}`);
+      return response;
+      
+    } catch (error) {
+      this.logger.error(`❌ Error en inscripción: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
   getConnectionStatus(): { isConnected: boolean; error: string | null; port: string | null } {
     return {
       isConnected: this.isConnected,
       error: this.connectionError,
       port: process.env.BIOMETRIC_DEVICE_PORT || null
     };
+  }
+
+  // Método para registrar callbacks que escuchen las respuestas del Arduino
+  onData(callback: (data: string) => void): void {
+    this.dataCallbacks.push(callback);
+  }
+
+  // Método para remover callbacks
+  removeDataCallback(callback: (data: string) => void): void {
+    const index = this.dataCallbacks.indexOf(callback);
+    if (index > -1) {
+      this.dataCallbacks.splice(index, 1);
+    }
   }
 
   isArduinoConnected(): boolean {

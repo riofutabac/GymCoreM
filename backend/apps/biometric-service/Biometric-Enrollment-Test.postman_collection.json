@@ -1,0 +1,167 @@
+{
+  "info": {
+    "name": "GymCore Biometric System Complete Test",
+    "description": "Complete test collection for biometric system with role-based permissions",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "apiGatewayUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "biometricServiceUrl",
+      "value": "http://localhost:3006",
+      "type": "string"
+    },
+    {
+      "key": "ownerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "managerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "managerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the biometric service is running and Arduino is connected"
+      },
+      "response": []
+    },
+    {
+      "name": "Ping Arduino",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ping",
+          "host": ["{{baseUrl}}"],
+          "path": ["ping"]
+        },
+        "description": "Test communication with Arduino"
+      },
+      "response": []
+    },
+    {
+      "name": "Start Enrollment Process",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/enroll",
+          "host": ["{{baseUrl}}"],
+          "path": ["enroll"]
+        },
+        "description": "Start the biometric enrollment process for a user"
+      },
+      "response": []
+    },
+    {
+      "name": "Enrollment with Real User ID",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"replace-with-real-user-id\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/enroll",
+          "host": ["{{baseUrl}}"],
+          "path": ["enroll"]
+        },
+        "description": "Start enrollment with a real user ID from the database"
+      },
+      "response": []
+    },
+    {
+      "name": "Count Stored Fingerprints",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/count",
+          "host": ["{{baseUrl}}"],
+          "path": ["count"]
+        },
+        "description": "Count how many fingerprints are stored in Arduino"
+      },
+      "response": []
+    },
+    {
+      "name": "Reset All Fingerprints",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/reset",
+          "host": ["{{baseUrl}}"],
+          "path": ["reset"]
+        },
+        "description": "Delete all fingerprints from Arduino memory"
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Fingerprint by ID",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/fingerprint/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["fingerprint", "1"]
+        },
+        "description": "Delete a specific fingerprint by ID (change the ID in the URL)"
+      },
+      "response": []
+    }
+  ]
+}

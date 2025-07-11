@@ -1,12 +1,59 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { SerialService } from './serial/serial.service'; // <-- IMPORTA ESTO
+import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { SerialService } from './serial/serial.service';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
-export class AppService {
+export class AppService implements OnModuleInit {
   private readonly logger = new Logger(AppService.name);
+  private currentEnrollmentUserId: string | null = null;
 
-  // Inyectamos el servicio
-  constructor(private readonly serialService: SerialService) {}
+  constructor(
+    private readonly serialService: SerialService,
+    @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
+  ) {}
+
+  async onModuleInit() {
+    // Escuchar respuestas del Arduino para detectar enrollments exitosos
+    this.serialService.onData((data: string) => {
+      this.handleArduinoResponse(data);
+    });
+  }
+
+  private async handleArduinoResponse(data: string) {
+    // Procesar respuesta de enrollment exitoso
+    if (data.startsWith('ENROLL_SUCCESS:ID=') && this.currentEnrollmentUserId) {
+      const enrollmentId = data.split('=')[1];
+      this.logger.log(`✅ Inscripción exitosa en Arduino con ID: ${enrollmentId}`);
+      
+      // Generar plantilla simulada (en el futuro, obtendremos la plantilla real del Arduino)
+      const mockTemplate = `template_${this.currentEnrollmentUserId}_${enrollmentId}_${Date.now()}`;
+      
+      // Enviar la plantilla al auth-service
+      try {
+        this.logger.log(`💾 Guardando plantilla en auth-service...`);
+        this.logger.log(`📋 Datos a enviar: userId=${this.currentEnrollmentUserId}, template=${mockTemplate}`);
+        
+        const authResult = await firstValueFrom(
+          this.authClient.send(
+            { cmd: 'enroll_biometric' },
+            { userId: this.currentEnrollmentUserId, template: mockTemplate }
+          )
+        );
+        
+        this.logger.log(`✅ Plantilla guardada en auth-service: ${JSON.stringify(authResult)}`);
+        
+        // Resetear el usuario actual
+        this.currentEnrollmentUserId = null;
+        
+      } catch (authError) {
+        this.logger.error(`❌ Error guardando en auth-service: ${authError instanceof Error ? authError.message : String(authError)}`);
+        this.logger.error(`📊 Detalles del error: ${JSON.stringify(authError)}`);
+        // Resetear el usuario actual en caso de error
+        this.currentEnrollmentUserId = null;
+      }
+    }
+  }
 
   getHello(): string {
     return 'Hello World!';
@@ -77,7 +124,7 @@ export class AppService {
   }
 
   async startEnrollment(userId: string): Promise<any> {
-    this.logger.log(`Iniciando inscripción para el usuario: ${userId}`);
+    this.logger.log(`🔄 Iniciando inscripción para el usuario: ${userId}`);
     
     try {
       // Verificar que el Arduino esté conectado
@@ -85,34 +132,25 @@ export class AppService {
         throw new Error('Arduino no está conectado');
       }
 
+      // Guardar el userId actual para cuando llegue la respuesta ENROLL_SUCCESS
+      this.currentEnrollmentUserId = userId;
+
       // Enviar comando ENROLL al Arduino
-      this.logger.log(`Enviando comando ENROLL al Arduino...`);
+      this.logger.log(`➡️ Enviando comando ENROLL al Arduino...`);
       const response = await this.serialService.sendCommand('ENROLL');
       
-      this.logger.log(`Respuesta del Arduino: ${response}`);
+      this.logger.log(`📡 Respuesta del Arduino: ${response}`);
       
-      // Procesar la respuesta del Arduino
+      // Procesar la respuesta inicial del Arduino
       if (response === 'ENROLL_START') {
         return {
           message: `Proceso de inscripción iniciado para usuario ${userId}`,
           status: 'started',
           instructions: 'Sigue las instrucciones del Arduino para completar la inscripción'
         };
-      } else if (response.startsWith('ENROLL_SUCCESS:ID=')) {
-        const enrollmentId = response.split('=')[1];
-        this.logger.log(`Inscripción exitosa en Arduino con ID: ${enrollmentId}`);
-        
-        // TODO: Aquí implementaremos la comunicación con auth-service
-        // Por ahora, simulamos el guardado de la plantilla
-        const mockTemplate = `template_${userId}_${enrollmentId}_${Date.now()}`;
-        
-        return {
-          message: `Huella para ${userId} registrada exitosamente con ID ${enrollmentId}`,
-          enrollmentId: enrollmentId,
-          template: mockTemplate,
-          status: 'completed'
-        };
       } else if (response.startsWith('ENROLL_ERROR:')) {
+        // Resetear el usuario actual si hay error
+        this.currentEnrollmentUserId = null;
         const errorDetails = response.split(':')[1];
         throw new Error(`Error en inscripción: ${errorDetails}`);
       } else {
@@ -124,7 +162,112 @@ export class AppService {
         };
       }
     } catch (error) {
-      this.logger.error(`Error al iniciar inscripción: ${error instanceof Error ? error.message : String(error)}`);
+      // Resetear el usuario actual en caso de error
+      this.currentEnrollmentUserId = null;
+      this.logger.error(`❌ Error al iniciar inscripción: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
+  async resetFingerprints(): Promise<any> {
+    try {
+      this.logger.log(`🔄 Reseteando todas las huellas del Arduino...`);
+      
+      if (!this.serialService.isArduinoConnected()) {
+        throw new Error('Arduino no está conectado');
+      }
+
+      const response = await this.serialService.sendCommand('RESET');
+      
+      this.logger.log(`📡 Respuesta del Arduino: ${response}`);
+      
+      if (response === 'RESET_SUCCESS') {
+        return {
+          message: 'Todas las huellas han sido eliminadas del Arduino',
+          status: 'success'
+        };
+      } else if (response === 'RESET_ERROR') {
+        throw new Error('Error al resetear las huellas en el Arduino');
+      } else {
+        return {
+          message: 'Proceso de reset en progreso',
+          status: 'in_progress',
+          response: response
+        };
+      }
+    } catch (error) {
+      this.logger.error(`❌ Error al resetear huellas: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
+  async countFingerprints(): Promise<any> {
+    try {
+      this.logger.log(`🔄 Contando huellas almacenadas en el Arduino...`);
+      
+      if (!this.serialService.isArduinoConnected()) {
+        throw new Error('Arduino no está conectado');
+      }
+
+      const response = await this.serialService.sendCommand('COUNT');
+      
+      this.logger.log(`📡 Respuesta del Arduino: ${response}`);
+      
+      if (response.startsWith('COUNT_RESULT:')) {
+        const count = parseInt(response.split(':')[1]);
+        return {
+          message: `Hay ${count} huellas almacenadas en el Arduino`,
+          count: count,
+          maxCapacity: 127,
+          available: 127 - count
+        };
+      } else {
+        throw new Error('Respuesta inesperada del Arduino');
+      }
+    } catch (error) {
+      this.logger.error(`❌ Error al contar huellas: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
+  async deleteFingerprint(fingerprintId: number): Promise<any> {
+    try {
+      this.logger.log(`🗑️ Eliminando huella ID ${fingerprintId} del Arduino...`);
+      
+      if (!this.serialService.isArduinoConnected()) {
+        throw new Error('Arduino no está conectado');
+      }
+
+      const command = `DELETE:${fingerprintId}`;
+      const response = await this.serialService.sendCommand(command);
+      
+      this.logger.log(`📡 Respuesta del Arduino: ${response}`);
+      
+      if (response.startsWith('DELETE_SUCCESS:ID:')) {
+        const deletedId = response.split(':')[2];
+        return {
+          message: `Huella ID ${deletedId} eliminada exitosamente del Arduino`,
+          deletedId: parseInt(deletedId),
+          status: 'success'
+        };
+      } else if (response.startsWith('DELETE_ERROR:NOT_FOUND:')) {
+        const notFoundId = response.split(':')[2];
+        throw new Error(`Huella ID ${notFoundId} no existe en el Arduino`);
+      } else if (response.startsWith('DELETE_ERROR:INVALID_ID:')) {
+        const invalidId = response.split(':')[2];
+        throw new Error(`ID ${invalidId} es inválido. Debe estar entre 1 y 127`);
+      } else if (response.startsWith('DELETE_ERROR:FAILED:')) {
+        const failedId = response.split(':')[2];
+        throw new Error(`Error al eliminar huella ID ${failedId} del Arduino`);
+      } else {
+        return {
+          message: `Proceso de eliminación en progreso para ID ${fingerprintId}`,
+          status: 'in_progress',
+          response: response
+        };
+      }
+    } catch (error) {
+      this.logger.error(`❌ Error al eliminar huella: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
