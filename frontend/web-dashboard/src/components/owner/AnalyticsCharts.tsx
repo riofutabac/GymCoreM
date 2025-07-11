@@ -59,6 +59,17 @@ export function AnalyticsCharts({ data, isLoading }: AnalyticsChartsProps) {
     }).format(value);
   };
 
+  // Función para asegurar que los valores son números
+  const safeNumber = (value: any, defaultValue: number = 0): number => {
+    const num = typeof value === 'number' ? value : parseFloat(value) || defaultValue;
+    return isNaN(num) ? defaultValue : num;
+  };
+
+  const monthlyGrowth = safeNumber(data.monthlyGrowth);
+  const totalRevenue = safeNumber(data.totalRevenue);
+  const totalMembers = safeNumber(data.totalMembers);
+  const totalGyms = safeNumber(data.totalGyms);
+
   return (
     <div className="space-y-6">
       {/* Key Metrics */}
@@ -68,18 +79,18 @@ export function AnalyticsCharts({ data, isLoading }: AnalyticsChartsProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Ingresos Totales</p>
-                <p className="text-2xl font-bold">{formatCurrency(data.totalRevenue)}</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalRevenue)}</p>
               </div>
               <DollarSign className="h-8 w-8 text-green-600" />
             </div>
             <div className="flex items-center mt-2">
-              {data.monthlyGrowth >= 0 ? (
+              {monthlyGrowth >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
               ) : (
                 <TrendingDown className="h-4 w-4 text-red-600 mr-1" />
               )}
-              <Badge variant={data.monthlyGrowth >= 0 ? "default" : "destructive"} className="text-xs">
-                {data.monthlyGrowth >= 0 ? '+' : ''}{data.monthlyGrowth.toFixed(1)}%
+              <Badge variant={monthlyGrowth >= 0 ? "default" : "destructive"} className="text-xs">
+                {monthlyGrowth >= 0 ? '+' : ''}{monthlyGrowth.toFixed(1)}%
               </Badge>
             </div>
           </CardContent>
@@ -90,7 +101,7 @@ export function AnalyticsCharts({ data, isLoading }: AnalyticsChartsProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Miembros Totales</p>
-                <p className="text-2xl font-bold">{data.totalMembers.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{totalMembers.toLocaleString()}</p>
               </div>
               <Users className="h-8 w-8 text-blue-600" />
             </div>
@@ -102,7 +113,7 @@ export function AnalyticsCharts({ data, isLoading }: AnalyticsChartsProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Gimnasios Activos</p>
-                <p className="text-2xl font-bold">{data.totalGyms}</p>
+                <p className="text-2xl font-bold">{totalGyms}</p>
               </div>
               <Dumbbell className="h-8 w-8 text-purple-600" />
             </div>

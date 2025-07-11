@@ -399,6 +399,132 @@ export class AppService {
     }
   }
 
+  async findUsersByRole(roles: string[]) {
+    this.logger.log(`Obteniendo usuarios con roles: ${roles.join(', ')}`);
+    
+    try {
+      const users = await this.prisma.user.findMany({
+        where: {
+          role: {
+            in: roles as any, // Cast temporal para evitar problemas de tipos
+          },
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          gymId: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      this.logger.log(`Se encontraron ${users.length} usuarios con roles especificados`);
+      return users;
+    } catch (error) {
+      this.logger.error('Error obteniendo usuarios por rol:', error);
+      throw new RpcException({
+        message: 'Error obteniendo usuarios por rol',
+        status: 500,
+      });
+    }
+  }
+
+  async findAllUsers() {
+    this.logger.log('Obteniendo todos los usuarios...');
+    
+    try {
+      const users = await this.prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          gymId: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      this.logger.log(`Se encontraron ${users.length} usuarios en total`);
+      return users;
+    } catch (error) {
+      this.logger.error('Error obteniendo todos los usuarios:', error);
+      throw new RpcException({
+        message: 'Error obteniendo la lista de usuarios',
+        status: 500,
+      });
+    }
+  }
+
+  async updateUser(id: string, data: { firstName?: string; lastName?: string; role?: string; gymId?: string }) {
+    this.logger.log(`Actualizando usuario ${id} con datos:`, data);
+    
+    try {
+      // Si se pasa un gymId vacío, lo convertimos a null para la base de datos
+      const updateData: any = { ...data };
+      if (data.gymId === '') {
+        updateData.gymId = null;
+      }
+      
+      // Cast del role si está presente
+      if (data.role) {
+        updateData.role = data.role as any;
+      }
+      
+      // 1. Verificar que el usuario existe
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!existingUser) {
+        throw new RpcException({
+          message: `Usuario con ID ${id} no encontrado`,
+          status: 404,
+        });
+      }
+
+      // 2. Actualizar en la base de datos de Prisma
+      const updatedUser = await this.prisma.user.update({
+        where: { id },
+        data: updateData,
+      });
+
+      // 3. Actualizar metadatos en Supabase para consistencia
+      await this.supabaseAdmin.auth.admin.updateUserById(id, {
+        app_metadata: {
+          role: updatedUser.role,
+          gymId: updatedUser.gymId,
+        },
+        user_metadata: {
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          role: updatedUser.role,
+          gymId: updatedUser.gymId,
+        },
+      });
+
+      this.logger.log(`✅ Usuario ${id} actualizado exitosamente`);
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      this.logger.error('Error actualizando usuario:', error);
+      throw new RpcException({
+        message: 'Error interno actualizando el usuario',
+        status: 500,
+      });
+    }
+  }
+
   async requestPasswordReset(email: string) {
     this.logger.log(`Iniciando reseteo de contraseña para ${email}`);
     

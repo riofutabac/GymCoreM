@@ -1,6 +1,6 @@
 import { handleAuthError } from '@/lib/auth-utils';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
 // Helper genérico para llamadas a la API
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -12,7 +12,7 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...defaultOptions, ...options });
+    const response = await fetch(`${API_BASE_URL}/api/v1${endpoint}`, { ...defaultOptions, ...options });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Error de red o respuesta no válida.' }));
@@ -58,6 +58,8 @@ export const ownerApi = {
 
   // Gestión de Staff
   getStaff: () => apiCall<any[]>('/staff'),
+  getAllUsers: () => apiCall<any[]>('/users'), // Nueva función para obtener todos los usuarios
+  getUsers: () => apiCall<any[]>('/users'), // Alias para compatibilidad
   updateUserProfile: (id: string, data: { firstName?: string; lastName?: string }) => apiCall<any>(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
@@ -66,9 +68,9 @@ export const ownerApi = {
     method: 'POST',
     body: JSON.stringify({ userId }),
   }),
-  updateUserRole: (userId: string, role: string) => apiCall<any>(`/users/${userId}/role`, {
-    method: 'POST',
-    body: JSON.stringify({ role }),
+  updateUserRole: (userId: string, data: { role: string; gymId?: string }) => apiCall<any>(`/users/${userId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
   }),
   requestPasswordReset: (email: string) => apiCall<any>('/auth/request-password-reset', {
     method: 'POST',

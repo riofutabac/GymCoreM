@@ -24,13 +24,13 @@ import {
   Headers,
   Logger, // <-- AÑADE ESTO
 } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as csv from 'fast-csv';
 import * as fs from 'fs';
 import * as ExcelJS from 'exceljs';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { GymManagerGuard } from './auth/gym-manager.guard';
@@ -41,6 +41,23 @@ import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
 import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
 import { UpdateGymDto, AssignManagerDto } from './dto/gym.dto';
+
+// --- Interfaces para tipar los objetos ---
+interface UserWithGymName {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  gymId?: string;
+  gymName?: string; // Campo que vamos a añadir
+  createdAt: string;
+}
+
+interface Gym {
+  id: string;
+  name: string;
+}
 
 @Controller() // Sin prefijo ya que main.ts usa setGlobalPrefix('api/v1')
 export class AppController {
@@ -838,6 +855,58 @@ export class AppController {
     };
   }
 
+  // === NUEVO ENDPOINT PARA LISTAR TODO EL PERSONAL (STAFF) ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('staff')
+  @HttpCode(HttpStatus.OK)
+  async listStaff(): Promise<UserWithGymName[]> {
+    try {
+      // 1. Pedimos al Auth Service todos los usuarios con rol de staff.
+      const staffUsers: Omit<UserWithGymName, 'gymName'>[] =
+        await firstValueFrom(this.authClient.send({ cmd: 'get_staff_users' }, {}));
+
+      // 2. Si hay staff, pedimos al Gym Service todos los gimnasios para mapear el nombre.
+      if (!staffUsers || staffUsers.length === 0) {
+        return [];
+      }
+      
+      const gyms: Gym[] = await firstValueFrom(
+        this.gymClient.send({ cmd: 'find_all_gyms' }, {}),
+      );
+
+      // 3. Creamos un mapa para buscar nombres de gimnasio por ID eficientemente.
+      const gymMap = new Map(gyms.map(g => [g.id, g.name]));
+
+      // 4. Combinamos la información: añadimos 'gymName' a cada usuario.
+      const enrichedStaff = staffUsers.map(user => ({
+        ...user,
+        gymName: user.gymId ? gymMap.get(user.gymId) || 'Gimnasio no encontrado' : 'Ninguno asignado',
+      }));
+
+      return enrichedStaff;
+
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+      throw new HttpException('No se pudo cargar la lista de personal.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+  
+  // === NUEVO ENDPOINT PARA LISTAR TODOS LOS USUARIOS (CRUD) ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('users')
+  @HttpCode(HttpStatus.OK)
+  async listAllUsers() {
+    try {
+       const users = await firstValueFrom(this.authClient.send({ cmd: 'list_users' }, {}));
+       return users;
+    } catch (error) {
+       console.error('Error fetching all users:', error);
+       throw new HttpException('No se pudo obtener la lista de usuarios.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   // --- STAFF USERS ENDPOINT (OWNER ONLY) ---
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
@@ -906,44 +975,55 @@ export class AppController {
     }
   }
 
-  // --- ANALYTICS ENDPOINT ---
+  // === NUEVO ENDPOINT PARA LOS KPIs PRINCIPALES ===
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'MANAGER')
   @Get('analytics/kpis')
   @HttpCode(HttpStatus.OK)
-  async getAnalyticsKPIs() {
+  async getAnalyticsKpis() {
     try {
-      return await firstValueFrom(
+      const kpis = await firstValueFrom(
         this.analyticsClient.send({ cmd: 'get_kpis' }, {}),
       );
+      // Nos aseguramos que el totalRevenue sea un número
+      return {
+        ...kpis,
+        totalRevenue: parseFloat(kpis.totalRevenue) || 0,
+      };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      this.logger.error(`Error obteniendo KPIs: ${errorMessage}`);
-      throw new HttpException(
-        'No se pudieron obtener los KPIs',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      console.error('Error fetching KPIs:', error);
+      throw new HttpException('No se pudieron cargar los KPIs.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
   
-  // --- GLOBAL TRENDS ENDPOINT (OWNER ONLY) ---
+  // === NUEVO ENDPOINT PARA LAS GRÁFICAS DEL DASHBOARD ===
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
   @Get('analytics/global-trends')
   @HttpCode(HttpStatus.OK)
-  async getGlobalTrends() {
-    this.logger.log('Solicitando tendencias globales...');
+  async getAnalyticsGlobalTrends() {
     try {
-      return await firstValueFrom(
+      const rawData = await firstValueFrom(
         this.analyticsClient.send({ cmd: 'get_global_trends' }, {}),
       );
+
+      // Transformamos la data para que coincida con lo que espera el frontend
+      return {
+        monthlyRevenue: rawData.monthlyGrowth.map((item: any) => ({
+          month: item.month,
+          revenue: item.revenue || 0,
+        })),
+        membershipStats: [
+          { name: 'Vendidas este mes', value: rawData.monthlyGrowth[0]?.membershipsSold ?? 0, color: '#8884d8' },
+          { name: 'Nuevos usuarios', value: rawData.monthlyGrowth[0]?.newUsers ?? 0, color: '#82ca9d' },
+        ],
+        // Aseguramos que el crecimiento sea un número
+        monthlyGrowth: parseFloat(rawData.comparedToLastMonth.revenueGrowth) || 0,
+        lastUpdatedAt: rawData.lastUpdatedAt,
+      };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      this.logger.error(`Error obteniendo tendencias globales: ${errorMessage}`);
-      throw new HttpException(
-        'No se pudieron obtener las tendencias globales',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      console.error('Error fetching global trends:', error);
+      throw new HttpException('No se pudieron cargar las tendencias globales.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

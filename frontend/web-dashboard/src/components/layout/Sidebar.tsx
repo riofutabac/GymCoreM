@@ -46,16 +46,20 @@ const roleMenus: Record<string, MenuSection[]> = {
       title: "General",
       items: [
         { href: '/owner', label: 'Dashboard', icon: Home },
-        { href: '/owner/gyms', label: 'Gimnasios', icon: Building2 },
-        { href: '/owner/analytics', label: 'Análisis', icon: BarChart3 },
+        { href: '/owner/analytics', label: 'Análisis Global', icon: BarChart3 },
       ]
     },
     {
-      title: "Gestión",
+      title: "Plataforma",
       items: [
-        { href: '/owner/staff', label: 'Personal', icon: Users },
-        { href: '/owner/inventory', label: 'Inventario', icon: Package },
-        { href: '/owner/finances', label: 'Finanzas', icon: CreditCard },
+        { href: '/owner/gyms', label: 'Gimnasios', icon: Building2 },
+        { href: '/owner/staff', label: 'Personal', icon: UserCheck },
+        { href: '/owner/users', label: 'Gestión de Usuarios', icon: Users },
+      ]
+    },
+    {
+      title: "Soporte",
+      items: [
         { href: '/owner/settings', label: 'Configuración', icon: Settings },
       ]
     }
@@ -68,7 +72,7 @@ const roleMenus: Record<string, MenuSection[]> = {
         { href: '/manager/members', label: 'Miembros', icon: Users, badge: '287' },
         { href: '/manager/staff', label: 'Personal', icon: UserCheck },
         { href: '/manager/schedule', label: 'Horarios', icon: Calendar },
-        { href: '/manager/inventory', label: 'Inventario', icon: Package },
+        // { href: '/manager/inventory', label: 'Inventario', icon: Package }, // Comentado como solicitado
       ]
     },
     {

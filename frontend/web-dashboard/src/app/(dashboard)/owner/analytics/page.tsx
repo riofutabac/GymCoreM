@@ -31,6 +31,18 @@ export default function AnalyticsPage() {
     );
   }
 
+  // Combinar datos para el componente AnalyticsCharts
+  const analyticsData = {
+    monthlyRevenue: trends?.monthlyRevenue || [],
+    membershipStats: trends?.membershipDistribution || [],
+    gymPerformance: trends?.gymPerformance || [],
+    dailyCheckIns: trends?.dailyCheckIns || [],
+    totalMembers: kpis?.totalUsers || 0,
+    totalRevenue: parseFloat(kpis?.totalRevenue || '0'),
+    totalGyms: kpis?.totalGyms || 0,
+    monthlyGrowth: trends?.monthlyGrowth || 0,
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -41,16 +53,7 @@ export default function AnalyticsPage() {
       </div>
       
       <AnalyticsCharts 
-        data={{
-          monthlyRevenue: trends?.monthlyRevenue || [],
-          membershipStats: trends?.membershipDistribution || [],
-          gymPerformance: trends?.gymPerformance || [],
-          dailyCheckIns: trends?.dailyCheckIns || [],
-          totalMembers: kpis?.totalUsers || 0,
-          totalRevenue: parseFloat(kpis?.totalRevenue || '0'),
-          totalGyms: kpis?.totalGyms || 0,
-          monthlyGrowth: trends?.monthlyGrowth || 0,
-        }}
+        data={analyticsData}
         isLoading={isLoading}
       />
     </div>
