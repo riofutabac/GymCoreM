@@ -1,0 +1,286 @@
+{
+	"info": {
+		"name": "GymCore Biometric Test",
+		"description": "Basic collection for biometric testing",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "biometricUrl",
+			"value": "http://localhost:3006",
+			"type": "string"
+		},
+		{
+			"key": "managerToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "receptionistToken",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Login Manager",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"manager@gym.com\",\n  \"password\": \"password123\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/auth/login",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"auth",
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Login Receptionist",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"receptionist@gym.com\",\n  \"password\": \"password123\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/auth/login",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"auth",
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Biometric Enroll",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{managerToken}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"test-user-123\",\n  \"fingerprintId\": 1\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/biometric/enroll",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"biometric",
+						"enroll"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Biometric Enroll (Receptionist)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{receptionistToken}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"test-user-123\",\n  \"fingerprintId\": 2\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/biometric/enroll",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"biometric",
+						"enroll"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Biometric Enroll (No Auth - Should Fail)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"test-user-123\",\n  \"fingerprintId\": 3\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/biometric/enroll",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"biometric",
+						"enroll"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Arduino Ping",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{biometricUrl}}/ping",
+					"host": [
+						"{{biometricUrl}}"
+					],
+					"path": [
+						"ping"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Count Fingerprints",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{biometricUrl}}/count",
+					"host": [
+						"{{biometricUrl}}"
+					],
+					"path": [
+						"count"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Start Enrollment Process",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"test-user-123\",\n  \"fingerprintId\": 9\n}"
+				},
+				"url": {
+					"raw": "{{biometricUrl}}/enroll",
+					"host": [
+						"{{biometricUrl}}"
+					],
+					"path": [
+						"enroll"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Reset All Fingerprints",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{biometricUrl}}/reset",
+					"host": [
+						"{{biometricUrl}}"
+					],
+					"path": [
+						"reset"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Fingerprint by ID",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{biometricUrl}}/fingerprint/1",
+					"host": [
+						"{{biometricUrl}}"
+					],
+					"path": [
+						"fingerprint",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{biometricUrl}}/health",
+					"host": [
+						"{{biometricUrl}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
