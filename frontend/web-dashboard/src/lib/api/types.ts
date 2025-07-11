@@ -1,5 +1,63 @@
-// Types for POS API
+// Manager Panel Types
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED';
+  membershipEndDate: string;
+  role: string;
+}
 
+export interface StaffMember {
+    id: string;
+    name: string;
+    email: string;
+    role: 'MANAGER' | 'RECEPTIONIST' | 'OWNER';
+}
+
+export interface Product {
+    id: string;
+    name: string;
+    description?: string | null;
+    price: number;
+    stock: number;
+    barcode?: string | null;
+    gymId: string;
+}
+
+export interface ActivateMembershipPayload {
+  memberId: string;
+  startsAt: string;
+  endsAt: string;
+  paymentType: 'CASH' | 'ONLINE';
+}
+
+export interface CreateMemberPayload {
+    name: string;
+    email: string;
+    phone?: string;
+    address?: string;
+}
+
+export interface UpdateMemberPayload extends CreateMemberPayload {
+    id: string;
+}
+
+export interface AssignStaffPayload {
+    userId: string;
+}
+
+export interface ProductPayload {
+    name: string;
+    description?: string;
+    price: number;
+    stock: number;
+    barcode?: string;
+}
+
+// Types for POS API
 export interface CreateSaleItemDto {
   productId: string;
   quantity: number;
@@ -34,16 +92,6 @@ export interface ProductDto {
   gymId: string;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface Product {
-  id: string;
-  name: string;
-  description?: string;
-  price: number;
-  stock: number;
-  barcode: string;
-  gymId: string;
 }
 
 export interface SaleItem {

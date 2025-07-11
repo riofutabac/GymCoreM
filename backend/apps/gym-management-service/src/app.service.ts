@@ -304,4 +304,64 @@ export class AppService {
       throw error;
     }
   }
+
+  /**
+   * Exporta un reporte CSV de miembros para un manager específico
+   */
+  async exportMembersReport(managerId: string) {
+    this.logger.log(`Generando reporte de miembros para manager ${managerId}`);
+    
+    try {
+      // Obtener el gymId del manager
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true }
+      });
+
+      if (!manager || !manager.gymId) {
+        throw new Error('Manager no encontrado o no asignado a un gimnasio');
+      }
+
+      if (manager.role !== 'MANAGER' && manager.role !== 'OWNER') {
+        throw new Error('Usuario no autorizado para generar reportes');
+      }
+
+      // Obtener todos los miembros del gimnasio
+      const members = await this.prisma.user.findMany({
+        where: {
+          gymId: manager.gymId,
+          role: 'MEMBER'
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      // Generar CSV
+      const csvHeaders = 'ID,Nombre,Apellido,Email,Fecha de Registro\n';
+      const csvRows = members.map(member => 
+        `${member.id},"${member.firstName}","${member.lastName}","${member.email}","${member.createdAt.toISOString()}"`
+      ).join('\n');
+      
+      const csvData = csvHeaders + csvRows;
+
+      this.logger.log(`Reporte generado con ${members.length} miembros`);
+      
+      return {
+        csvData,
+        filename: `reporte_miembros_${new Date().toISOString().split('T')[0]}.csv`,
+        totalMembers: members.length
+      };
+    } catch (error) {
+      this.logger.error('Error generando reporte de miembros:', error);
+      throw error;
+    }
+  }
 }

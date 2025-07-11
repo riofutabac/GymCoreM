@@ -85,4 +85,10 @@ export class AppController {
   async countActiveGyms() {
     return this.appService.countActiveGyms();
   }
+
+  @MessagePattern({ cmd: 'export_members_report' })
+  async exportMembersReport(@Payload() payload: { managerId: string }) {
+    this.logger.log(`Exportando reporte de miembros para manager ${payload.managerId}`);
+    return this.appService.exportMembersReport(payload.managerId);
+  }
 }

@@ -71,8 +71,8 @@ const roleMenus: Record<string, MenuSection[]> = {
         { href: '/manager', label: 'Dashboard', icon: Home },
         { href: '/manager/members', label: 'Miembros', icon: Users, badge: '287' },
         { href: '/manager/staff', label: 'Personal', icon: UserCheck },
+        { href: '/manager/inventory', label: 'Inventario', icon: Package },
         { href: '/manager/schedule', label: 'Horarios', icon: Calendar },
-        // { href: '/manager/inventory', label: 'Inventario', icon: Package }, // Comentado como solicitado
       ]
     },
     {

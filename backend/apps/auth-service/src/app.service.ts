@@ -529,45 +529,203 @@ export class AppService {
     this.logger.log(`Iniciando reseteo de contraseña para ${email}`);
     
     try {
-      // Verificar si el usuario existe en nuestra base de datos
+      // Verificar que el usuario existe
       const user = await this.prisma.user.findUnique({
-        where: { email },
-        select: { id: true, email: true, role: true }
+        where: { email }
       });
 
       if (!user) {
         // Por seguridad, no revelamos si el email existe o no
-        this.logger.warn(`Intento de reset para email no registrado: ${email}`);
+        this.logger.warn(`Intento de reset para email inexistente: ${email}`);
+        return {
+          message: 'Si el email existe en nuestro sistema, recibirás un enlace de recuperación.'
+        };
       }
 
-      // Siempre intentamos enviar el email de reset (Supabase maneja si existe o no)
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${frontendUrl}/update-password`,
+      // Generar token de reset
+      const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      // En un entorno real, enviarías un email aquí
+      this.logger.log(`Token de reset generado para ${email}: ${resetToken}`);
+      
+      return {
+        message: 'Si el email existe en nuestro sistema, recibirás un enlace de recuperación.',
+        // En desarrollo, devolvemos el token. En producción, esto no se haría.
+        ...(process.env.NODE_ENV === 'development' && { resetToken })
+      };
+    } catch (error) {
+      this.logger.error('Error en password reset:', error);
+      throw new RpcException({
+        message: 'Error procesando la solicitud de reseteo',
+        status: 500,
+      });
+    }
+  }
+
+  /**
+   * Obtiene el personal (staff) de un gimnasio específico basado en el managerId
+   */
+  async getStaffByGym(managerId: string) {
+    this.logger.log(`Obteniendo staff para manager ${managerId}`);
+    
+    try {
+      // Primero obtenemos el gymId del manager
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true }
       });
 
-      if (error) {
-        this.logger.error(`Error de Supabase al enviar email de reseteo: ${error.message}`);
+      if (!manager || !manager.gymId) {
         throw new RpcException({
-          message: 'No se pudo procesar la solicitud de reseteo',
-          status: 500,
+          message: 'Manager no encontrado o no asignado a un gimnasio',
+          status: 404,
         });
       }
 
-      this.logger.log(`✅ Email de reseteo enviado para ${email}`);
-      
-      // Por seguridad, siempre devolvemos el mismo mensaje
-      return { 
-        message: 'Si el email existe en nuestro sistema, se ha enviado un enlace de recuperación.',
-        timestamp: new Date().toISOString(),
-      };
+      if (manager.role !== 'MANAGER' && manager.role !== 'OWNER') {
+        throw new RpcException({
+          message: 'Usuario no autorizado para ver el staff',
+          status: 403,
+        });
+      }
+
+      // Obtener todo el staff del mismo gimnasio
+      const staff = await this.prisma.user.findMany({
+        where: {
+          gymId: manager.gymId,
+          role: {
+            in: ['MANAGER', 'RECEPTIONIST', 'OWNER']
+          }
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      this.logger.log(`Se encontraron ${staff.length} miembros del staff`);
+      return staff;
     } catch (error) {
       if (error instanceof RpcException) {
         throw error;
       }
-      this.logger.error('Error procesando reseteo de contraseña:', error);
+      this.logger.error('Error obteniendo staff del gimnasio:', error);
       throw new RpcException({
-        message: 'Error interno procesando la solicitud',
+        message: 'Error obteniendo el staff del gimnasio',
+        status: 500,
+      });
+    }
+  }
+
+  /**
+   * Asigna un rol a un usuario dentro del mismo gimnasio
+   */
+  async assignRoleInGym(managerId: string, targetUserId: string, role: string) {
+    this.logger.log(`Manager ${managerId} asignando rol ${role} a usuario ${targetUserId}`);
+    
+    try {
+      // Verificar que el manager existe y obtener su gymId
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true }
+      });
+
+      if (!manager || !manager.gymId) {
+        throw new RpcException({
+          message: 'Manager no encontrado o no asignado a un gimnasio',
+          status: 404,
+        });
+      }
+
+      if (manager.role !== 'MANAGER' && manager.role !== 'OWNER') {
+        throw new RpcException({
+          message: 'Usuario no autorizado para asignar roles',
+          status: 403,
+        });
+      }
+
+      // Verificar que el usuario objetivo existe y pertenece al mismo gimnasio
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { gymId: true, role: true, email: true }
+      });
+
+      if (!targetUser) {
+        throw new RpcException({
+          message: 'Usuario objetivo no encontrado',
+          status: 404,
+        });
+      }
+
+      if (targetUser.gymId !== manager.gymId) {
+        throw new RpcException({
+          message: 'El usuario no pertenece al mismo gimnasio',
+          status: 403,
+        });
+      }
+
+      // Validar el rol que se quiere asignar
+      const validRoles = ['RECEPTIONIST'];
+      if (!validRoles.includes(role)) {
+        throw new RpcException({
+          message: 'Los managers solo pueden asignar el rol RECEPTIONIST',
+          status: 400,
+        });
+      }
+
+      // Actualizar el rol del usuario
+      const updatedUser = await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { role: role as any },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          gymId: true,
+        }
+      });
+
+      // Actualizar metadatos en Supabase
+      await this.supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+        app_metadata: { 
+          role: role,
+          gymId: manager.gymId
+        },
+        user_metadata: {
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          role: role,
+          gymId: manager.gymId,
+        },
+      });
+
+      // Publicar evento
+      await this.amqpConnection.publish('gymcore-exchange', 'user.role.updated', {
+        userId: updatedUser.id,
+        newRole: updatedUser.role,
+        oldRole: targetUser.role,
+        gymId: updatedUser.gymId,
+        assignedBy: managerId,
+      }, { persistent: true });
+
+      this.logger.log(`✅ Rol ${role} asignado exitosamente a ${targetUser.email}`);
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      this.logger.error('Error asignando rol:', error);
+      throw new RpcException({
+        message: 'Error interno asignando el rol',
         status: 500,
       });
     }

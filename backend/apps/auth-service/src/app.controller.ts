@@ -62,4 +62,14 @@ export class AppController {
     const { id, ...data } = payload;
     return this.appService.updateUser(id, data);
   }
+
+  @MessagePattern({ cmd: 'get_staff_for_gym' })
+  async getStaffForGym(@Payload() data: { managerId: string }) {
+    return this.appService.getStaffByGym(data.managerId);
+  }
+
+  @MessagePattern({ cmd: 'assign_role' })
+  async assignRole(@Payload() data: { managerId: string; targetUserId: string; role: string }) {
+    return this.appService.assignRoleInGym(data.managerId, data.targetUserId, data.role);
+  }
 }

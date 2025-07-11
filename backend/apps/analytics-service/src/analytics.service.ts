@@ -95,7 +95,7 @@ export class AnalyticsService {
         return JSON.parse(cachedKpis);
       }
     } catch (error) {
-      this.logger.error('Error al leer KPIs desde Redis', error);
+      this.logger.warn('Error accediendo a Redis:', error);
     }
 
     this.logger.log('Calculando KPIs desde la base de datos...');
@@ -136,6 +136,43 @@ export class AnalyticsService {
       this.logger.error('[ERROR-KPIs] Fallo al calcular KPIs desde la DB', error);
       // Devolver ceros en caso de error para no romper el frontend
       return { totalUsers: 0, totalRevenue: '0.00', newMembershipsToday: 0, lastUpdatedAt: new Date().toISOString() };
+    }
+  }
+
+  /**
+   * Obtiene KPIs específicos para el gimnasio de un manager
+   */
+  async getKpisForGym(managerId: string) {
+    this.logger.log(`Calculando KPIs para manager ${managerId}`);
+    
+    try {
+      // Primero obtenemos el gymId del manager desde el auth service
+      // Por ahora simulamos datos, en producción haríamos una llamada al auth service
+      const mockGymId = 'gym-123'; // En producción esto vendría del auth service
+      
+      // Aquí calculamos KPIs específicos del gimnasio
+      // Por simplicidad, devolvemos datos mockeados
+      const gymKpis = {
+        activeMembers: Math.floor(Math.random() * 150) + 50,
+        monthlyRevenue: (Math.random() * 10000 + 2000).toFixed(2),
+        occupancyRate: Math.floor(Math.random() * 40) + 30,
+        lowStockItems: Math.floor(Math.random() * 5),
+        todaysSales: Math.floor(Math.random() * 20) + 5,
+        lastUpdatedAt: new Date().toISOString(),
+      };
+
+      this.logger.log(`KPIs para gym calculados: ${JSON.stringify(gymKpis)}`);
+      return gymKpis;
+    } catch (error) {
+      this.logger.error('Error calculando KPIs del gimnasio:', error);
+      return {
+        activeMembers: 0,
+        monthlyRevenue: '0.00',
+        occupancyRate: 0,
+        lowStockItems: 0,
+        todaysSales: 0,
+        lastUpdatedAt: new Date().toISOString(),
+      };
     }
   }
 

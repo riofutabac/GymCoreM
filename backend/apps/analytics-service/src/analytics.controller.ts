@@ -1,6 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AnalyticsService } from './analytics.service';
 
 @Controller()
@@ -53,6 +53,12 @@ export class AnalyticsController {
     this.logger.log('Solicitud de KPIs recibida');
     // LA CORRECCIÓN ESTÁ AQUÍ: getKpis con 'i' minúscula
     return this.analyticsService.getKpis(); 
+  }
+
+  @MessagePattern({ cmd: 'get_kpis_for_gym' })
+  public async getKPIsForGym(@Payload() data: { managerId: string }) {
+    this.logger.log(`Solicitud de KPIs para manager ${data.managerId}`);
+    return this.analyticsService.getKpisForGym(data.managerId);
   }
 
   @MessagePattern({ cmd: 'get_global_trends' })
