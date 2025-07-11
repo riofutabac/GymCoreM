@@ -7,8 +7,8 @@ import { PlusCircle } from 'lucide-react';
 import { Product } from '@/lib/api/types';
 import { DataTable } from '@/components/shared/DataTable';
 import { DataTableSkeleton } from '@/components/shared/DataTableSkeleton';
-import { columns as inventoryColumns } from './_components/columns';
-import ProductFormModal from './_components/ProductFormModal';
+import { columns as inventoryColumns } from '@/components/manager/inventory/columns';
+import ProductFormModal from '@/components/manager/inventory/ProductFormModal';
 import { getProducts, deleteProduct as apiDeleteProduct } from '@/lib/api/manager';
 
 export default function ManagerInventoryPage() {
