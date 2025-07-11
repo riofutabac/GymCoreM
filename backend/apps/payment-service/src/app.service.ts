@@ -343,40 +343,26 @@ export class AppService {
         this.logger.log(`✅ Venta POS [${payment.saleId}] procesada y evento 'sale.completed' publicado.`);
         this.logger.log(`✅ Evento 'payment.completed' para analytics emitido por $${payment.amount} (PayPal POS)`);
       } else {
-        // Es una membresía
+        // Es una membresía - enviar UN SOLO evento con toda la información necesaria
         await this.amqpConnection.publish(
           'gymcore-exchange',
           'payment.completed',
           {
             userId: payment.userId,
-            membershipId: payment.membershipId,
+            membershipId: payment.membershipId, // ¡CLAVE! Esto marca que es una membresía
             paymentId: payment.id,
             paidAt: new Date().toISOString(),
             amount: payment.amount,
             currency: payment.currency,
+            paymentMethod: 'PAYPAL',
+            status: 'COMPLETED',
+            timestamp: new Date().toISOString(),
+            source: 'MEMBERSHIP',
           },
           { persistent: true },
         );
 
-        // --- EVENTO ADICIONAL PARA ANALYTICS CON ESTRUCTURA ESTÁNDAR ---
-        const analyticsPayload = {
-          paymentId: payment.id,
-          amount: payment.amount,
-          paymentMethod: 'PAYPAL',
-          status: 'COMPLETED',
-          timestamp: new Date().toISOString(),
-          source: 'MEMBERSHIP',
-        };
-
-        await this.amqpConnection.publish(
-          'gymcore-exchange',
-          'payment.completed',
-          analyticsPayload,
-          { persistent: true }
-        );
-
-        this.logger.log(`✅ Membresía [${payment.membershipId}] procesada y evento 'payment.completed' publicado.`);
-        this.logger.log(`✅ Evento 'payment.completed' para analytics emitido por $${payment.amount} (PayPal)`);
+        this.logger.log(`✅ Membresía [${payment.membershipId}] procesada y evento 'payment.completed' publicado por $${payment.amount}`);
       }
 
       this.webhookCounter.inc({ event_type: eventType, status: 'processed_success' });
@@ -412,7 +398,7 @@ export class AppService {
       const randomPart = randomBytes(6).toString('hex').toUpperCase(); // Genera 12 caracteres aleatorios
       const transactionId = `MANUAL-${randomPart}`; // Ejemplo: MANUAL-A1B2C3D4E5F6
       
-      await this.prisma.payment.create({
+      const payment = await this.prisma.payment.create({
         data: {
           userId: payload.userId,
           membershipId: payload.membershipId,
@@ -424,8 +410,28 @@ export class AppService {
           transactionId: transactionId, // ✨ Usamos el nuevo ID, más limpio
         },
       });
+
+      // 🚀 PUBLICAR EVENTO PARA QUE OTROS SERVICIOS PROCESEN EL PAGO MANUAL
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'payment.completed',
+        {
+          userId: payment.userId,
+          membershipId: payment.membershipId, // ¡CLAVE! Esto marca que es una membresía
+          paymentId: payment.id,
+          paidAt: new Date().toISOString(),
+          amount: payment.amount,
+          currency: payment.currency,
+          paymentMethod: 'CASH',
+          status: 'COMPLETED',
+          timestamp: new Date().toISOString(),
+          source: 'MANUAL_PAYMENT',
+        },
+        { persistent: true },
+      );
       
       this.logger.log(`✅ Pago manual para membresía ${payload.membershipId} registrado exitosamente con ID: ${transactionId}`);
+      this.logger.log(`✅ Evento 'payment.completed' publicado para pago manual (CASH) por $${payment.amount}`);
     } catch (error) {
       this.logger.error(`❌ Error creando pago manual para membresía ${payload.membershipId}`, error);
       // Re-lanzar el error para que RabbitMQ pueda manejarlo (e.g., Dead Letter Queue)

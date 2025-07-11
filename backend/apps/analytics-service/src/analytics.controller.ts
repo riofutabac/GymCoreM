@@ -42,7 +42,9 @@ export class AnalyticsController {
     );
     
     if (typeof payload.amount === 'number') {
-      await this.analyticsService.processCompletedPayment(payload.amount, eventId);
+      // CORRECCIÓN: Pasamos si es una membresía basado en si tiene membershipId
+      const isMembership = !!payload.membershipId;
+      await this.analyticsService.processCompletedPayment(payload.amount, eventId, isMembership);
     }
   }
 
@@ -97,16 +99,6 @@ export class AnalyticsController {
   public async handleUserRoleUpdated(payload: { userId: string; newRole: string; oldRole?: string }) {
     this.logger.log(`Evento 'user.role.updated' recibido para usuario ${payload.userId}: ${payload.oldRole || 'unknown'} → ${payload.newRole}`);
     await this.analyticsService.handleUserRoleUpdate();
-  }
-
-  @RabbitSubscribe({
-    exchange: 'gymcore-exchange',
-    routingKey: 'membership.activated',
-    queue: 'analytics.membership.activated',
-  })
-  public async handleMembershipActivated(payload: { userId: string; membershipType: string; gymId?: string }) {
-    this.logger.log(`Evento 'membership.activated' recibido para usuario ${payload.userId}, tipo: ${payload.membershipType}`);
-    await this.analyticsService.handleMembershipActivation(payload);
   }
 
   @RabbitSubscribe({

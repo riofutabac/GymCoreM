@@ -45,7 +45,7 @@ export class AnalyticsService {
    * Procesa un pago completado, actualizando ingresos y membresías.
    * Incluye protección de idempotencia para evitar procesamientos duplicados.
    */
-  async processCompletedPayment(amount: number, eventId?: string): Promise<void> {
+  async processCompletedPayment(amount: number, eventId?: string, isMembership: boolean = false): Promise<void> {
     // --- PROTECCIÓN DE IDEMPOTENCIA ---
     if (eventId) {
       const alreadyProcessed = await this.redis.get(`processed:${eventId}`);
@@ -62,13 +62,13 @@ export class AnalyticsService {
       where: { date: today },
       update: { 
         revenue: { increment: amount }, 
-        membershipsSold: { increment: 1 } 
+        membershipsSold: { increment: isMembership ? 1 : 0 } // CORRECCIÓN: Solo incrementa si es membresía
       },
       create: { 
         date: today, 
         newUsers: 0, 
         revenue: amount, 
-        membershipsSold: 1 
+        membershipsSold: isMembership ? 1 : 0 // CORRECCIÓN: Solo crea con 1 si es membresía
       },
     });
 
@@ -77,7 +77,12 @@ export class AnalyticsService {
       await this.redis.setex(`processed:${eventId}`, 3600 * 24, '1'); // 24 horas de TTL
     }
 
-    this.logger.log(`✅ Resumen diario actualizado: +$${amount} y +1 membresía`);
+    // CORRECCIÓN: Log mejorado para distinguir tipos de pago
+    if (isMembership) {
+      this.logger.log(`✅ Resumen diario actualizado: +$${amount} y +1 membresía`);
+    } else {
+      this.logger.log(`✅ Resumen diario actualizado: +$${amount} (Venta POS)`);
+    }
     await this.invalidateKpiCache(); // ¡CORRECCIÓN CLAVE!
   }
 
@@ -333,29 +338,4 @@ export class AnalyticsService {
   /**
    * Maneja la activación de membresía
    */
-  async handleMembershipActivation(payload: { userId: string; membershipType: string; gymId?: string }): Promise<void> {
-    this.logger.log(`Procesando activación de membresía tipo ${payload.membershipType} para usuario ${payload.userId}...`);
-    
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    
-    try {
-      // Actualizar tabla de resumen diario
-      await this.prisma.dailyAnalyticsSummary.upsert({
-        where: { date: today },
-        update: { membershipsSold: { increment: 1 } },
-        create: { 
-          date: today, 
-          newUsers: 0,
-          revenue: 0,
-          membershipsSold: 1
-        },
-      });
-      
-      this.logger.log(`✅ Membresía activada procesada para ${payload.userId}, resumen diario actualizado`);
-      await this.invalidateKpiCache(); // ¡CORRECCIÓN CLAVE!
-    } catch (error) {
-      this.logger.error(`Error procesando activación de membresía:`, error);
-    }
-  }
 }

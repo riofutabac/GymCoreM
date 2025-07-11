@@ -95,40 +95,6 @@ export class MembershipService {
       
       this.logger.log(`Evento 'membership.activated.manually' emitido para membresía ${activatedMembership.id}`);
 
-      // --- EMITIR EVENTO payment.completed PARA REGISTRAR EL DINERO ---
-      const paymentCompletedPayload = {
-        membershipId: activatedMembership.id,
-        userId: dto.userId,
-        amount: dto.amount,
-        paymentMethod: 'CASH',
-        status: 'COMPLETED',
-        paidAt: new Date().toISOString(), // ← Cambiado de 'timestamp' a 'paidAt'
-      };
-
-      await this.amqpConnection.publish(
-        'gymcore-exchange',
-        'payment.completed',
-        paymentCompletedPayload,
-        { persistent: true }
-      );
-      
-      this.logger.log(`✅ Evento 'payment.completed' emitido por $${dto.amount} (activación manual)`);
-
-      // Evento base para analytics
-      await this.amqpConnection.publish(
-        'gymcore-exchange',
-        'membership.activated',
-        {
-          userId: dto.userId,
-          membershipType: 'MANUAL_CASH',
-          gymId: pendingMembership.gymId, // Usar el gymId de la membresía pendiente
-          activatedAt: new Date().toISOString(),
-        },
-        { persistent: true }
-      );
-      
-      this.logger.log(`Evento 'membership.activated' emitido para analytics`);
-
       // También emitir evento para notificación por email
       const notificationPayload = {
         membershipId: activatedMembership.id,
