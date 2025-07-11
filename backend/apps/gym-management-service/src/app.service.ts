@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { PrismaService } from './prisma/prisma.service';
 import { CreateGymDto } from './dto/create-gym.dto';
 import { PublicGymDto } from './dto/public-gym.dto';
@@ -24,7 +25,10 @@ interface RoleUpdatePayload {
 export class AppService {
   private readonly logger = new Logger(AppService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly amqpConnection: AmqpConnection,
+  ) {}
 
   public async handleUserCreated(data: UserPayload): Promise<void> {
     this.logger.log(`📝 Sincronizando usuario: ${data.email}`);
@@ -58,22 +62,92 @@ export class AppService {
     });
   }
 
-  async findAllGyms(): Promise<AdminGymDto[]> {
-    const gyms = await this.prisma.gym.findMany();
-    return gyms.map(({ id, name, uniqueCode, isActive, createdAt }) => ({
-      id,
-      name,
-      uniqueCode,
-      isActive,
-      createdAt,
-    }));
+  async deactivateGym(id: string) {
+    this.logger.log(`Desactivando gimnasio ${id}`);
+    
+    try {
+      // Verificar que el gimnasio existe y no está ya desactivado
+      const existingGym = await this.prisma.gym.findUnique({
+        where: { id },
+        select: { id: true, name: true, isActive: true, deletedAt: true }
+      });
+
+      if (!existingGym) {
+        throw new Error(`Gimnasio con ID ${id} no encontrado`);
+      }
+
+      if (existingGym.deletedAt) {
+        throw new Error(`El gimnasio ${existingGym.name} ya está desactivado`);
+      }
+
+      // Realizar soft-delete
+      const deactivatedGym = await this.prisma.gym.update({
+        where: { id },
+        data: {
+          isActive: false,
+          deletedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`Gimnasio ${deactivatedGym.name} desactivado exitosamente`);
+      
+      // Publicar evento crítico gym.deactivated para otros servicios
+      const eventPayload = {
+        gymId: deactivatedGym.id,
+        gymName: deactivatedGym.name,
+        deactivatedAt: deactivatedGym.deletedAt,
+        timestamp: new Date().toISOString(),
+      };
+      
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'gym.deactivated',
+        eventPayload,
+        { persistent: true }
+      );
+      
+      this.logger.log(`✅ Evento 'gym.deactivated' publicado para gimnasio ${deactivatedGym.id}`);
+
+      return deactivatedGym;
+    } catch (error) {
+      this.logger.error(`Error desactivando gimnasio ${id}:`, error);
+      throw error;
+    }
   }
 
-  async findAllPublicGyms(): Promise<PublicGymDto[]> {
-    const gyms = await this.prisma.gym.findMany({
-      where: { isActive: true },
-    });
-    return gyms.map(({ name }) => ({ name }));
+  async updateGym(id: string, data: { name?: string; isActive?: boolean }) {
+    this.logger.log(`Actualizando gimnasio ${id} con datos:`, data);
+
+    try {
+      const updatedGym = await this.prisma.gym.update({
+        where: { id },
+        data,
+      });
+
+      this.logger.log(`Gimnasio ${id} actualizado exitosamente`);
+
+      // Publicar evento gym.updated para otros servicios
+      const eventPayload = {
+        gymId: updatedGym.id,
+        updatedFields: Object.keys(data), // e.g., ['name', 'isActive']
+        updatedData: data,
+        timestamp: new Date().toISOString(),
+      };
+      
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'gym.updated',
+        eventPayload,
+        { persistent: true }
+      );
+      
+      this.logger.log(`✅ Evento 'gym.updated' publicado para gimnasio ${updatedGym.id}`);
+
+      return updatedGym;
+    } catch (error) {
+      this.logger.error(`Error actualizando gimnasio ${id}:`, error);
+      throw error;
+    }
   }
 
   async createLocalUser(data: UserPayload) {
@@ -109,5 +183,34 @@ export class AppService {
         ...(data.gymId && { gymId: data.gymId }),
       },
     });
+  }
+
+  async findAllGyms(): Promise<AdminGymDto[]> {
+    // Solo gimnasios activos (usando isActive por ahora)
+    const gyms = await this.prisma.gym.findMany({
+      where: {
+        isActive: true // Solo gimnasios activos
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    return gyms.map(({ id, name, uniqueCode, isActive, createdAt }) => ({
+      id,
+      name,
+      uniqueCode,
+      isActive,
+      createdAt,
+    }));
+  }
+
+  async findAllPublicGyms(): Promise<PublicGymDto[]> {
+    // También solo gimnasios activos
+    const gyms = await this.prisma.gym.findMany({
+      where: { 
+        isActive: true // Solo gimnasios activos
+      },
+    });
+    return gyms.map(({ name }) => ({ name }));
   }
 }

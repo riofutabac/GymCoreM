@@ -40,6 +40,7 @@ import { RenewMembershipDto } from './dto/renew-membership.dto';
 import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
 import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
+import { UpdateGymDto, AssignManagerDto } from './dto/gym.dto';
 
 @Controller() // Sin prefijo ya que main.ts usa setGlobalPrefix('api/v1')
 export class AppController {
@@ -156,6 +157,47 @@ export class AppController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
+  @Put('gyms/:id')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateGym(@Param('id') id: string, @Body() body: UpdateGymDto) {
+    this.logger.log(`Actualizando gimnasio ${id}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'update_gym' }, { id, data: body }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error actualizando gimnasio: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo actualizar el gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Delete('gyms/:id')
+  @HttpCode(HttpStatus.OK)
+  async deactivateGym(@Param('id') id: string) {
+    this.logger.log(`Desactivando gimnasio ${id}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'deactivate_gym' }, { id }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error desactivando gimnasio: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo desactivar el gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
   @Post('users/:id/role')
   changeUserRole(@Param('id') userId: string, @Body() body: { role: string; gymId?: string }) {
     return this.authClient.send({ cmd: 'change_role' }, { 
@@ -163,6 +205,35 @@ export class AppController {
       newRole: body.role,
       gymId: body.gymId,
     });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Post('gyms/:gymId/assign-manager')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async assignManagerToGym(
+    @Param('gymId') gymId: string,
+    @Body() body: AssignManagerDto
+  ) {
+    this.logger.log(`Asignando manager ${body.userId} al gimnasio ${gymId}`);
+    try {
+      // Reutilizamos la lógica existente de change_role
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'change_role' }, {
+          userId: body.userId,
+          newRole: 'MANAGER',
+          gymId: gymId,
+        }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error asignando manager: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo asignar el manager al gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -767,6 +838,74 @@ export class AppController {
     };
   }
 
+  // --- STAFF USERS ENDPOINT (OWNER ONLY) ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('staff')
+  @HttpCode(HttpStatus.OK)
+  async getStaffUsers() {
+    this.logger.log('Solicitando lista de usuarios administrativos...');
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'get_staff_users' }, {}),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error obteniendo usuarios administrativos: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo obtener la lista de usuarios administrativos',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // --- UPDATE USER PROFILE ENDPOINT (OWNER ONLY) ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Put('users/:id')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateUserProfile(
+    @Param('id') userId: string, 
+    @Body() body: { firstName?: string; lastName?: string }
+  ) {
+    this.logger.log(`Actualizando perfil de usuario ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'update_user_profile' }, { userId, data: body }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error actualizando perfil de usuario: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo actualizar el perfil del usuario',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // --- PASSWORD RESET ENDPOINT (OWNER ONLY) ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Post('auth/request-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async requestPasswordReset(@Body() body: { email: string }) {
+    this.logger.log(`Solicitando reseteo de contraseña para ${body.email}`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'request_password_reset' }, { email: body.email }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error procesando reseteo de contraseña: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo procesar la solicitud de reseteo',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   // --- ANALYTICS ENDPOINT ---
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'MANAGER')
@@ -778,10 +917,32 @@ export class AppController {
         this.analyticsClient.send({ cmd: 'get_kpis' }, {}),
       );
     } catch (error) {
-      this.logger.error('Error obteniendo KPIs de Analytics Service', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error obteniendo KPIs: ${errorMessage}`);
       throw new HttpException(
-        'No se pudo obtener las métricas.',
-        HttpStatus.SERVICE_UNAVAILABLE,
+        'No se pudieron obtener los KPIs',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+  
+  // --- GLOBAL TRENDS ENDPOINT (OWNER ONLY) ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('analytics/global-trends')
+  @HttpCode(HttpStatus.OK)
+  async getGlobalTrends() {
+    this.logger.log('Solicitando tendencias globales...');
+    try {
+      return await firstValueFrom(
+        this.analyticsClient.send({ cmd: 'get_global_trends' }, {}),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error obteniendo tendencias globales: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudieron obtener las tendencias globales',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

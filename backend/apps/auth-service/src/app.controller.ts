@@ -34,4 +34,19 @@ export class AppController {
   async getUserInfo(@Payload() data: { userId: string }) {
     return this.appService.findUserById(data.userId);
   }
+
+  @MessagePattern({ cmd: 'get_staff_users' })
+  async getStaffUsers() {
+    return this.appService.getStaffUsers();
+  }
+
+  @MessagePattern({ cmd: 'update_user_profile' })
+  async updateUserProfile(@Payload() payload: { userId: string; data: { firstName?: string; lastName?: string } }) {
+    return this.appService.updateUserProfile(payload.userId, payload.data);
+  }
+
+  @MessagePattern({ cmd: 'request_password_reset' })
+  async requestPasswordReset(@Payload() data: { email: string }) {
+    return this.appService.requestPasswordReset(data.email);
+  }
 }

@@ -293,5 +293,158 @@ export class AppService {
       name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
     };
   }
+
+  async getStaffUsers() {
+    this.logger.log('Obteniendo lista de usuarios administrativos...');
+    
+    try {
+      const staffUsers = await this.prisma.user.findMany({
+        where: {
+          NOT: {
+            role: 'MEMBER'
+          }
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          gymId: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      this.logger.log(`Se encontraron ${staffUsers.length} usuarios administrativos`);
+      return staffUsers;
+    } catch (error) {
+      this.logger.error('Error obteniendo usuarios administrativos:', error);
+      throw new RpcException({
+        message: 'Error obteniendo la lista de usuarios administrativos',
+        status: 500,
+      });
+    }
+  }
+
+  async updateUserProfile(userId: string, data: { firstName?: string; lastName?: string }) {
+    this.logger.log(`Actualizando perfil para usuario ${userId}`);
+
+    try {
+      // 1. Verificar que el usuario existe
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!existingUser) {
+        throw new RpcException({
+          message: `Usuario con ID ${userId} no encontrado.`,
+          status: 404,
+        });
+      }
+
+      // 2. Actualizar en la base de datos de Prisma
+      const updatedUserInDb = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+        },
+      });
+
+      // 3. Actualizar metadatos en Supabase para consistencia
+      await this.supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          firstName: updatedUserInDb.firstName,
+          lastName: updatedUserInDb.lastName,
+          role: updatedUserInDb.role,
+          gymId: updatedUserInDb.gymId,
+        },
+      });
+
+      // 4. Publicar evento para sincronización con otros servicios
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'user.profile.updated',
+        { 
+          userId, 
+          firstName: updatedUserInDb.firstName, 
+          lastName: updatedUserInDb.lastName,
+          email: updatedUserInDb.email,
+          timestamp: new Date().toISOString(),
+        },
+        { persistent: true }
+      );
+
+      this.logger.log(`✅ Perfil y metadatos actualizados para ${userId}`);
+      return {
+        id: updatedUserInDb.id,
+        email: updatedUserInDb.email,
+        firstName: updatedUserInDb.firstName,
+        lastName: updatedUserInDb.lastName,
+        role: updatedUserInDb.role,
+        gymId: updatedUserInDb.gymId,
+      };
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      this.logger.error('Error actualizando perfil de usuario:', error);
+      throw new RpcException({
+        message: 'Error interno actualizando el perfil del usuario',
+        status: 500,
+      });
+    }
+  }
+
+  async requestPasswordReset(email: string) {
+    this.logger.log(`Iniciando reseteo de contraseña para ${email}`);
+    
+    try {
+      // Verificar si el usuario existe en nuestra base de datos
+      const user = await this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true, email: true, role: true }
+      });
+
+      if (!user) {
+        // Por seguridad, no revelamos si el email existe o no
+        this.logger.warn(`Intento de reset para email no registrado: ${email}`);
+      }
+
+      // Siempre intentamos enviar el email de reset (Supabase maneja si existe o no)
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, {
+        redirectTo: `${frontendUrl}/update-password`,
+      });
+
+      if (error) {
+        this.logger.error(`Error de Supabase al enviar email de reseteo: ${error.message}`);
+        throw new RpcException({
+          message: 'No se pudo procesar la solicitud de reseteo',
+          status: 500,
+        });
+      }
+
+      this.logger.log(`✅ Email de reseteo enviado para ${email}`);
+      
+      // Por seguridad, siempre devolvemos el mismo mensaje
+      return { 
+        message: 'Si el email existe en nuestro sistema, se ha enviado un enlace de recuperación.',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      this.logger.error('Error procesando reseteo de contraseña:', error);
+      throw new RpcException({
+        message: 'Error interno procesando la solicitud',
+        status: 500,
+      });
+    }
+  }
 }
 

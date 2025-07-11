@@ -37,4 +37,30 @@ export class AnalyticsController {
   public async getKPIs() {
     return this.analyticsService.getKPIs();
   }
+
+  @MessagePattern({ cmd: 'get_global_trends' })
+  public async getGlobalTrends() {
+    this.logger.log('Solicitud de tendencias globales recibida');
+    return this.analyticsService.getGlobalTrends();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'gym.updated',
+    queue: 'analytics.gym.updated',
+  })
+  public async handleGymUpdated(payload: { gymId: string; updatedFields?: string[] }) {
+    this.logger.log(`Evento 'gym.updated' recibido para gimnasio ${payload.gymId}`);
+    await this.analyticsService.handleGymUpdate();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'gym.deactivated',
+    queue: 'analytics.gym.deactivated',
+  })
+  public async handleGymDeactivated(payload: { gymId: string; gymName: string; deactivatedAt: string }) {
+    this.logger.log(`Evento 'gym.deactivated' recibido para gimnasio ${payload.gymName} (ID: ${payload.gymId})`);
+    await this.analyticsService.handleGymDeactivation(payload.gymId);
+  }
 }
