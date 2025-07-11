@@ -24,12 +24,25 @@ export class AnalyticsController {
     routingKey: 'payment.completed',
     queue: 'analytics.payment.completed',
   })
-  public async handlePaymentCompleted(payload: { amount: number }) {
+  public async handlePaymentCompleted(payload: { 
+    amount: number; 
+    paymentId?: string; 
+    membershipId?: string; 
+    saleId?: string;
+    timestamp?: string;
+  }) {
+    // Crear un eventId único basado en los datos disponibles
+    const eventId = payload.paymentId || 
+                   payload.membershipId || 
+                   payload.saleId || 
+                   `${payload.amount}_${payload.timestamp || Date.now()}`;
+    
     this.logger.log(
-      `Evento 'payment.completed' recibido por $${payload.amount}`,
+      `Evento 'payment.completed' recibido por $${payload.amount} (eventId: ${eventId})`,
     );
+    
     if (typeof payload.amount === 'number') {
-      await this.analyticsService.processCompletedPayment(payload.amount);
+      await this.analyticsService.processCompletedPayment(payload.amount, eventId);
     }
   }
 
@@ -94,5 +107,15 @@ export class AnalyticsController {
   public async handleMembershipActivated(payload: { userId: string; membershipType: string; gymId?: string }) {
     this.logger.log(`Evento 'membership.activated' recibido para usuario ${payload.userId}, tipo: ${payload.membershipType}`);
     await this.analyticsService.handleMembershipActivation(payload);
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'gym.created',
+    queue: 'analytics.gym.created',
+  })
+  public async handleGymCreated(payload: { gymId: string; name: string }) {
+    this.logger.log(`Evento 'gym.created' recibido para gimnasio ${payload.name} (ID: ${payload.gymId})`);
+    await this.analyticsService.handleGymUpdate(); // Reutilizamos la función que invalida la caché
   }
 }

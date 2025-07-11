@@ -73,7 +73,14 @@ export class GymEventsController {
     },
   })
   async handlePaymentCompleted(
-    payload: { userId: string; membershipId: string; paidAt: string },
+    payload: { 
+      userId: string; 
+      membershipId: string; 
+      paidAt?: string;
+      timestamp?: string;
+      amount?: number;
+      paymentMethod?: string;
+    },
     raw: any,
   ) {
     const headers = raw.properties.headers || {};
@@ -81,10 +88,19 @@ export class GymEventsController {
     this.logger.log(`[Intento #${retry}] payment.completed → ${payload.membershipId}`);
 
     try {
-      await this.membershipService.processPaidMembership(payload);
+      // Usar paidAt si existe, si no usar timestamp, si no usar fecha actual
+      const paidAt = payload.paidAt || payload.timestamp || new Date().toISOString();
+      
+      const processPayload = {
+        userId: payload.userId,
+        membershipId: payload.membershipId,
+        paidAt: paidAt
+      };
+
+      await this.membershipService.processPaidMembership(processPayload);
       this.logger.log(`✅ Membresía ${payload.membershipId} procesada`);
-    } catch (err) {
-      this.logger.error(`[Intento #${retry}] error en ${payload.membershipId}`, err.stack);
+    } catch (err: any) {
+      this.logger.error(`[Intento #${retry}] error en ${payload.membershipId}`, err.stack || err.message);
       if (retry >= this.MAX_RETRIES) {
         this.logger.error(`DLQ tras ${retry} intentos`);
         return new Nack(false);

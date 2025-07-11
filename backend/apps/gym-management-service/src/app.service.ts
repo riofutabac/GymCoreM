@@ -57,9 +57,24 @@ export class AppService {
   }
 
   async createGym(createGymDto: CreateGymDto) {
-    return this.prisma.gym.create({
+    const newGym = await this.prisma.gym.create({
       data: createGymDto,
     });
+
+    // --- EMITIR EVENTO gym.created PARA ANALYTICS ---
+    await this.amqpConnection.publish(
+      'gymcore-exchange',
+      'gym.created',
+      { 
+        gymId: newGym.id, 
+        name: newGym.name, 
+        timestamp: new Date().toISOString() 
+      },
+      { persistent: true }
+    );
+    this.logger.log(`✅ Evento 'gym.created' emitido para el gimnasio ${newGym.name}`);
+
+    return newGym;
   }
 
   async deactivateGym(id: string) {
@@ -212,5 +227,14 @@ export class AppService {
       },
     });
     return gyms.map(({ name }) => ({ name }));
+  }
+
+  async countActiveGyms(): Promise<number> {
+    return this.prisma.gym.count({ 
+      where: { 
+        isActive: true,
+        deletedAt: null // Excluir gimnasios con soft-delete
+      } 
+    });
   }
 }

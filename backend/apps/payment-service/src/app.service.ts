@@ -322,7 +322,26 @@ export class AppService {
           },
           { persistent: true },
         );
+
+        // --- EVENTO ADICIONAL PARA ANALYTICS CON ESTRUCTURA ESTÁNDAR ---
+        const analyticsPayload = {
+          paymentId: payment.id,
+          amount: payment.amount,
+          paymentMethod: 'PAYPAL',
+          status: 'COMPLETED',
+          timestamp: new Date().toISOString(),
+          source: 'POS',
+        };
+
+        await this.amqpConnection.publish(
+          'gymcore-exchange',
+          'payment.completed',
+          analyticsPayload,
+          { persistent: true }
+        );
+
         this.logger.log(`✅ Venta POS [${payment.saleId}] procesada y evento 'sale.completed' publicado.`);
+        this.logger.log(`✅ Evento 'payment.completed' para analytics emitido por $${payment.amount} (PayPal POS)`);
       } else {
         // Es una membresía
         await this.amqpConnection.publish(
@@ -338,7 +357,26 @@ export class AppService {
           },
           { persistent: true },
         );
+
+        // --- EVENTO ADICIONAL PARA ANALYTICS CON ESTRUCTURA ESTÁNDAR ---
+        const analyticsPayload = {
+          paymentId: payment.id,
+          amount: payment.amount,
+          paymentMethod: 'PAYPAL',
+          status: 'COMPLETED',
+          timestamp: new Date().toISOString(),
+          source: 'MEMBERSHIP',
+        };
+
+        await this.amqpConnection.publish(
+          'gymcore-exchange',
+          'payment.completed',
+          analyticsPayload,
+          { persistent: true }
+        );
+
         this.logger.log(`✅ Membresía [${payment.membershipId}] procesada y evento 'payment.completed' publicado.`);
+        this.logger.log(`✅ Evento 'payment.completed' para analytics emitido por $${payment.amount} (PayPal)`);
       }
 
       this.webhookCounter.inc({ event_type: eventType, status: 'processed_success' });

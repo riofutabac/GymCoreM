@@ -3,16 +3,6 @@ import { Redis } from 'ioredis';
 import { REDIS_CLIENT } from './redis.module';
 import { PrismaService } from './prisma/prisma.service';
 
-// Definimos constantes para las claves de Redis para evitar errores de tipeo
-const KPI_KEYS = {
-  TOTAL_USERS: 'kpi:total_users',
-  TOTAL_REVENUE: 'kpi:total_revenue',
-  NEW_MEMBERSHIPS_TODAY: 'kpi:new_memberships_today',
-  GLOBAL_TRENDS: 'trends:global', // Nueva clave para tendencias globales
-};
-const TTL_SECONDS = 30; // 30 segundos de vida para las claves cacheadas
-const TRENDS_TTL_SECONDS = 3600; // 1 hora para datos de tendencias (más costosos de calcular)
-
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -22,72 +12,73 @@ export class AnalyticsService {
     private readonly prisma: PrismaService,
   ) {}
 
+  // --- FUNCIÓN PARA INVALIDAR LA CACHÉ ---
+  // La llamaremos cada vez que los datos cambien.
+  private async invalidateKpiCache() {
+    this.logger.log('Invalidando caché de KPIs y Global Trends...');
+    await this.redis.del('kpis', 'global-trends');
+    this.logger.log('✅ Caché invalidada.');
+  }
+
   /**
    * Procesa la creación de un nuevo usuario.
    */
   async processNewUser(): Promise<void> {
-    this.logger.log('Incrementando contador total de usuarios...');
-    const today = new Date().toISOString().split('T')[0]; // Formato YYYY-MM-DD
-    
-    const pipeline = this.redis.pipeline();
-    pipeline.incr(KPI_KEYS.TOTAL_USERS);
-    pipeline.expire(KPI_KEYS.TOTAL_USERS, TTL_SECONDS);
-    await pipeline.exec();
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
 
-    // Actualizar tabla de resumen diario
-    try {
-      await this.prisma.dailyAnalyticsSummary.upsert({
-        where: { date: new Date(today) },
-        update: { newUsers: { increment: 1 } },
-        create: { 
-          date: new Date(today), 
-          newUsers: 1,
-          revenue: 0,
-          membershipsSold: 0
-        },
-      });
-      this.logger.log(`✅ Resumen diario actualizado: +1 usuario para ${today}`);
-    } catch (error) {
-      this.logger.error('Error actualizando resumen diario de usuarios:', error);
-    }
+    await this.prisma.dailyAnalyticsSummary.upsert({
+      where: { date: today },
+      update: { newUsers: { increment: 1 } },
+      create: { 
+        date: today, 
+        newUsers: 1, 
+        revenue: 0, 
+        membershipsSold: 0
+      },
+    });
+    this.logger.log(`✅ Resumen diario actualizado: +1 usuario`);
+    await this.invalidateKpiCache(); // ¡CORRECCIÓN CLAVE!
   }
 
   /**
    * Procesa un pago completado, actualizando ingresos y membresías.
+   * Incluye protección de idempotencia para evitar procesamientos duplicados.
    */
-  async processCompletedPayment(amount: number): Promise<void> {
-    this.logger.log(`Añadiendo $${amount} a los ingresos totales...`);
-    const today = new Date().toISOString().split('T')[0]; // Formato YYYY-MM-DD
-    
-    const pipeline = this.redis.pipeline();
-    pipeline.incrbyfloat(KPI_KEYS.TOTAL_REVENUE, amount);
-    pipeline.expire(KPI_KEYS.TOTAL_REVENUE, TTL_SECONDS);
-
-    // También podemos registrar una nueva membresía del día
-    pipeline.incr(KPI_KEYS.NEW_MEMBERSHIPS_TODAY);
-    pipeline.expire(KPI_KEYS.NEW_MEMBERSHIPS_TODAY, 86400); // Expira en 24 horas
-
-    await pipeline.exec();
-
-    // Actualizar tabla de resumen diario
-    try {
-      await this.prisma.dailyAnalyticsSummary.upsert({
-        where: { date: new Date(today) },
-        update: { 
-          revenue: { increment: amount },
-          membershipsSold: { increment: 1 }
-        },
-        create: { 
-          date: new Date(today), 
-          newUsers: 0,
-          revenue: amount,
-          membershipsSold: 1
-        },
-      });
-      this.logger.log(`✅ Resumen diario actualizado: +$${amount} ingresos para ${today}`);
-    } catch (error) {
-      this.logger.error('Error actualizando resumen diario de pagos:', error);
+  async processCompletedPayment(amount: number, eventId?: string): Promise<void> {
+    // --- PROTECCIÓN DE IDEMPOTENCIA ---
+    if (eventId) {
+      const alreadyProcessed = await this.redis.get(`processed:${eventId}`);
+      if (alreadyProcessed) {
+        this.logger.warn(`Evento ${eventId} ya fue procesado. Ignorando para evitar duplicación.`);
+        return;
+      }
     }
+    
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    
+    await this.prisma.dailyAnalyticsSummary.upsert({
+      where: { date: today },
+      update: { 
+        revenue: { increment: amount }, 
+        membershipsSold: { increment: 1 } 
+      },
+      create: { 
+        date: today, 
+        newUsers: 0, 
+        revenue: amount, 
+        membershipsSold: 1 
+      },
+    });
+
+    // --- MARCAR EVENTO COMO PROCESADO ---
+    if (eventId) {
+      await this.redis.setex(`processed:${eventId}`, 3600 * 24, '1'); // 24 horas de TTL
+    }
+
+    this.logger.log(`✅ Resumen diario actualizado: +$${amount} y +1 membresía`);
+    await this.invalidateKpiCache(); // ¡CORRECCIÓN CLAVE!
   }
 
   async getKpis() {
@@ -105,25 +96,33 @@ export class AnalyticsService {
     this.logger.log('Calculando KPIs desde la base de datos...');
 
     try {
-      const totalUsers = await this.prisma.dailyAnalyticsSummary.count();
-      this.logger.log(`[DEBUG-KPIs] Usuarios contados desde dailyAnalyticsSummary: ${totalUsers}`);
+      // CORRECCIÓN: Usamos aggregate para SUMAR, no para contar filas.
+      const aggregation = await this.prisma.dailyAnalyticsSummary.aggregate({
+        _sum: {
+          newUsers: true,
+          revenue: true,
+          membershipsSold: true,
+        },
+      });
 
-      const revenueAggregation = await this.prisma.dailyAnalyticsSummary.aggregate({ _sum: { revenue: true } });
-      const totalRevenue = revenueAggregation._sum.revenue || 0;
-      this.logger.log(`[DEBUG-KPIs] Ingresos sumados desde dailyAnalyticsSummary: ${totalRevenue}`);
+      this.logger.log(`[DEBUG-KPIs] Agregación desde dailyAnalyticsSummary: ${JSON.stringify(aggregation)}`);
 
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const newMembershipsToday = await this.prisma.dailyAnalyticsSummary.count({ where: { date: today, membershipsSold: { gt: 0 } } });
-      this.logger.log(`[DEBUG-KPIs] Membresías de hoy contadas desde dailyAnalyticsSummary: ${newMembershipsToday}`);
+      today.setUTCHours(0, 0, 0, 0);
+      
+      const todaysSummary = await this.prisma.dailyAnalyticsSummary.findUnique({
+          where: { date: today }
+      });
 
       const kpis = {
-        totalUsers,
-        totalRevenue: totalRevenue.toFixed(2),
-        newMembershipsToday,
+        // Usamos los valores sumados. Si son null, ponemos 0.
+        totalUsers: aggregation._sum.newUsers || 0,
+        totalRevenue: (aggregation._sum.revenue || 0).toFixed(2),
+        newMembershipsToday: todaysSummary?.membershipsSold || 0,
         lastUpdatedAt: new Date().toISOString(),
       };
 
+      this.logger.log(`[DEBUG-KPIs] KPIs calculados: ${JSON.stringify(kpis)}`);
       await this.redis.set(cacheKey, JSON.stringify(kpis), 'EX', 3600);
       this.logger.log('KPIs guardados en Redis.');
       return kpis;
@@ -303,11 +302,8 @@ export class AnalyticsService {
    * Maneja las actualizaciones de gimnasio invalidando caché
    */
   async handleGymUpdate(): Promise<void> {
-    this.logger.log('Invalidando caché de tendencias globales debido a una actualización de gimnasio...');
-    // Simplemente borramos la clave de la caché.
-    // En la próxima petición se recalculará con los datos frescos.
-    await this.redis.del(KPI_KEYS.GLOBAL_TRENDS);
-    this.logger.log('✅ Caché de tendencias invalidado');
+    this.logger.log('Gym actualizado - invalidando caché...');
+    await this.invalidateKpiCache();
   }
 
   /**
@@ -315,65 +311,23 @@ export class AnalyticsService {
    */
   async handleGymDeactivation(gymId: string): Promise<void> {
     this.logger.log(`Procesando desactivación del gimnasio ${gymId}...`);
-    
-    try {
-      // Invalidar múltiples cachés ya que un gimnasio desactivado afecta muchos KPIs
-      const pipeline = this.redis.pipeline();
-      
-      // Invalidar tendencias globales
-      pipeline.del(KPI_KEYS.GLOBAL_TRENDS);
-      
-      // Invalidar KPIs actuales (podrían cambiar si excluimos el gimnasio desactivado)
-      pipeline.del(KPI_KEYS.TOTAL_USERS);
-      pipeline.del(KPI_KEYS.TOTAL_REVENUE);
-      pipeline.del(KPI_KEYS.NEW_MEMBERSHIPS_TODAY);
-      
-      await pipeline.exec();
-      
-      this.logger.log(`✅ Cachés invalidados debido a desactivación del gimnasio ${gymId}`);
-    } catch (error) {
-      this.logger.error(`Error invalidando cachés para gimnasio desactivado ${gymId}:`, error);
-    }
+    await this.invalidateKpiCache();
   }
 
   /**
    * Maneja la actualización de perfil de usuario
    */
   async handleUserProfileUpdate(): Promise<void> {
-    this.logger.log('Procesando actualización de perfil de usuario...');
-    
-    try {
-      // Invalidar cachés de usuarios ya que el perfil cambió
-      const pipeline = this.redis.pipeline();
-      pipeline.del(KPI_KEYS.TOTAL_USERS);
-      pipeline.del(KPI_KEYS.GLOBAL_TRENDS);
-      
-      await pipeline.exec();
-      
-      this.logger.log(`✅ Cachés invalidados debido a actualización de perfil de usuario`);
-    } catch (error) {
-      this.logger.error(`Error invalidando cachés para actualización de perfil:`, error);
-    }
+    this.logger.log('Perfil de usuario actualizado - invalidando caché...');
+    await this.invalidateKpiCache();
   }
 
   /**
    * Maneja el cambio de rol de usuario
    */
   async handleUserRoleUpdate(): Promise<void> {
-    this.logger.log('Procesando cambio de rol de usuario...');
-    
-    try {
-      // Los cambios de rol pueden afectar estadísticas por tipo de usuario
-      const pipeline = this.redis.pipeline();
-      pipeline.del(KPI_KEYS.TOTAL_USERS);
-      pipeline.del(KPI_KEYS.GLOBAL_TRENDS);
-      
-      await pipeline.exec();
-      
-      this.logger.log(`✅ Cachés invalidados debido a cambio de rol de usuario`);
-    } catch (error) {
-      this.logger.error(`Error invalidando cachés para cambio de rol:`, error);
-    }
+    this.logger.log('Rol de usuario actualizado - invalidando caché...');
+    await this.invalidateKpiCache();
   }
 
   /**
@@ -382,32 +336,24 @@ export class AnalyticsService {
   async handleMembershipActivation(payload: { userId: string; membershipType: string; gymId?: string }): Promise<void> {
     this.logger.log(`Procesando activación de membresía tipo ${payload.membershipType} para usuario ${payload.userId}...`);
     
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
     
     try {
-      // Incrementar contador de membresías activadas hoy
-      const pipeline = this.redis.pipeline();
-      pipeline.incr(KPI_KEYS.NEW_MEMBERSHIPS_TODAY);
-      pipeline.expire(KPI_KEYS.NEW_MEMBERSHIPS_TODAY, TTL_SECONDS);
-      
-      // También invalidar tendencias globales
-      pipeline.del(KPI_KEYS.GLOBAL_TRENDS);
-      
-      await pipeline.exec();
-
       // Actualizar tabla de resumen diario
       await this.prisma.dailyAnalyticsSummary.upsert({
-        where: { date: new Date(today) },
+        where: { date: today },
         update: { membershipsSold: { increment: 1 } },
         create: { 
-          date: new Date(today), 
+          date: today, 
           newUsers: 0,
           revenue: 0,
           membershipsSold: 1
         },
       });
       
-      this.logger.log(`✅ Membresía activada procesada para ${payload.userId}, resumen diario actualizado para ${today}`);
+      this.logger.log(`✅ Membresía activada procesada para ${payload.userId}, resumen diario actualizado`);
+      await this.invalidateKpiCache(); // ¡CORRECCIÓN CLAVE!
     } catch (error) {
       this.logger.error(`Error procesando activación de membresía:`, error);
     }

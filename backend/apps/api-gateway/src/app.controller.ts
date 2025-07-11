@@ -982,17 +982,21 @@ export class AppController {
   @HttpCode(HttpStatus.OK)
   async getAnalyticsKpis() {
     try {
-      const kpis = await firstValueFrom(
-        this.analyticsClient.send({ cmd: 'get_kpis' }, {}),
-      );
-      // Nos aseguramos que el totalRevenue sea un número
+      // Peticiones en paralelo para más eficiencia
+      const [kpisFromAnalytics, activeGyms] = await Promise.all([
+        firstValueFrom(this.analyticsClient.send({ cmd: 'get_kpis' }, {})),
+        firstValueFrom(this.gymClient.send({ cmd: 'count_active_gyms' }, {})),
+      ]);
+
+      // Unimos los resultados
       return {
-        ...kpis,
-        totalRevenue: parseFloat(kpis.totalRevenue) || 0,
+        ...kpisFromAnalytics,
+        totalRevenue: parseFloat(kpisFromAnalytics.totalRevenue) || 0,
+        totalGyms: activeGyms, // Añadimos el contador de gimnasios
       };
     } catch (error) {
-      console.error('Error fetching KPIs:', error);
-      throw new HttpException('No se pudieron cargar los KPIs.', HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error('Error fetching combined KPIs:', error);
+      throw new HttpException('No se pudieron cargar los KPIs combinados.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
   

@@ -57,6 +57,7 @@
     "db:reset:payment": "infisical run --path=/payment-service -- pnpm exec prisma migrate reset --schema=./backend/apps/payment-service/prisma/schema.prisma",
     "db:reset:analytics": "infisical run --path=/analytics-service -- pnpm exec prisma migrate reset --schema=./backend/apps/analytics-service/prisma/schema.prisma",
     "db:reset:all": "pnpm db:reset:auth && pnpm db:reset:gym && pnpm db:reset:inventory && pnpm db:reset:payment && pnpm db:reset:analytics",
+    "reset:complete": "node scripts/reset-complete.js",
     "test": "pnpm -r run test",
     "test:auth": "infisical run --path=/auth-service -- pnpm --filter auth-service run test",
     "test:gyms": "infisical run --path=/gym-management-service -- pnpm --filter gym-management-service run test",

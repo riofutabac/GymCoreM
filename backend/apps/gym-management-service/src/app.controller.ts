@@ -74,4 +74,9 @@ export class AppController {
   joinGym(@Payload() payload: { uniqueCode: string; userId: string }) {
     return this.membershipService.joinGym(payload.uniqueCode, payload.userId);
   }
+
+  @MessagePattern({ cmd: 'count_active_gyms' })
+  async countActiveGyms() {
+    return this.appService.countActiveGyms();
+  }
 }
