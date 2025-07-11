@@ -63,4 +63,34 @@ export class AnalyticsController {
     this.logger.log(`Evento 'gym.deactivated' recibido para gimnasio ${payload.gymName} (ID: ${payload.gymId})`);
     await this.analyticsService.handleGymDeactivation(payload.gymId);
   }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.profile.updated',
+    queue: 'analytics.user.profile.updated',
+  })
+  public async handleUserProfileUpdated(payload: { userId: string; updatedFields?: string[] }) {
+    this.logger.log(`Evento 'user.profile.updated' recibido para usuario ${payload.userId}`);
+    await this.analyticsService.handleUserProfileUpdate();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.role.updated',
+    queue: 'analytics.user.role.updated',
+  })
+  public async handleUserRoleUpdated(payload: { userId: string; newRole: string; oldRole?: string }) {
+    this.logger.log(`Evento 'user.role.updated' recibido para usuario ${payload.userId}: ${payload.oldRole || 'unknown'} → ${payload.newRole}`);
+    await this.analyticsService.handleUserRoleUpdate();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'membership.activated',
+    queue: 'analytics.membership.activated',
+  })
+  public async handleMembershipActivated(payload: { userId: string; membershipType: string; gymId?: string }) {
+    this.logger.log(`Evento 'membership.activated' recibido para usuario ${payload.userId}, tipo: ${payload.membershipType}`);
+    await this.analyticsService.handleMembershipActivation(payload);
+  }
 }

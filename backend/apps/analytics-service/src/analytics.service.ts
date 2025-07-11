@@ -318,4 +318,81 @@ export class AnalyticsService {
       this.logger.error(`Error invalidando cachés para gimnasio desactivado ${gymId}:`, error);
     }
   }
+
+  /**
+   * Maneja la actualización de perfil de usuario
+   */
+  async handleUserProfileUpdate(): Promise<void> {
+    this.logger.log('Procesando actualización de perfil de usuario...');
+    
+    try {
+      // Invalidar cachés de usuarios ya que el perfil cambió
+      const pipeline = this.redis.pipeline();
+      pipeline.del(KPI_KEYS.TOTAL_USERS);
+      pipeline.del(KPI_KEYS.GLOBAL_TRENDS);
+      
+      await pipeline.exec();
+      
+      this.logger.log(`✅ Cachés invalidados debido a actualización de perfil de usuario`);
+    } catch (error) {
+      this.logger.error(`Error invalidando cachés para actualización de perfil:`, error);
+    }
+  }
+
+  /**
+   * Maneja el cambio de rol de usuario
+   */
+  async handleUserRoleUpdate(): Promise<void> {
+    this.logger.log('Procesando cambio de rol de usuario...');
+    
+    try {
+      // Los cambios de rol pueden afectar estadísticas por tipo de usuario
+      const pipeline = this.redis.pipeline();
+      pipeline.del(KPI_KEYS.TOTAL_USERS);
+      pipeline.del(KPI_KEYS.GLOBAL_TRENDS);
+      
+      await pipeline.exec();
+      
+      this.logger.log(`✅ Cachés invalidados debido a cambio de rol de usuario`);
+    } catch (error) {
+      this.logger.error(`Error invalidando cachés para cambio de rol:`, error);
+    }
+  }
+
+  /**
+   * Maneja la activación de membresía
+   */
+  async handleMembershipActivation(payload: { userId: string; membershipType: string; gymId?: string }): Promise<void> {
+    this.logger.log(`Procesando activación de membresía tipo ${payload.membershipType} para usuario ${payload.userId}...`);
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+      // Incrementar contador de membresías activadas hoy
+      const pipeline = this.redis.pipeline();
+      pipeline.incr(KPI_KEYS.NEW_MEMBERSHIPS_TODAY);
+      pipeline.expire(KPI_KEYS.NEW_MEMBERSHIPS_TODAY, TTL_SECONDS);
+      
+      // También invalidar tendencias globales
+      pipeline.del(KPI_KEYS.GLOBAL_TRENDS);
+      
+      await pipeline.exec();
+
+      // Actualizar tabla de resumen diario
+      await this.prisma.dailyAnalyticsSummary.upsert({
+        where: { date: new Date(today) },
+        update: { membershipsSold: { increment: 1 } },
+        create: { 
+          date: new Date(today), 
+          newUsers: 0,
+          revenue: 0,
+          membershipsSold: 1
+        },
+      });
+      
+      this.logger.log(`✅ Membresía activada procesada para ${payload.userId}, resumen diario actualizado para ${today}`);
+    } catch (error) {
+      this.logger.error(`Error procesando activación de membresía:`, error);
+    }
+  }
 }

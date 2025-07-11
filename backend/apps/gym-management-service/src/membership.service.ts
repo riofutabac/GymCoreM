@@ -95,6 +95,21 @@ export class MembershipService {
       
       this.logger.log(`Evento 'membership.activated.manually' emitido para membresía ${activatedMembership.id}`);
 
+      // Evento base para analytics
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'membership.activated',
+        {
+          userId: dto.userId,
+          membershipType: 'MANUAL_CASH',
+          gymId: activatedMembership.membership?.gymId,
+          activatedAt: new Date().toISOString(),
+        },
+        { persistent: true }
+      );
+      
+      this.logger.log(`Evento 'membership.activated' emitido para analytics`);
+
       // También emitir evento para notificación por email
       const notificationPayload = {
         membershipId: activatedMembership.id,
