@@ -231,6 +231,32 @@
 			"response": []
 		},
 		{
+			"name": "Enrollment with Real User ID",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"replace-with-real-user-id\"\n}"
+				},
+				"url": {
+					"raw": "{{biometricUrl}}/enroll",
+					"host": [
+						"{{biometricUrl}}"
+					],
+					"path": [
+						"enroll"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Reset All Fingerprints",
 			"request": {
 				"method": "POST",
