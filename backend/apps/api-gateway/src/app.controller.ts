@@ -51,6 +51,7 @@ export class AppController {
     @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
     @Inject('ANALYTICS_SERVICE') private readonly analyticsClient: ClientProxy,
+    @Inject('BIOMETRIC_SERVICE') private readonly biometricClient: ClientProxy,
   ) {}
 
   @Post('auth/register')
@@ -780,6 +781,193 @@ export class AppController {
         'No se pudo obtener las métricas.',
         HttpStatus.SERVICE_UNAVAILABLE,
       );
+    }
+  }
+
+  // --- BIOMETRIC ENDPOINTS ---
+  // Solo MANAGER, RECEPTIONIST pueden registrar huellas (de ellos mismos y de MEMBERs del mismo gimnasio)
+  
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('biometric/enroll')
+  @HttpCode(HttpStatus.CREATED)
+  async enrollFingerprint(@Body() body: { userId: string; fingerprintId: number }, @Req() req) {
+    try {
+      const currentUser = req.user;
+      
+      // Validar que el usuario puede registrar huellas
+      // Solo pueden registrar su propia huella o la de un MEMBER del mismo gym
+      if (body.userId !== currentUser.sub) {
+        // Si no es su propia huella, verificar que el usuario objetivo sea un MEMBER del mismo gym
+        const targetUser = await firstValueFrom(
+          this.authClient.send({ cmd: 'get_user_by_id' }, { userId: body.userId }),
+        );
+        
+        if (!targetUser) {
+          throw new HttpException(
+            'Usuario no encontrado',
+            HttpStatus.NOT_FOUND,
+          );
+        }
+        
+        if (targetUser.role !== 'MEMBER') {
+          throw new HttpException(
+            'Solo puedes registrar huellas de usuarios con rol MEMBER',
+            HttpStatus.FORBIDDEN,
+          );
+        }
+        
+        // Verificar que pertenecen al mismo gimnasio
+        if (targetUser.gymId !== currentUser.gymId) {
+          throw new HttpException(
+            'Solo puedes registrar huellas de MEMBERs de tu mismo gimnasio',
+            HttpStatus.FORBIDDEN,
+          );
+        }
+      }
+
+      const response = await firstValueFrom(
+        this.biometricClient.send({ cmd: 'enroll_fingerprint' }, {
+          userId: body.userId,
+          fingerprintId: body.fingerprintId,
+          enrolledBy: currentUser.sub,
+        }),
+      );
+      
+      return response;
+    } catch (error) {
+      this.logger.error('Error enrolling fingerprint', error);
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al registrar la huella dactilar';
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Delete('biometric/delete/:userId/:fingerprintId')
+  @HttpCode(HttpStatus.OK)
+  async deleteFingerprint(@Param('userId') userId: string, @Param('fingerprintId') fingerprintId: string, @Req() req: any) {
+    try {
+      const currentUser = req.user;
+      
+      // Validar que el usuario puede eliminar huellas
+      if (userId !== currentUser.sub) {
+        // Si no es su propia huella, verificar que el usuario objetivo sea un MEMBER del mismo gym
+        const targetUser = await firstValueFrom(
+          this.authClient.send({ cmd: 'get_user_by_id' }, { userId }),
+        );
+        
+        if (!targetUser) {
+          throw new HttpException(
+            'Usuario no encontrado',
+            HttpStatus.NOT_FOUND,
+          );
+        }
+        
+        if (targetUser.role !== 'MEMBER') {
+          throw new HttpException(
+            'Solo puedes eliminar huellas de usuarios con rol MEMBER',
+            HttpStatus.FORBIDDEN,
+          );
+        }
+        
+        // Verificar que pertenecen al mismo gimnasio
+        if (targetUser.gymId !== currentUser.gymId) {
+          throw new HttpException(
+            'Solo puedes eliminar huellas de MEMBERs de tu mismo gimnasio',
+            HttpStatus.FORBIDDEN,
+          );
+        }
+      }
+
+      const response = await firstValueFrom(
+        this.biometricClient.send({ cmd: 'delete_fingerprint' }, {
+          userId,
+          fingerprintId: parseInt(fingerprintId),
+          deletedBy: currentUser.sub,
+        }),
+      );
+      
+      return response;
+    } catch (error) {
+      this.logger.error('Error deleting fingerprint', error);
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al eliminar la huella dactilar';
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Get('biometric/list/:userId')
+  @HttpCode(HttpStatus.OK)
+  async listFingerprints(@Param('userId') userId: string, @Req() req) {
+    try {
+      const currentUser = req.user;
+      
+      // Validar que el usuario puede ver las huellas
+      if (userId !== currentUser.sub) {
+        // Si no son sus propias huellas, verificar que el usuario objetivo sea un MEMBER del mismo gym
+        const targetUser = await firstValueFrom(
+          this.authClient.send({ cmd: 'get_user_by_id' }, { userId }),
+        );
+        
+        if (!targetUser) {
+          throw new HttpException(
+            'Usuario no encontrado',
+            HttpStatus.NOT_FOUND,
+          );
+        }
+        
+        if (targetUser.role !== 'MEMBER') {
+          throw new HttpException(
+            'Solo puedes ver huellas de usuarios con rol MEMBER',
+            HttpStatus.FORBIDDEN,
+          );
+        }
+        
+        // Verificar que pertenecen al mismo gimnasio
+        if (targetUser.gymId !== currentUser.gymId) {
+          throw new HttpException(
+            'Solo puedes ver huellas de MEMBERs de tu mismo gimnasio',
+            HttpStatus.FORBIDDEN,
+          );
+        }
+      }
+
+      const response = await firstValueFrom(
+        this.biometricClient.send({ cmd: 'list_fingerprints' }, { userId }),
+      );
+      
+      return response;
+    } catch (error) {
+      this.logger.error('Error listing fingerprints', error);
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al obtener las huellas dactilares';
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'RECEPTIONIST')
+  @Post('biometric/verify')
+  @HttpCode(HttpStatus.OK)
+  async verifyFingerprint(@Body() body: { userId: string; fingerprintId: number }) {
+    try {
+      const response = await firstValueFrom(
+        this.biometricClient.send({ cmd: 'verify_fingerprint' }, {
+          userId: body.userId,
+          fingerprintId: body.fingerprintId,
+        }),
+      );
+      
+      return response;
+    } catch (error) {
+      this.logger.error('Error verifying fingerprint', error);
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al verificar la huella dactilar';
+      throw new HttpException(message, status);
     }
   }
 }

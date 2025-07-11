@@ -272,16 +272,27 @@ export class AppService {
   }
 
   async enrollBiometric(userId: string, template: string) {
-    this.logger.log(`Registrando plantilla biométrica para el usuario: ${userId}`);
+    this.logger.log(`🔄 Registrando plantilla biométrica para el usuario: ${userId}`);
+    this.logger.log(`📋 Template recibido: ${template.substring(0, 50)}...`);
 
-    return this.prisma.biometricTemplate.upsert({
-      where: { userId: userId },
-      update: { template: template },
-      create: {
-        userId: userId,
-        template: template,
-      },
-    });
+    try {
+      const result = await this.prisma.biometricTemplate.upsert({
+        where: { userId: userId },
+        update: { template: template },
+        create: {
+          userId: userId,
+          template: template,
+        },
+      });
+
+      this.logger.log(`✅ Plantilla biométrica guardada exitosamente para usuario: ${userId}`);
+      this.logger.log(`📊 Resultado: ${JSON.stringify(result)}`);
+      
+      return result;
+    } catch (error) {
+      this.logger.error(`❌ Error guardando plantilla biométrica: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 }
 
