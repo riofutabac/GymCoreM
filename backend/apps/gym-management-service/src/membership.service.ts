@@ -178,28 +178,48 @@ export class MembershipService {
       throw new NotFoundException(`Membresía ${payload.membershipId} no encontrada.`);
     }
 
-    // La fecha de inicio siempre será la fecha del pago (paidAt)
-    const startDate = new Date(payload.paidAt);
+    // --- CORRECCIÓN DE LÓGICA DE FECHAS ---
+    let startDate: Date;
     let endDate: Date;
 
-    // Si la membresía ya está activa y no ha expirado, extendemos desde la fecha actual de fin
-    if (membership.status === 'ACTIVE' && membership.endDate && membership.endDate > new Date()) {
-      this.logger.log(`Renovando membresía ${membership.id} - extendiéndo desde fecha actual de fin`);
-      endDate = new Date(membership.endDate);
+    // La fecha de pago siempre debe ser una fecha válida
+    const paymentDate = new Date(payload.paidAt);
+    
+    // Validación crítica: asegurarnos que la fecha de pago es válida
+    if (isNaN(paymentDate.getTime())) {
+      this.logger.error(`Error crítico: Fecha de pago inválida recibida: ${payload.paidAt}`);
+      throw new Error('Fecha de pago inválida proporcionada.');
+    }
+
+    // Si la membresía ya está activa y no ha expirado, extendemos desde la fecha de fin actual.
+    if (membership.status === 'ACTIVE' && membership.endDate && new Date() < membership.endDate) {
+      this.logger.log(`Renovando membresía ${membership.id}. Extendiendo desde la fecha de fin actual.`);
+      startDate = new Date(membership.endDate); // La nueva fecha de inicio es el fin de la anterior
+      endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + 1);
     } else {
-      // Primera activación o reactivación - 30 días desde la fecha de pago
-      this.logger.log(`Activando membresía ${membership.id} - 30 días desde fecha de pago`);
+      // Es una primera activación o una reactivación de una membresía expirada.
+      // La fecha de inicio es la fecha del pago.
+      this.logger.log(`Activando membresía ${membership.id}. Iniciando desde la fecha de pago.`);
+      startDate = paymentDate;
       endDate = new Date(startDate);
-      endDate.setMonth(startDate.getMonth() + 1);
+      endDate.setMonth(endDate.getMonth() + 1);
     }
+    
+    // Validación final: nos aseguramos de que las fechas calculadas son válidas
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      this.logger.error(`Error crítico: Fechas inválidas calculadas para membresía ${membership.id}`);
+      this.logger.error(`startDate: ${startDate}, endDate: ${endDate}`);
+      throw new Error('No se pudo calcular una fecha de inicio/fin válida.');
+    }
+    // --- FIN DE LA CORRECCIÓN ---
 
     await this.prisma.membership.update({
       where: { id: payload.membershipId },
       data: {
         status: 'ACTIVE',
-        startDate: startDate,
-        endDate: endDate,
+        startDate: startDate, // Usamos la fecha corregida y validada
+        endDate: endDate,     // Usamos la fecha corregida y validada
         // Indicamos que fue activado automáticamente por el sistema de pagos
         activatedById: null, // Sistema automático, no un manager específico
       },

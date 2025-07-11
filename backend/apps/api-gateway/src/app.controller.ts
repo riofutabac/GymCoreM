@@ -24,13 +24,13 @@ import {
   Headers,
   Logger, // <-- AÑADE ESTO
 } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as csv from 'fast-csv';
 import * as fs from 'fs';
 import * as ExcelJS from 'exceljs';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { GymManagerGuard } from './auth/gym-manager.guard';
@@ -40,6 +40,24 @@ import { RenewMembershipDto } from './dto/renew-membership.dto';
 import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
 import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
+import { UpdateGymDto, AssignManagerDto } from './dto/gym.dto';
+
+// --- Interfaces para tipar los objetos ---
+interface UserWithGymName {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  gymId?: string;
+  gymName?: string; // Campo que vamos a añadir
+  createdAt: string;
+}
+
+interface Gym {
+  id: string;
+  name: string;
+}
 
 @Controller() // Sin prefijo ya que main.ts usa setGlobalPrefix('api/v1')
 export class AppController {
@@ -156,6 +174,47 @@ export class AppController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
+  @Put('gyms/:id')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateGym(@Param('id') id: string, @Body() body: UpdateGymDto) {
+    this.logger.log(`Actualizando gimnasio ${id}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'update_gym' }, { id, data: body }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error actualizando gimnasio: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo actualizar el gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Delete('gyms/:id')
+  @HttpCode(HttpStatus.OK)
+  async deactivateGym(@Param('id') id: string) {
+    this.logger.log(`Desactivando gimnasio ${id}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'deactivate_gym' }, { id }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error desactivando gimnasio: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo desactivar el gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
   @Post('users/:id/role')
   changeUserRole(@Param('id') userId: string, @Body() body: { role: string; gymId?: string }) {
     return this.authClient.send({ cmd: 'change_role' }, { 
@@ -163,6 +222,35 @@ export class AppController {
       newRole: body.role,
       gymId: body.gymId,
     });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Post('gyms/:gymId/assign-manager')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async assignManagerToGym(
+    @Param('gymId') gymId: string,
+    @Body() body: AssignManagerDto
+  ) {
+    this.logger.log(`Asignando manager ${body.userId} al gimnasio ${gymId}`);
+    try {
+      // Reutilizamos la lógica existente de change_role
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'change_role' }, {
+          userId: body.userId,
+          newRole: 'MANAGER',
+          gymId: gymId,
+        }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error asignando manager: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo asignar el manager al gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -767,21 +855,198 @@ export class AppController {
     };
   }
 
-  // --- ANALYTICS ENDPOINT ---
+  // === NUEVO ENDPOINT PARA LISTAR TODO EL PERSONAL (STAFF) ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('staff')
+  @HttpCode(HttpStatus.OK)
+  async listStaff(): Promise<UserWithGymName[]> {
+    try {
+      // 1. Pedimos al Auth Service todos los usuarios con rol de staff.
+      const staffUsers: Omit<UserWithGymName, 'gymName'>[] =
+        await firstValueFrom(this.authClient.send({ cmd: 'get_staff_users' }, {}));
+
+      // 2. Si hay staff, pedimos al Gym Service todos los gimnasios para mapear el nombre.
+      if (!staffUsers || staffUsers.length === 0) {
+        return [];
+      }
+      
+      const gyms: Gym[] = await firstValueFrom(
+        this.gymClient.send({ cmd: 'find_all_gyms' }, {}),
+      );
+
+      // 3. Creamos un mapa para buscar nombres de gimnasio por ID eficientemente.
+      const gymMap = new Map(gyms.map(g => [g.id, g.name]));
+
+      // 4. Combinamos la información: añadimos 'gymName' a cada usuario.
+      const enrichedStaff = staffUsers.map(user => ({
+        ...user,
+        gymName: user.gymId ? gymMap.get(user.gymId) || 'Gimnasio no encontrado' : 'Ninguno asignado',
+      }));
+
+      return enrichedStaff;
+
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+      throw new HttpException('No se pudo cargar la lista de personal.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+  
+  // === NUEVO ENDPOINT PARA LISTAR TODOS LOS USUARIOS (CRUD) ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('users')
+  @HttpCode(HttpStatus.OK)
+  async listAllUsers() {
+    try {
+       const users = await firstValueFrom(this.authClient.send({ cmd: 'list_users' }, {}));
+       return users;
+    } catch (error) {
+       console.error('Error fetching all users:', error);
+       throw new HttpException('No se pudo obtener la lista de usuarios.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // --- STAFF USERS ENDPOINT (OWNER ONLY) ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('staff')
+  @HttpCode(HttpStatus.OK)
+  async getStaffUsers() {
+    this.logger.log('Solicitando lista de usuarios administrativos...');
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'get_staff_users' }, {}),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error obteniendo usuarios administrativos: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo obtener la lista de usuarios administrativos',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // --- UPDATE USER PROFILE ENDPOINT (OWNER ONLY) ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Put('users/:id')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateUserProfile(
+    @Param('id') userId: string, 
+    @Body() body: { firstName?: string; lastName?: string }
+  ) {
+    this.logger.log(`Actualizando perfil de usuario ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'update_user_profile' }, { userId, data: body }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error actualizando perfil de usuario: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo actualizar el perfil del usuario',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // --- PASSWORD RESET ENDPOINT (OWNER ONLY) ---
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Post('auth/request-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async requestPasswordReset(@Body() body: { email: string }) {
+    this.logger.log(`Solicitando reseteo de contraseña para ${body.email}`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'request_password_reset' }, { email: body.email }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error procesando reseteo de contraseña: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo procesar la solicitud de reseteo',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // === NUEVO ENDPOINT PARA LOS KPIs PRINCIPALES ===
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'MANAGER')
   @Get('analytics/kpis')
   @HttpCode(HttpStatus.OK)
-  async getAnalyticsKPIs() {
+  async getAnalyticsKpis() {
+    try {
+      // Peticiones en paralelo para más eficiencia
+      const [kpisFromAnalytics, activeGyms] = await Promise.all([
+        firstValueFrom(this.analyticsClient.send({ cmd: 'get_kpis' }, {})),
+        firstValueFrom(this.gymClient.send({ cmd: 'count_active_gyms' }, {})),
+      ]);
+
+      // Unimos los resultados
+      return {
+        ...kpisFromAnalytics,
+        totalRevenue: parseFloat(kpisFromAnalytics.totalRevenue) || 0,
+        totalGyms: activeGyms, // Añadimos el contador de gimnasios
+      };
+    } catch (error) {
+      this.logger.error('Error fetching combined KPIs:', error);
+      throw new HttpException('No se pudieron cargar los KPIs combinados.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+  
+  // === NUEVO ENDPOINT PARA LAS GRÁFICAS DEL DASHBOARD ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('analytics/global-trends')
+  @HttpCode(HttpStatus.OK)
+  async getAnalyticsGlobalTrends() {
+    try {
+      const rawData = await firstValueFrom(
+        this.analyticsClient.send({ cmd: 'get_global_trends' }, {}),
+      );
+
+      // Transformamos la data para que coincida con lo que espera el frontend
+      return {
+        monthlyRevenue: rawData.monthlyGrowth.map((item: any) => ({
+          month: item.month,
+          revenue: item.revenue || 0,
+        })),
+        membershipStats: [
+          { name: 'Vendidas este mes', value: rawData.monthlyGrowth[0]?.membershipsSold ?? 0, color: '#8884d8' },
+          { name: 'Nuevos usuarios', value: rawData.monthlyGrowth[0]?.newUsers ?? 0, color: '#82ca9d' },
+        ],
+        // Aseguramos que el crecimiento sea un número
+        monthlyGrowth: parseFloat(rawData.comparedToLastMonth.revenueGrowth) || 0,
+        lastUpdatedAt: rawData.lastUpdatedAt,
+      };
+    } catch (error) {
+      console.error('Error fetching global trends:', error);
+      throw new HttpException('No se pudieron cargar las tendencias globales.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Put('gyms/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  async reactivateGym(@Param('id') id: string) {
+    this.logger.log(`Reactivando gimnasio ${id}`);
     try {
       return await firstValueFrom(
-        this.analyticsClient.send({ cmd: 'get_kpis' }, {}),
+        this.gymClient.send({ cmd: 'reactivate_gym' }, { id }),
       );
     } catch (error) {
-      this.logger.error('Error obteniendo KPIs de Analytics Service', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error reactivando gimnasio: ${errorMessage}`);
       throw new HttpException(
-        'No se pudo obtener las métricas.',
-        HttpStatus.SERVICE_UNAVAILABLE,
+        'No se pudo reactivar el gimnasio',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

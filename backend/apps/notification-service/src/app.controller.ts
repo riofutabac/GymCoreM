@@ -75,6 +75,12 @@ export class AppController {
     queue: 'notification.payment.completed',
   })
   async onPaymentCompleted(payload: PaymentCompletedPayload) {
+    // VALIDACIÓN CLAVE: Si no hay userId, no es un pago de membresía (probablemente venta POS)
+    if (!payload.userId) {
+      this.logger.log(`Evento 'payment.completed' ignorado: No contiene userId (probablemente una venta POS)`);
+      return; // Detiene la ejecución aquí mismo
+    }
+
     this.logger.log(
       `Payment completed event received for user ${payload.userId}`,
     );

@@ -73,18 +73,48 @@ export class GymEventsController {
     },
   })
   async handlePaymentCompleted(
-    payload: { userId: string; membershipId: string; paidAt: string },
+    payload: { 
+      userId?: string; 
+      membershipId?: string; 
+      saleId?: string;
+      paidAt?: string;
+      timestamp?: string;
+      amount?: number;
+      paymentMethod?: string;
+    },
     raw: any,
   ) {
+    // 🚨 VALIDACIÓN CRÍTICA: Solo procesar pagos de membresías
+    if (!payload.membershipId) {
+      const eventDescription = payload.saleId ? `venta POS #${payload.saleId}` : 'evento sin membershipId';
+      this.logger.log(`✅ Evento 'payment.completed' ignorado: No es un pago de membresía (${eventDescription})`);
+      return; // Detiene la ejecución para este evento
+    }
+
+    // Validar que tenemos userId para membresías
+    if (!payload.userId) {
+      this.logger.warn(`⚠️ Pago de membresía ${payload.membershipId} sin userId. Ignorando evento.`);
+      return;
+    }
+
     const headers = raw.properties.headers || {};
     const retry = (headers['x-retry-count'] || 0) + 1;
     this.logger.log(`[Intento #${retry}] payment.completed → ${payload.membershipId}`);
 
     try {
-      await this.membershipService.processPaidMembership(payload);
+      // Usar paidAt si existe, si no usar timestamp, si no usar fecha actual
+      const paidAt = payload.paidAt || payload.timestamp || new Date().toISOString();
+      
+      const processPayload = {
+        userId: payload.userId as string, // Type assertion después de validación
+        membershipId: payload.membershipId as string, // Type assertion después de validación
+        paidAt: paidAt
+      };
+
+      await this.membershipService.processPaidMembership(processPayload);
       this.logger.log(`✅ Membresía ${payload.membershipId} procesada`);
-    } catch (err) {
-      this.logger.error(`[Intento #${retry}] error en ${payload.membershipId}`, err.stack);
+    } catch (err: any) {
+      this.logger.error(`[Intento #${retry}] error en ${payload.membershipId}`, err.stack || err.message);
       if (retry >= this.MAX_RETRIES) {
         this.logger.error(`DLQ tras ${retry} intentos`);
         return new Nack(false);
@@ -104,6 +134,33 @@ export class GymEventsController {
           persistent: true 
         },
       );
+    }
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.profile.updated',
+    queue: 'gym-management.user.profile.updated',
+    queueOptions: { 
+      durable: true, 
+      arguments: { 
+        'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' 
+      } 
+    },
+  })
+  async handleUserProfileUpdated(payload: { 
+    userId: string; 
+    firstName?: string; 
+    lastName?: string; 
+    email?: string;
+  }) {
+    this.logger.log(`🔄 user.profile.updated → ${payload.userId}`);
+    try {
+      await this.appService.updateLocalUserProfile(payload);
+      this.logger.log(`✅ Perfil de usuario ${payload.userId} sincronizado`);
+    } catch (err) {
+      this.logger.error(`❌ Error sincronizando perfil ${payload.userId}:`, err);
+      throw err;
     }
   }
 }

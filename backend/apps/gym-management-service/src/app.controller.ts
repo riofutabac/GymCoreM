@@ -2,6 +2,7 @@ import { Controller, UsePipes, ValidationPipe, Logger } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AppService } from './app.service';
 import { CreateGymDto } from './dto/create-gym.dto';
+import { UpdateGymDto } from './dto/update-gym.dto';
 import { ActivateMembershipDto } from './dto/activate-membership.dto';
 import { RenewMembershipDto } from './dto/renew-membership.dto';
 import { MembershipService } from './membership.service';
@@ -35,6 +36,25 @@ export class AppController {
     return this.appService.findAllPublicGyms();
   }
 
+  @MessagePattern({ cmd: 'update_gym' })
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  updateGym(@Payload() payload: { id: string; data: UpdateGymDto }) {
+    this.logger.log(`Actualizando gimnasio ${payload.id}`);
+    return this.appService.updateGym(payload.id, payload.data);
+  }
+
+  @MessagePattern({ cmd: 'deactivate_gym' })
+  deactivateGym(@Payload() payload: { id: string }) {
+    this.logger.log(`Desactivando gimnasio ${payload.id}`);
+    return this.appService.deactivateGym(payload.id);
+  }
+
+  @MessagePattern({ cmd: 'reactivate_gym' })
+  reactivateGym(@Payload() payload: { id: string }) {
+    this.logger.log(`Reactivando gimnasio ${payload.id}`);
+    return this.appService.reactivateGym(payload.id);
+  }
+
   @MessagePattern({ cmd: 'activate_membership' })
   @UsePipes(new ValidationPipe({ whitelist: true }))
   activateMembership(@Payload() payload: { dto: ActivateMembershipDto; managerId: string }) {
@@ -59,5 +79,10 @@ export class AppController {
   @MessagePattern({ cmd: 'join_gym' })
   joinGym(@Payload() payload: { uniqueCode: string; userId: string }) {
     return this.membershipService.joinGym(payload.uniqueCode, payload.userId);
+  }
+
+  @MessagePattern({ cmd: 'count_active_gyms' })
+  async countActiveGyms() {
+    return this.appService.countActiveGyms();
   }
 }

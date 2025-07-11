@@ -62,6 +62,7 @@ model Gym {
   name       String
   uniqueCode String       @unique @default(cuid())
   isActive   Boolean      @default(true)
+  deletedAt  DateTime?    // Para soft-delete
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   memberships Membership[]

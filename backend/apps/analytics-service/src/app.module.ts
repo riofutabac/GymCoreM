@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 import { RedisModule } from './redis.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -16,6 +17,8 @@ import { RedisModule } from './redis.module';
     }),
     // Módulo personalizado de Redis
     RedisModule,
+    // Módulo de Prisma para base de datos
+    PrismaModule,
     // Módulo de RabbitMQ para recibir eventos
     RabbitMQModule.forRootAsync({
       imports: [ConfigModule],
