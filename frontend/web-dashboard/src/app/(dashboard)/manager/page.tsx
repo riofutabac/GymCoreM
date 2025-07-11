@@ -9,9 +9,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'; // 👈 NUEVO: 
 
 interface KpiData {
   activeMembers: number;
-  occupancy: string;
-  dailySales: number;
+  monthlyRevenue: string;
+  occupancyRate: number;
   lowStockItems: number;
+  todaysSales: number;
+  lastUpdatedAt: string;
 }
 
 export default function ManagerDashboardPage() {
@@ -64,12 +66,11 @@ export default function ManagerDashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Ventas del Día</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader>
-          <CardContent><div className="text-2xl font-bold">${kpis?.dailySales?.toFixed(2) ?? '0.00'}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">${kpis?.todaysSales ?? 0}</div></CardContent>
         </Card>
         <Card>
-          {/* 👇 CAMBIO: Icono cambiado a Activity y texto mockeado eliminado */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Ocupación Actual</CardTitle><Activity className="h-4 w-4 text-muted-foreground" /></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{kpis?.occupancy ?? 'N/A'}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{kpis?.occupancyRate ?? 0}%</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Items con Bajo Stock</CardTitle><AlertTriangle className="h-4 w-4 text-muted-foreground" /></CardHeader>

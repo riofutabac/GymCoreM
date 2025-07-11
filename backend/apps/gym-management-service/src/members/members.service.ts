@@ -48,15 +48,22 @@ export class MembersService {
         where,
         skip,
         take: dto.limit,
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          createdAt: true,
-          updatedAt: true,
-          deletedAt: true,
+        include: {
+          memberships: {
+            where: {
+              status: 'ACTIVE'
+            },
+            orderBy: {
+              endDate: 'desc'
+            },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              startDate: true,
+              endDate: true,
+            }
+          }
         },
         orderBy: { createdAt: 'desc' },
       }),

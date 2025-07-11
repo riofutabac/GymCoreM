@@ -19,7 +19,6 @@ export default function ManagerMembersPage() {
 
   const fetchMembers = useCallback(async () => {
     try {
-      // No es necesario volver a poner loading a true si ya está en true
       const data = await getMembersForManager();
       setMembers(data);
     } catch (error) {
@@ -41,7 +40,7 @@ export default function ManagerMembersPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedMember(null);
-    setLoading(true); // Mostrar loader mientras se recargan los datos
+    setLoading(true);
     fetchMembers();
   };
 

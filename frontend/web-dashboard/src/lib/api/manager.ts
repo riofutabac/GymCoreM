@@ -8,23 +8,46 @@ import {
     Product,
     ProductPayload
 } from './types';
+import { handleAuthError } from '@/lib/auth-utils';
+
+// API Base URL configuration
+const API_BASE_URL = 'http://localhost:3000';
 
 const apiFetch = async (url: string, options?: RequestInit, returnBlob = false) => {
-    const res = await fetch(`/api/v1${url}`, {
-        headers: { 'Content-Type': 'application/json', ...options?.headers },
+    const defaultOptions: RequestInit = {
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Essential for sending/receiving httpOnly cookies
         ...options,
-    });
-    if (!res.ok) {
-        const errorBody = await res.json().catch(() => ({ message: res.statusText }));
-        throw new Error(errorBody.message || 'API request failed');
+    };
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/v1${url}`, defaultOptions);
+        
+        if (!res.ok) {
+            const errorBody = await res.json().catch(() => ({ message: res.statusText }));
+            const error = new Error(errorBody.message || `API request failed: ${res.status}`);
+            handleAuthError(error); // Handle authentication errors globally
+            throw error;
+        }
+        
+        if (returnBlob) {
+            return res.blob();
+        }
+        
+        if (options?.method === 'DELETE') {
+            return;
+        }
+        
+        return res.json();
+    } catch (error) {
+        console.error(`Error in API call to ${url}:`, error);
+        if (error instanceof Error) {
+            handleAuthError(error);
+        }
+        throw error;
     }
-    if (returnBlob) {
-        return res.blob();
-    }
-    if (options?.method === 'DELETE') {
-        return;
-    }
-    return res.json();
 };
 
 // --- Dashboard ---
@@ -34,7 +57,45 @@ export const getManagerDashboardKpis = async () => {
 
 // --- Members ---
 export const getMembersForManager = async (): Promise<Member[]> => {
-  return apiFetch('/members'); 
+  const response = await apiFetch('/members');
+  // El backend devuelve { items: Member[], total, page, limit, totalPages }
+  const rawMembers = response.items || [];
+  
+  // Transformar los datos del backend al formato esperado por el frontend
+  return rawMembers.map((member: any) => {
+    // Obtener la membresía activa más reciente
+    const activeMembership = member.memberships?.[0];
+    
+    // Determinar el estado de membresía
+    let membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' = 'INACTIVE';
+    let membershipEndDate = '';
+    
+    if (activeMembership) {
+      const endDate = new Date(activeMembership.endDate);
+      const today = new Date();
+      
+      if (activeMembership.status === 'ACTIVE') {
+        if (endDate > today) {
+          membershipStatus = 'ACTIVE';
+        } else {
+          membershipStatus = 'EXPIRED';
+        }
+      }
+      
+      membershipEndDate = activeMembership.endDate;
+    }
+    
+    return {
+      id: member.id,
+      name: `${member.firstName || ''} ${member.lastName || ''}`.trim() || 'Sin nombre',
+      email: member.email,
+      phone: member.phone || '',
+      address: member.address || '',
+      membershipStatus,
+      membershipEndDate,
+      role: member.role
+    };
+  });
 };
 
 export const createMember = async (payload: CreateMemberPayload) => {
@@ -52,7 +113,14 @@ export const activateMembership = async (payload: ActivateMembershipPayload) => 
 
 // --- Staff ---
 export const getGymStaff = async (): Promise<StaffMember[]> => {
-    return apiFetch('/staff/my-gym');
+    const response = await apiFetch('/staff/my-gym');
+    // Transformar los datos del backend al formato esperado por el frontend
+    return response.map((staff: any) => ({
+        id: staff.id,
+        name: `${staff.firstName || ''} ${staff.lastName || ''}`.trim() || 'Sin nombre',
+        email: staff.email,
+        role: staff.role as 'MANAGER' | 'RECEPTIONIST' | 'OWNER'
+    }));
 };
 
 export const assignStaff = async (payload: AssignStaffPayload) => {
@@ -81,9 +149,9 @@ export const deleteProduct = async (id: string): Promise<void> => {
 
 // --- Reports ---
 export const exportMembers = async (): Promise<Blob> => {
-    return apiFetch('/members/export', { headers: {} }, true);
+    return apiFetch('/reports/members/export', { headers: {} }, true);
 };
 
 export const exportSales = async (): Promise<Blob> => {
-    return apiFetch('/pos/sales/export', { headers: {} }, true);
+    return apiFetch('/reports/sales/export', { headers: {} }, true);
 };

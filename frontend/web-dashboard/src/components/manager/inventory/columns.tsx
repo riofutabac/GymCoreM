@@ -8,7 +8,7 @@ import { MoreHorizontal } from 'lucide-react';
 
 type ProductColumnsProps = { 
   onEdit: (product: Product) => void; 
-  onDelete: (productId: string) => void; 
+  onDelete: (productId: string) => Promise<void> | void; 
 };
 
 export const columns = ({ onEdit, onDelete }: ProductColumnsProps): ColumnDef<Product>[] => [

@@ -69,10 +69,9 @@ const roleMenus: Record<string, MenuSection[]> = {
       title: "Operaciones",
       items: [
         { href: '/manager', label: 'Dashboard', icon: Home },
-        { href: '/manager/members', label: 'Miembros', icon: Users, badge: '287' },
+        { href: '/manager/members', label: 'Miembros', icon: Users },
         { href: '/manager/staff', label: 'Personal', icon: UserCheck },
         { href: '/manager/inventory', label: 'Inventario', icon: Package },
-        { href: '/manager/schedule', label: 'Horarios', icon: Calendar },
       ]
     },
     {
