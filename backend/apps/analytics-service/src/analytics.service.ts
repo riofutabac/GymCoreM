@@ -90,108 +90,125 @@ export class AnalyticsService {
     }
   }
 
-  /**
-   * Obtiene los KPIs actuales desde Redis.
-   * Si una clave no existe, devuelve 0.
-   */
-  async getKPIs() {
-    this.logger.log('Obteniendo KPIs desde Redis...');
-    const pipeline = this.redis.pipeline();
-    pipeline.get(KPI_KEYS.TOTAL_USERS);
-    pipeline.get(KPI_KEYS.TOTAL_REVENUE);
-    pipeline.get(KPI_KEYS.NEW_MEMBERSHIPS_TODAY);
-
-    const results = await pipeline.exec();
-
-    if (!results) {
-      return {
-        totalUsers: 0,
-        totalRevenue: '0.00',
-        newMembershipsToday: 0,
-        lastUpdatedAt: new Date().toISOString(),
-      };
-    }
-
-    const [usersResult, revenueResult, newMembershipsResult] = results;
-
-    return {
-      totalUsers: parseInt((usersResult[1] as string) || '0', 10),
-      totalRevenue: parseFloat((revenueResult[1] as string) || '0').toFixed(2),
-      newMembershipsToday: parseInt(
-        (newMembershipsResult[1] as string) || '0',
-        10,
-      ),
-      lastUpdatedAt: new Date().toISOString(),
-    };
-  }
-
-  /**
-   * Obtiene las tendencias globales para el dashboard del Owner.
-   * Incluye datos históricos de los últimos 6 meses sobre crecimiento
-   * de usuarios y ingresos.
-   */
-  async getGlobalTrends() {
-    this.logger.log('Solicitando tendencias globales...');
-    // Intentar obtener datos cacheados primero
-    const cachedData = await this.redis.get(KPI_KEYS.GLOBAL_TRENDS);
-
-    if (cachedData) {
-      this.logger.log('Sirviendo tendencias globales desde caché...');
-      return JSON.parse(cachedData);
-    }
-
-    this.logger.log('Calculando tendencias globales desde la tabla de resumen...');
-    
+  async getKpis() {
+    const cacheKey = 'kpis';
     try {
-      // Calcular fecha de hace 6 meses
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      sixMonthsAgo.setHours(0, 0, 0, 0); // Inicio del día
+      const cachedKpis = await this.redis.get(cacheKey);
+      if (cachedKpis) {
+        this.logger.log('Obteniendo KPIs desde Redis...');
+        return JSON.parse(cachedKpis);
+      }
+    } catch (error) {
+      this.logger.error('Error al leer KPIs desde Redis', error);
+    }
 
-      // Consultar datos agregados de la tabla de resumen
-      const aggregatedData = await this.prisma.dailyAnalyticsSummary.findMany({
-        where: { 
-          date: { gte: sixMonthsAgo } 
-        },
-        orderBy: { date: 'asc' },
-        select: {
-          date: true,
-          newUsers: true,
-          revenue: true,
-          membershipsSold: true,
-        }
-      });
+    this.logger.log('Calculando KPIs desde la base de datos...');
 
-      // Agrupar por mes para las tendencias
-      const monthlyData = this.aggregateDataByMonth(aggregatedData);
-      
-      // Calcular crecimiento comparado al mes anterior
-      const growthComparison = this.calculateGrowthComparison(monthlyData);
-      
-      const trends = {
-        monthlyGrowth: monthlyData,
-        comparedToLastMonth: growthComparison,
-        totalDataPoints: aggregatedData.length,
+    try {
+      const totalUsers = await this.prisma.dailyAnalyticsSummary.count();
+      this.logger.log(`[DEBUG-KPIs] Usuarios contados desde dailyAnalyticsSummary: ${totalUsers}`);
+
+      const revenueAggregation = await this.prisma.dailyAnalyticsSummary.aggregate({ _sum: { revenue: true } });
+      const totalRevenue = revenueAggregation._sum.revenue || 0;
+      this.logger.log(`[DEBUG-KPIs] Ingresos sumados desde dailyAnalyticsSummary: ${totalRevenue}`);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const newMembershipsToday = await this.prisma.dailyAnalyticsSummary.count({ where: { date: today, membershipsSold: { gt: 0 } } });
+      this.logger.log(`[DEBUG-KPIs] Membresías de hoy contadas desde dailyAnalyticsSummary: ${newMembershipsToday}`);
+
+      const kpis = {
+        totalUsers,
+        totalRevenue: totalRevenue.toFixed(2),
+        newMembershipsToday,
         lastUpdatedAt: new Date().toISOString(),
       };
 
-      // Cachear el resultado por 1 hora
-      await this.redis.set(
-        KPI_KEYS.GLOBAL_TRENDS, 
-        JSON.stringify(trends), 
-        'EX', 
-        TRENDS_TTL_SECONDS
-      );
-
-      this.logger.log(`✅ Tendencias calculadas con ${aggregatedData.length} puntos de datos`);
-      return trends;
+      await this.redis.set(cacheKey, JSON.stringify(kpis), 'EX', 3600);
+      this.logger.log('KPIs guardados en Redis.');
+      return kpis;
 
     } catch (error) {
-      this.logger.error('Error calculando tendencias globales:', error);
-      
-      // Fallback a datos simulados si hay error con la DB
-      this.logger.warn('Usando datos simulados como fallback...');
-      return this.getFallbackTrends();
+      this.logger.error('[ERROR-KPIs] Fallo al calcular KPIs desde la DB', error);
+      // Devolver ceros en caso de error para no romper el frontend
+      return { totalUsers: 0, totalRevenue: '0.00', newMembershipsToday: 0, lastUpdatedAt: new Date().toISOString() };
+    }
+  }
+
+  async getGlobalTrends() {
+    const cacheKey = 'global-trends';
+    try {
+      const cachedTrends = await this.redis.get(cacheKey);
+      if (cachedTrends) {
+        this.logger.log('Obteniendo Global Trends desde Redis...');
+        return JSON.parse(cachedTrends);
+      }
+    } catch (error) {
+      this.logger.error('Error al leer Global Trends desde Redis', error);
+    }
+
+    this.logger.log('Calculando Global Trends desde la base de datos...');
+    
+    try {
+      const lastMonth = new Date();
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+
+      // Obtener datos sin groupBy para evitar problemas con campos inexistentes
+      const rawData = await this.prisma.dailyAnalyticsSummary.findMany({
+        where: {
+          date: { gte: lastMonth }
+        },
+        select: {
+          date: true,
+          revenue: true,
+          newUsers: true,
+          membershipsSold: true,
+        },
+        orderBy: {
+          date: 'desc',
+        },
+      });
+
+      this.logger.log(`[DEBUG-Trends] Data obtenida desde dailyAnalyticsSummary: ${JSON.stringify(rawData)}`);
+
+      // Agrupar manualmente por mes
+      const monthlyMap = new Map();
+      rawData.forEach(record => {
+        const monthKey = record.date.toISOString().substring(0, 7); // YYYY-MM
+        
+        if (!monthlyMap.has(monthKey)) {
+          monthlyMap.set(monthKey, {
+            month: monthKey,
+            revenue: 0,
+            newUsers: 0,
+            membershipsSold: 0,
+          });
+        }
+
+        const monthData = monthlyMap.get(monthKey);
+        monthData.revenue += record.revenue || 0;
+        monthData.newUsers += record.newUsers || 0;
+        monthData.membershipsSold += record.membershipsSold || 0;
+      });
+
+      const monthlyGrowth = Array.from(monthlyMap.values());
+      this.logger.log(`[DEBUG-Trends] Data agrupada por mes: ${JSON.stringify(monthlyGrowth)}`);
+
+      const result = {
+        monthlyGrowth,
+        comparedToLastMonth: { userGrowth: "0%", revenueGrowth: "0%" }, // Lógica de comparación simplificada
+        totalDataPoints: rawData.length,
+        lastUpdatedAt: new Date().toISOString(),
+      };
+
+      await this.redis.set(cacheKey, JSON.stringify(result), 'EX', 3600);
+      this.logger.log('Global Trends guardados en Redis.');
+      return result;
+
+    } catch (error) {
+      this.logger.error('[ERROR-Trends] Fallo al calcular Global Trends desde la DB', error);
+      // Devolver estructura vacía en caso de error
+      return { monthlyGrowth: [], comparedToLastMonth: { userGrowth: '0%', revenueGrowth: '0%' }, totalDataPoints: 0, lastUpdatedAt: new Date().toISOString() };
     }
   }
 

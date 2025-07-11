@@ -35,7 +35,9 @@ export class AnalyticsController {
 
   @MessagePattern({ cmd: 'get_kpis' })
   public async getKPIs() {
-    return this.analyticsService.getKPIs();
+    this.logger.log('Solicitud de KPIs recibida');
+    // LA CORRECCIÓN ESTÁ AQUÍ: getKpis con 'i' minúscula
+    return this.analyticsService.getKpis(); 
   }
 
   @MessagePattern({ cmd: 'get_global_trends' })
