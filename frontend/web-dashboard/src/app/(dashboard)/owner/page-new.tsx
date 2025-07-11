@@ -1,12 +1,12 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Building2, Users, Euro, AlertCircle } from "lucide-react";
+import { Building2, Users, Euro } from "lucide-react";
 import { useOwnerData } from '@/hooks/useOwnerData';
 import { ownerApi } from '@/lib/api/owner';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnalyticsCharts } from "@/components/owner";
 
 function DashboardSkeleton() {
     return (
@@ -83,29 +83,22 @@ export default function OwnerDashboardPage() {
         </Card>
       </div>
 
-      <div className="space-y-6">
-        <Card>
+      <Card>
           <CardHeader>
-            <CardTitle>Tendencias del Negocio</CardTitle>
-            <CardDescription>Crecimiento de usuarios e ingresos en los últimos 6 meses.</CardDescription>
+              <CardTitle>Tendencias del Negocio</CardTitle>
+              <CardDescription>Crecimiento de usuarios e ingresos en los últimos 6 meses.</CardDescription>
           </CardHeader>
           <CardContent>
-            <AnalyticsCharts 
-              data={{
-                monthlyRevenue: trends?.monthlyRevenue || [],
-                membershipStats: trends?.membershipDistribution || [],
-                gymPerformance: trends?.gymPerformance || [],
-                dailyCheckIns: trends?.dailyCheckIns || [],
-                totalMembers: kpis?.totalUsers || 0,
-                totalRevenue: parseFloat(kpis?.totalRevenue || '0'),
-                totalGyms: kpis?.totalGyms || 0,
-                monthlyGrowth: trends?.monthlyGrowth || 0,
-              }}
-              isLoading={isLoadingTrends}
-            />
+              {/* Aquí se renderizaría el componente de gráficos */}
+              {/* <AnalyticsCharts data={trends?.monthlyGrowth} /> */}
+              <div className="h-80 w-full bg-muted rounded-lg flex items-center justify-center">
+                  <div className="text-center">
+                      <p className="text-muted-foreground mb-2">Componente de Gráficos (AnalyticsCharts) iría aquí.</p>
+                      <p className="text-xs text-muted-foreground">Datos disponibles: {trends ? 'Sí' : 'No'}</p>
+                  </div>
+              </div>
           </CardContent>
-        </Card>
-      </div>
+      </Card>
     </div>
   );
 }
