@@ -1,48 +1,18 @@
 {
   "info": {
-    "name": "GymCore Biometric System Complete Test",
-    "description": "Complete test collection for biometric system with role-based permissions",
+    "name": "Biometric Enrollment Test",
+    "description": "Collection to test the biometric enrollment flow",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
-      "key": "apiGatewayUrl",
-      "value": "http://localhost:3000/api/v1",
-      "type": "string"
-    },
-    {
-      "key": "biometricServiceUrl",
+      "key": "baseUrl",
       "value": "http://localhost:3006",
       "type": "string"
     },
     {
-      "key": "ownerToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "managerToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "memberToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "ownerId",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "managerId",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "memberId",
-      "value": "",
+      "key": "userId",
+      "value": "test-user-123",
       "type": "string"
     }
   ],
