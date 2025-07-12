@@ -224,34 +224,6 @@ export class AppController {
     });
   }
 
-  // === NUEVO ENDPOINT PARA QUE MANAGERS CAMBIEN ROLES EN SU GIMNASIO ===
-  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
-  @Roles('MANAGER', 'OWNER')
-  @Put('staff/:id/role')
-  @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ whitelist: true }))
-  async changeStaffRole(@Param('id') userId: string, @Body() body: { role: string }, @Req() req: any) {
-    const managerId = req.user.sub;
-    const managerRole = req.user.app_metadata?.role;
-
-    // Validación de seguridad: MANAGER solo puede asignar MEMBER o RECEPTIONIST
-    if (managerRole === 'MANAGER') {
-      const allowedRoles = ['MEMBER', 'RECEPTIONIST'];
-      if (!allowedRoles.includes(body.role)) {
-        throw new HttpException(
-          'Los managers solo pueden asignar los roles: MEMBER, RECEPTIONIST',
-          HttpStatus.FORBIDDEN
-        );
-      }
-    }
-
-    return this.authClient.send({ cmd: 'change_staff_role_in_gym' }, { 
-      managerId,
-      targetUserId: userId,
-      newRole: body.role
-    });
-  }
-
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
   @Post('gyms/:gymId/assign-manager')

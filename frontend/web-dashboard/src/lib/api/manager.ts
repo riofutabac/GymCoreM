@@ -167,8 +167,7 @@ export const resetMemberPassword = async (email: string) => {
 
 // --- Change User Role ---
 export const changeUserRole = async (userId: string, role: string) => {
-    // Para staff, usar el endpoint específico de staff que maneja validaciones de gimnasio
-    return apiFetch(`/staff/${userId}/role`, { 
+    return apiFetch(`/members/${userId}/role`, { 
         method: 'PUT', 
         body: JSON.stringify({ role }) 
     });

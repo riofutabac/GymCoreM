@@ -82,9 +82,4 @@ export class AppController {
   async resetPassword(@Payload() data: { email: string }) {
     return this.appService.sendPasswordReset(data.email);
   }
-
-  @MessagePattern({ cmd: 'change_staff_role_in_gym' })
-  async changeStaffRoleInGym(@Payload() data: { managerId: string; targetUserId: string; newRole: string }) {
-    return this.appService.changeStaffRoleInGym(data.managerId, data.targetUserId, data.newRole);
-  }
 }

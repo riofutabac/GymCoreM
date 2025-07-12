@@ -151,15 +151,12 @@ export class AnalyticsService {
     
     try {
       // Obtener información del manager desde auth-service
-      this.logger.log(`Solicitando información del manager ${managerId} al auth-service`);
       const managerData = await firstValueFrom(
         this.authClient.send({ cmd: 'get_user_info' }, { userId: managerId })
       );
 
-      this.logger.log(`Respuesta del auth-service para manager ${managerId}: ${JSON.stringify(managerData)}`);
-
       if (!managerData || !managerData.gymId) {
-        this.logger.error(`Manager ${managerId} no tiene gimnasio asignado. Datos recibidos: ${JSON.stringify(managerData)}`);
+        this.logger.error(`Manager ${managerId} no tiene gimnasio asignado`);
         return {
           activeMembers: 0,
           newMembersLast30Days: 0,

@@ -46,32 +46,39 @@ export class MembersService {
       ];
     }
 
-    const [items, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where,
-        skip,
-        take: dto.limit,
-        include: {
-          memberships: {
-            where: {
-              status: 'ACTIVE'
-            },
-            orderBy: {
-              endDate: 'desc'
-            },
-            take: 1,
-            select: {
-              id: true,
-              status: true,
-              startDate: true,
-              endDate: true,
-            }
-          }
+ const [items, total] = await Promise.all([
+  this.prisma.user.findMany({
+    where,
+    skip,
+    take: dto.limit,
+    select: { // <-- AÑADIR ESTO
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      createdAt: true,
+      updatedAt: true,
+      memberships: {
+        where: {
+          status: 'ACTIVE'
         },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.user.count({ where }),
-    ]);
+        orderBy: {
+          endDate: 'desc'
+        },
+        take: 1,
+        select: {
+          id: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+  }),
+  this.prisma.user.count({ where }),
+]);
 
     return {
       items,

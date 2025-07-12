@@ -19,10 +19,11 @@ export default function ManagerMembersPage() {
 
   const fetchMembers = useCallback(async () => {
     try {
-      const data = await getMembersForManager();
-      setMembers(data);
+      const membersArray = await getMembersForManager();
+      setMembers(membersArray);
     } catch (error) {
       console.error("Failed to fetch members", error);
+      setMembers([]);
     } finally {
       setLoading(false);
     }
