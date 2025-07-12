@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MinLength, IsEmail } from 'class-validator';
+import { IsOptional, IsString, MinLength, IsEmail, IsEnum } from 'class-validator';
 
 export class UpdateMemberDto {
   @IsOptional()
@@ -14,6 +14,10 @@ export class UpdateMemberDto {
   @IsOptional()
   @IsEmail({}, { message: 'Por favor, introduce un email válido' })
   email?: string;
+
+  @IsOptional()
+  @IsEnum(['OWNER', 'MANAGER', 'RECEPTIONIST', 'MEMBER'])
+  role?: string;
 
   @IsOptional()
   @IsString()

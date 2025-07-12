@@ -224,6 +224,34 @@ export class AppController {
     });
   }
 
+  // === NUEVO ENDPOINT PARA QUE MANAGERS CAMBIEN ROLES EN SU GIMNASIO ===
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Put('staff/:id/role')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async changeStaffRole(@Param('id') userId: string, @Body() body: { role: string }, @Req() req: any) {
+    const managerId = req.user.sub;
+    const managerRole = req.user.app_metadata?.role;
+
+    // Validación de seguridad: MANAGER solo puede asignar MEMBER o RECEPTIONIST
+    if (managerRole === 'MANAGER') {
+      const allowedRoles = ['MEMBER', 'RECEPTIONIST'];
+      if (!allowedRoles.includes(body.role)) {
+        throw new HttpException(
+          'Los managers solo pueden asignar los roles: MEMBER, RECEPTIONIST',
+          HttpStatus.FORBIDDEN
+        );
+      }
+    }
+
+    return this.authClient.send({ cmd: 'change_staff_role_in_gym' }, { 
+      managerId,
+      targetUserId: userId,
+      newRole: body.role
+    });
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
   @Post('gyms/:gymId/assign-manager')
@@ -399,6 +427,139 @@ export class AppController {
     return firstValueFrom(
       this.gymClient.send({ cmd: 'members_change_role' }, { gymId: req.gymId, id, role: data.role }),
     );
+  }
+
+  // === NUEVO ENDPOINT PARA KPIs ESPECÍFICOS DEL MANAGER ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER')
+  @Get('analytics/kpis/my-gym')
+  @HttpCode(HttpStatus.OK)
+  async getManagerKpis(@Req() req: any) {
+    const managerId = req.user.sub;
+    return this.analyticsClient.send({ cmd: 'get_kpis_for_gym' }, { managerId });
+  }
+
+  // === NUEVO ENDPOINT PARA OBTENER STAFF DEL GIMNASIO ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('staff/my-gym')
+  @HttpCode(HttpStatus.OK)
+  async getGymStaff(@Req() req: any) {
+    const managerId = req.user.sub;
+    return this.authClient.send({ cmd: 'get_staff_for_gym' }, { managerId });
+  }
+
+  // === NUEVO ENDPOINT PARA ASIGNAR PERSONAL ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER')
+  @Post('staff/assign')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async assignStaff(@Req() req: any, @Body() body: { userId: string; role: 'RECEPTIONIST' }) {
+    if (body.role !== 'RECEPTIONIST') {
+      throw new HttpException('Managers can only assign the RECEPTIONIST role', HttpStatus.BAD_REQUEST);
+    }
+    const managerId = req.user.sub;
+    return this.authClient.send({ cmd: 'assign_role' }, { 
+      managerId, 
+      targetUserId: body.userId,
+      role: body.role 
+    });
+  }
+
+  // === EXPORTACIÓN DE REPORTES PARA MANAGER ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('reports/members/export')
+  async exportMembersReport(@Req() req: any, @Res() res: any) {
+    const managerId = req.user.sub;
+    try {
+      const result = await firstValueFrom(
+        this.gymClient.send({ cmd: 'export_members_report' }, { managerId })
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="reporte_miembros.csv"');
+      res.send(result.csvData);
+    } catch (error) {
+      this.logger.error('Error exportando reporte de miembros:', error);
+      throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('reports/sales/export')
+  async exportSalesReport(@Req() req: any, @Res() res: any) {
+    const managerId = req.user.sub;
+    try {
+      const result = await firstValueFrom(
+        this.inventoryClient.send({ cmd: 'export_sales_report' }, { managerId })
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="reporte_ventas.csv"');
+      res.send(result.csvData);
+    } catch (error) {
+      this.logger.error('Error exportando reporte de ventas:', error);
+      throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // === CORREGIR EL ENDPOINT DE ANALYTICS/KPIS PARA QUE COINCIDA CON TU VERSIÓN ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER')
+  @Get('analytics/kpis')
+  @HttpCode(HttpStatus.OK)
+  async getAnalyticsKpis() {
+    try {
+      // Peticiones en paralelo para más eficiencia
+      const [kpisFromAnalytics, activeGyms] = await Promise.all([
+        firstValueFrom(this.analyticsClient.send({ cmd: 'get_kpis' }, {})),
+        firstValueFrom(this.gymClient.send({ cmd: 'count_active_gyms' }, {})),
+      ]);
+
+      // Unimos los resultados
+      return {
+        ...kpisFromAnalytics,
+        totalRevenue: parseFloat(kpisFromAnalytics.totalRevenue) || 0,
+        totalGyms: activeGyms, // Añadimos el contador de gimnasios
+      };
+    } catch (error) {
+      this.logger.error('Error fetching combined KPIs:', error);
+      throw new HttpException('No se pudieron cargar los KPIs combinados.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // === CORREGIR EL ENDPOINT DE GLOBAL TRENDS PARA QUE COINCIDA CON TU VERSIÓN ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('analytics/global-trends')
+  @HttpCode(HttpStatus.OK)
+  async getAnalyticsGlobalTrends() {
+    try {
+      const rawData = await firstValueFrom(
+        this.analyticsClient.send({ cmd: 'get_global_trends' }, {}),
+      );
+
+      // Transformamos la data para que coincida con lo que espera el frontend
+      return {
+        monthlyRevenue: rawData.monthlyGrowth.map((item: any) => ({
+          month: item.month,
+          revenue: item.revenue || 0,
+        })),
+        membershipStats: [
+          { name: 'Vendidas este mes', value: rawData.monthlyGrowth[0]?.membershipsSold ?? 0, color: '#8884d8' },
+          { name: 'Nuevos usuarios', value: rawData.monthlyGrowth[0]?.newUsers ?? 0, color: '#82ca9d' },
+        ],
+        // Aseguramos que el crecimiento sea un número
+        monthlyGrowth: parseFloat(rawData.comparedToLastMonth.revenueGrowth) || 0,
+        lastUpdatedAt: rawData.lastUpdatedAt,
+      };
+    } catch (error) {
+      console.error('Error fetching global trends:', error);
+      throw new HttpException('No se pudieron cargar las tendencias globales.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   // ─── IMPORTACIÓN MASIVA CSV ───────────────────────────────────────────────────
@@ -994,92 +1155,6 @@ export class AppController {
         'No se pudo procesar la solicitud de reseteo',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
-    }
-  }
-
-  // === NUEVO ENDPOINT PARA LOS KPIs PRINCIPALES ===
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER', 'MANAGER')
-  @Get('analytics/kpis')
-  @HttpCode(HttpStatus.OK)
-  async getAnalyticsKpis() {
-    return this.analyticsClient.send({ cmd: 'get_kpis' }, {});
-  }
-
-  // === NUEVO ENDPOINT PARA KPIs ESPECÍFICOS DEL MANAGER ===
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER')
-  @Get('analytics/kpis/my-gym')
-  @HttpCode(HttpStatus.OK)
-  async getManagerKpis(@Req() req: any) {
-    const managerId = req.user.sub;
-    return this.analyticsClient.send({ cmd: 'get_kpis_for_gym' }, { managerId });
-  }
-
-  // === NUEVO ENDPOINT PARA OBTENER STAFF DEL GIMNASIO ===
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER', 'OWNER')
-  @Get('staff/my-gym')
-  @HttpCode(HttpStatus.OK)
-  async getGymStaff(@Req() req: any) {
-    const managerId = req.user.sub;
-    return this.authClient.send({ cmd: 'get_staff_for_gym' }, { managerId });
-  }
-
-  // === NUEVO ENDPOINT PARA ASIGNAR PERSONAL ===
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER')
-  @Post('staff/assign')
-  @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ whitelist: true }))
-  async assignStaff(@Req() req: any, @Body() body: { userId: string; role: 'RECEPTIONIST' }) {
-    if (body.role !== 'RECEPTIONIST') {
-      throw new HttpException('Managers can only assign the RECEPTIONIST role', HttpStatus.BAD_REQUEST);
-    }
-    const managerId = req.user.sub;
-    return this.authClient.send({ cmd: 'assign_role' }, { 
-      managerId, 
-      targetUserId: body.userId,
-      role: body.role 
-    });
-  }
-
-  // === EXPORTACIÓN DE REPORTES PARA MANAGER ===
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER', 'OWNER')
-  @Get('reports/members/export')
-  async exportMembersReport(@Req() req: any, @Res() res: any) {
-    const managerId = req.user.sub;
-    try {
-      const result = await firstValueFrom(
-        this.gymClient.send({ cmd: 'export_members_report' }, { managerId })
-      );
-      
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename="reporte_miembros.csv"');
-      res.send(result.csvData);
-    } catch (error) {
-      this.logger.error('Error exportando reporte de miembros:', error);
-      throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER', 'OWNER')
-  @Get('reports/sales/export')
-  async exportSalesReport(@Req() req: any, @Res() res: any) {
-    const managerId = req.user.sub;
-    try {
-      const result = await firstValueFrom(
-        this.inventoryClient.send({ cmd: 'export_sales_report' }, { managerId })
-      );
-      
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename="reporte_ventas.csv"');
-      res.send(result.csvData);
-    } catch (error) {
-      this.logger.error('Error exportando reporte de ventas:', error);
-      throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

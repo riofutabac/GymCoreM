@@ -91,16 +91,6 @@ export default function ManagerMembersPage() {
           member={selectedMember}
         />
       )}
-
-      <Button 
-        onClick={handleExportMembers} 
-        variant="outline" 
-        className="w-full"
-        disabled={loading}
-      >
-        <FileText className="mr-2 h-4 w-4" />
-        Exportar Miembros
-      </Button>
     </div>
   );
 }

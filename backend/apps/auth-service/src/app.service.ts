@@ -8,6 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { SupabaseService } from './supabase/supabase.service';
 import { PrismaService } from './prisma/prisma.service';
@@ -278,6 +279,8 @@ export class AppService {
         email: true,
         firstName: true,
         lastName: true,
+        role: true,
+        gymId: true,
       },
     });
 
@@ -289,8 +292,13 @@ export class AppService {
     }
 
     return {
+      id: userId,
       email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
       name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      role: user.role,
+      gymId: user.gymId,
     };
   }
 
@@ -812,6 +820,162 @@ export class AppService {
       throw new RpcException({
         status: 500,
         message: 'Error interno enviando reseteo de contraseña',
+      });
+    }
+  }
+
+  async changeStaffRoleInGym(managerId: string, targetUserId: string, newRole: string) {
+    this.logger.log(`Manager ${managerId} cambiando rol de usuario ${targetUserId} a ${newRole}`);
+    
+    try {
+      // Verificar que el manager existe y obtener su gymId
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { id: true, role: true, gymId: true }
+      });
+
+      if (!manager) {
+        throw new RpcException({
+          status: 404,
+          message: 'Manager no encontrado',
+        });
+      }
+
+      if (manager.role !== 'MANAGER' && manager.role !== 'OWNER') {
+        throw new RpcException({
+          status: 403,
+          message: 'Solo managers y owners pueden cambiar roles',
+        });
+      }
+
+      if (!manager.gymId) {
+        throw new RpcException({
+          status: 403,
+          message: 'Manager debe estar asignado a un gimnasio',
+        });
+      }
+
+      // Verificar que el usuario objetivo existe y pertenece al mismo gimnasio
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, role: true, gymId: true, email: true }
+      });
+
+      if (!targetUser) {
+        throw new RpcException({
+          status: 404,
+          message: 'Usuario no encontrado',
+        });
+      }
+
+      if (targetUser.gymId !== manager.gymId) {
+        throw new RpcException({
+          status: 403,
+          message: 'El usuario no pertenece a tu gimnasio',
+        });
+      }
+
+      // Validar roles permitidos
+      const allowedRoles = ['MEMBER', 'RECEPTIONIST'];
+      if (!allowedRoles.includes(newRole)) {
+        throw new RpcException({
+          status: 400,
+          message: 'Rol no válido. Los roles permitidos son: MEMBER, RECEPTIONIST',
+        });
+      }
+
+      // Managers solo pueden cambiar RECEPTIONIST a MEMBER
+      if (manager.role === 'MANAGER' && targetUser.role !== 'RECEPTIONIST') {
+        throw new RpcException({
+          status: 403,
+          message: 'Los managers solo pueden revocar el rol de recepcionista',
+        });
+      }
+
+      // Realizar el cambio de rol en auth-service
+      const updatedUser = await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: {
+          role: newRole as any,
+          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          gymId: true,
+        }
+      });
+
+      // 🔄 SINCRONIZAR CON GYM-SERVICE - Cambiar rol en la tabla de miembros también
+      try {
+        await firstValueFrom(this.gymClient.send(
+          { cmd: 'members_change_role' },
+          { 
+            gymId: manager.gymId, 
+            id: targetUserId, 
+            role: newRole 
+          }
+        ));
+        
+        this.logger.log(`✅ Rol sincronizado en gym-service para usuario ${targetUserId}`);
+      } catch (syncError) {
+        const errorMsg = syncError instanceof Error ? syncError.message : 'Error desconocido';
+        this.logger.warn(`⚠️ Error sincronizando rol con gym-service: ${errorMsg}`);
+        // No fallar la operación si solo falla la sincronización
+      }
+
+      // Actualizar metadatos en Supabase
+      try {
+        await this.supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+          app_metadata: { 
+            role: newRole,
+            gymId: manager.gymId
+          },
+          user_metadata: {
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            role: newRole,
+            gymId: manager.gymId,
+          },
+        });
+        this.logger.log(`✅ Metadatos de Supabase actualizados para usuario ${targetUserId}`);
+      } catch (supabaseError) {
+        const errorMsg = supabaseError instanceof Error ? supabaseError.message : 'Error desconocido';
+        this.logger.warn(`⚠️ Error actualizando Supabase: ${errorMsg}`);
+      }
+
+      // Publicar evento
+      try {
+        await this.amqpConnection.publish('gymcore-exchange', 'user.role.updated', {
+          userId: updatedUser.id,
+          newRole: updatedUser.role,
+          oldRole: targetUser.role,
+          gymId: updatedUser.gymId,
+          assignedBy: managerId,
+        }, { persistent: true });
+        this.logger.log(`✅ Evento de cambio de rol publicado para usuario ${targetUserId}`);
+      } catch (eventError) {
+        const errorMsg = eventError instanceof Error ? eventError.message : 'Error desconocido';
+        this.logger.warn(`⚠️ Error publicando evento: ${errorMsg}`);
+      }
+
+      this.logger.log(`✅ Rol de usuario ${targetUserId} cambiado a ${newRole} por manager ${managerId}`);
+      
+      return updatedUser;
+
+    } catch (error) {
+      this.logger.error(`Error cambiando rol de usuario ${targetUserId}:`, error);
+      
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno cambiando rol de usuario',
       });
     }
   }

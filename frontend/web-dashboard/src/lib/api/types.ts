@@ -1,13 +1,14 @@
 // Manager Panel Types
 export interface Member {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone?: string;
   address?: string;
   membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED';
   membershipEndDate: string;
-  role: string;
+  role: 'MEMBER' | 'RECEPTIONIST' | 'MANAGER';
 }
 
 export interface StaffMember {

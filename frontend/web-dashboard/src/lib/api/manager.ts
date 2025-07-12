@@ -87,7 +87,8 @@ export const getMembersForManager = async (): Promise<Member[]> => {
     
     return {
       id: member.id,
-      name: `${member.firstName || ''} ${member.lastName || ''}`.trim() || 'Sin nombre',
+      firstName: member.firstName || '',
+      lastName: member.lastName || '',
       email: member.email,
       phone: member.phone || '',
       address: member.address || '',
@@ -166,7 +167,8 @@ export const resetMemberPassword = async (email: string) => {
 
 // --- Change User Role ---
 export const changeUserRole = async (userId: string, role: string) => {
-    return apiFetch(`/members/${userId}/role`, { 
+    // Para staff, usar el endpoint específico de staff que maneja validaciones de gimnasio
+    return apiFetch(`/staff/${userId}/role`, { 
         method: 'PUT', 
         body: JSON.stringify({ role }) 
     });

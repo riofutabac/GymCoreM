@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { memberFormSchema } from '@/lib/validations/manager-validations';
 import { Member } from '@/lib/api/types';
 import { createMember, updateMember } from '@/lib/api/manager';
@@ -28,10 +29,10 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
   const form = useForm<MemberFormValues>({ 
     resolver: zodResolver(memberFormSchema), 
     defaultValues: { 
-      name: member?.name || '', 
+      firstName: member?.firstName || '', 
+      lastName: member?.lastName || '', 
       email: member?.email || '', 
-      phone: member?.phone || '', 
-      address: member?.address || '' 
+      role: member?.role || 'MEMBER' 
     } 
   });
 
@@ -61,12 +62,25 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField 
               control={form.control} 
-              name="name" 
+              name="firstName" 
               render={({ field }) => ( 
                 <FormItem>
-                  <FormLabel>Nombre completo</FormLabel>
+                  <FormLabel>Nombre</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" {...field} />
+                    <Input placeholder="Juan" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem> 
+              )} 
+            />
+            <FormField 
+              control={form.control} 
+              name="lastName" 
+              render={({ field }) => ( 
+                <FormItem>
+                  <FormLabel>Apellido</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Pérez" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem> 
@@ -79,7 +93,7 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="john.doe@example.com" {...field} />
+                    <Input type="email" placeholder="juan.perez@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem> 
@@ -87,26 +101,22 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
             />
             <FormField 
               control={form.control} 
-              name="phone" 
+              name="role" 
               render={({ field }) => ( 
                 <FormItem>
-                  <FormLabel>Teléfono (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="+1 234 567 890" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem> 
-              )} 
-            />
-            <FormField 
-              control={form.control} 
-              name="address" 
-              render={({ field }) => ( 
-                <FormItem>
-                  <FormLabel>Dirección (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="123 Main St, City" {...field} />
-                  </FormControl>
+                  <FormLabel>Rol</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un rol" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="MEMBER">Miembro</SelectItem>
+                      <SelectItem value="RECEPTIONIST">Recepcionista</SelectItem>
+                      <SelectItem value="MANAGER">Manager</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem> 
               )} 

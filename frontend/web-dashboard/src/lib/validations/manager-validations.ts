@@ -1,10 +1,12 @@
 import * as z from 'zod';
 
 export const memberFormSchema = z.object({
-  name: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }),
+  firstName: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }),
+  lastName: z.string().min(2, { message: 'El apellido debe tener al menos 2 caracteres.' }),
   email: z.string().email({ message: 'Por favor, introduce un email válido.' }),
-  phone: z.string().optional(),
-  address: z.string().optional(),
+  role: z.enum(['MEMBER', 'RECEPTIONIST', 'MANAGER'], { 
+    errorMap: () => ({ message: 'Selecciona un rol válido.' })
+  }),
 });
 
 export const assignStaffFormSchema = z.object({

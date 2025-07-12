@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { Redis } from 'ioredis';
 import { REDIS_CLIENT } from './redis.module';
 import { PrismaService } from './prisma/prisma.service';
@@ -9,6 +11,8 @@ export class AnalyticsService {
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
+    @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -146,24 +150,55 @@ export class AnalyticsService {
     this.logger.log(`Calculando KPIs para manager ${managerId}`);
     
     try {
-      // Obtener el gymId del manager desde el auth service
-      // Por ahora simulamos datos reales. En producción se haría una llamada al auth service
-      
-      // Datos simulados basados en datos reales de un gimnasio
+      // Obtener información del manager desde auth-service
+      this.logger.log(`Solicitando información del manager ${managerId} al auth-service`);
+      const managerData = await firstValueFrom(
+        this.authClient.send({ cmd: 'get_user_info' }, { userId: managerId })
+      );
+
+      this.logger.log(`Respuesta del auth-service para manager ${managerId}: ${JSON.stringify(managerData)}`);
+
+      if (!managerData || !managerData.gymId) {
+        this.logger.error(`Manager ${managerId} no tiene gimnasio asignado. Datos recibidos: ${JSON.stringify(managerData)}`);
+        return {
+          activeMembers: 0,
+          newMembersLast30Days: 0,
+          membershipsExpiringNext7Days: 0,
+          cashRevenueThisMonth: 0,
+          lastUpdatedAt: new Date().toISOString(),
+        };
+      }
+
+      const gymId = managerData.gymId;
+      this.logger.log(`Manager pertenece al gimnasio ${gymId}`);
+
+      // Calcular fechas para las consultas
       const today = new Date();
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const next7Days = new Date();
-      next7Days.setDate(today.getDate() + 7);
+
+      // Obtener estadísticas de membresías desde gym-service
+      const membershipStats = await firstValueFrom(
+        this.gymClient.send({ cmd: 'get_membership_stats' }, { 
+          gymId,
+          today: today.toISOString(),
+          startOfMonth: startOfMonth.toISOString()
+        })
+      );
+
+      // Obtener ingresos en efectivo del mes actual solo del gimnasio específico
+      // Como DailyAnalyticsSummary no tiene gymId, necesitamos agregarlo al esquema
+      // Por ahora, devolvemos 0 para ingresos hasta que se agregue gymId al esquema
+      const cashRevenueThisMonth = 0; // TODO: Agregar gymId a DailyAnalyticsSummary
 
       const gymKpis = {
-        activeMembers: 142,
-        newMembersLast30Days: 8,
-        membershipsExpiringNext7Days: 3,
-        cashRevenueThisMonth: 2450.75,
+        activeMembers: membershipStats?.activeMembers || 0,
+        newMembersLast30Days: membershipStats?.newMembersLast30Days || 0,
+        membershipsExpiringNext7Days: membershipStats?.membershipsExpiringNext7Days || 0,
+        cashRevenueThisMonth,
         lastUpdatedAt: new Date().toISOString(),
       };
 
-      this.logger.log(`KPIs para gym calculados: ${JSON.stringify(gymKpis)}`);
+      this.logger.log(`KPIs reales para gym ${gymId} calculados: ${JSON.stringify(gymKpis)}`);
       return gymKpis;
     } catch (error) {
       this.logger.error('Error calculando KPIs del gimnasio:', error);

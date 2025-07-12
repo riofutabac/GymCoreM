@@ -91,4 +91,10 @@ export class AppController {
     this.logger.log(`Exportando reporte de miembros para manager ${payload.managerId}`);
     return this.appService.exportMembersReport(payload.managerId);
   }
+
+  @MessagePattern({ cmd: 'get_membership_stats' })
+  async getMembershipStats(@Payload() payload: { gymId: string; today: string; startOfMonth: string }) {
+    this.logger.log(`Obteniendo estadísticas de membresías para gym ${payload.gymId}`);
+    return this.appService.getMembershipStats(payload.gymId, payload.today, payload.startOfMonth);
+  }
 }

@@ -48,9 +48,16 @@ function ActionButton({ member, onEdit }: Readonly<{ member: Member; onEdit: (me
           <DropdownMenuItem onClick={() => onEdit(member)}>
             Editar Perfil
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setIsActivateModalOpen(true)}>
-            Activar/Renovar Membresía
-          </DropdownMenuItem>
+          {member.membershipStatus !== 'ACTIVE' && (
+            <DropdownMenuItem onClick={() => setIsActivateModalOpen(true)}>
+              Activar Membresía
+            </DropdownMenuItem>
+          )}
+          {member.membershipStatus === 'ACTIVE' && (
+            <DropdownMenuItem onClick={() => setIsActivateModalOpen(true)}>
+              Renovar Membresía
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={handleResetPassword}>
             Resetear Contraseña
           </DropdownMenuItem>
@@ -70,12 +77,29 @@ function ActionButton({ member, onEdit }: Readonly<{ member: Member; onEdit: (me
 
 export const columns = (onEdit: (member: Member) => void): ColumnDef<Member>[] => [
   { 
-    accessorKey: 'name', 
+    accessorKey: 'firstName', 
     header: 'Nombre' 
+  },
+  { 
+    accessorKey: 'lastName', 
+    header: 'Apellido' 
   },
   { 
     accessorKey: 'email', 
     header: 'Email' 
+  },
+  {
+    accessorKey: 'role',
+    header: 'Rol',
+    cell: ({ row }) => {
+      const role = row.original.role;
+      const roleNames = {
+        'MEMBER': 'Miembro',
+        'RECEPTIONIST': 'Recepcionista',
+        'MANAGER': 'Manager'
+      };
+      return <Badge variant="outline">{roleNames[role] || role}</Badge>;
+    }
   },
   {
     accessorKey: 'membershipStatus',

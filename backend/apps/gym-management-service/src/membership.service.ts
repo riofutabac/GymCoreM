@@ -45,14 +45,32 @@ export class MembershipService {
       },
     });
 
-    // 3. SI NO SE ENCUENTRA, SE RECHAZA LA OPERACIÓN
+    // 3. VERIFICAR SI YA TIENE UNA MEMBRESÍA ACTIVA
+    const activeMembership = await this.prisma.membership.findFirst({
+      where: {
+        userId: dto.userId,
+        gymId: manager.gymId,
+        status: 'ACTIVE',
+        endDate: {
+          gte: new Date(), // Que no haya expirado
+        },
+      },
+    });
+
+    if (activeMembership) {
+      throw new ConflictException(
+        `El usuario ya tiene una membresía activa que expira el ${activeMembership.endDate.toLocaleDateString()}. No se puede activar una nueva membresía hasta que expire la actual.`
+      );
+    }
+
+    // 4. SI NO SE ENCUENTRA MEMBRESÍA PENDIENTE, SE RECHAZA LA OPERACIÓN
     if (!pendingMembership) {
       throw new NotFoundException(
         `Acción denegada. No se encontró una membresía pendiente para este usuario en tu gimnasio. El usuario debe usar el "código de invitación" del gimnasio primero.`
       );
     }
 
-    // 4. SI LA VALIDACIÓN PASA, PROCEDEMOS CON LA ACTIVACIÓN
+    // 5. SI LA VALIDACIÓN PASA, PROCEDEMOS CON LA ACTIVACIÓN
     return this.prisma.$transaction(async (tx) => {
       // Actualizar la membresía a ACTIVA (no crear una nueva)
       const activatedMembership = await tx.membership.update({
@@ -119,6 +137,11 @@ export class MembershipService {
   async renew(dto: RenewMembershipDto, managerId: string) {
     const membership = await this.prisma.membership.findUnique({ where: { id: dto.membershipId } });
     if (!membership) throw new NotFoundException('Membership not found');
+
+    // Verificar que la membresía esté activa o próxima a expirar
+    if (membership.status !== 'ACTIVE') {
+      throw new BadRequestException('Solo se pueden renovar membresías activas');
+    }
 
     const newEnd = new Date(dto.newEndDate);
     if (newEnd <= membership.endDate) {

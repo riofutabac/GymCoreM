@@ -364,4 +364,66 @@ export class AppService {
       throw error;
     }
   }
+
+  async getMembershipStats(gymId: string, todayString: string, startOfMonthString: string) {
+    this.logger.log(`Calculando estadísticas de membresías para gym ${gymId}`);
+    
+    try {
+      const today = new Date(todayString);
+      const startOfMonth = new Date(startOfMonthString);
+      const last30Days = new Date();
+      last30Days.setDate(today.getDate() - 30);
+      const next7Days = new Date();
+      next7Days.setDate(today.getDate() + 7);
+
+      // Contar miembros activos del gimnasio
+      const activeMembers = await this.prisma.membership.count({
+        where: {
+          gymId: gymId,
+          endDate: {
+            gte: today
+          },
+          status: 'ACTIVE'
+        }
+      });
+
+      // Miembros nuevos en los últimos 30 días
+      const newMembersLast30Days = await this.prisma.membership.count({
+        where: {
+          gymId: gymId,
+          startDate: {
+            gte: last30Days
+          }
+        }
+      });
+
+      // Membresías que expiran en los próximos 7 días
+      const membershipsExpiringNext7Days = await this.prisma.membership.count({
+        where: {
+          gymId: gymId,
+          endDate: {
+            gte: today,
+            lte: next7Days
+          },
+          status: 'ACTIVE'
+        }
+      });
+
+      const stats = {
+        activeMembers,
+        newMembersLast30Days,
+        membershipsExpiringNext7Days
+      };
+
+      this.logger.log(`Estadísticas calculadas para gym ${gymId}: ${JSON.stringify(stats)}`);
+      return stats;
+    } catch (error) {
+      this.logger.error(`Error calculando estadísticas para gym ${gymId}:`, error);
+      return {
+        activeMembers: 0,
+        newMembersLast30Days: 0,
+        membershipsExpiringNext7Days: 0
+      };
+    }
+  }
 }

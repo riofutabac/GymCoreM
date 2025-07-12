@@ -3,6 +3,7 @@ import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMemberDto, UpdateMemberDto, ListMembersDto } from './dto';
+import { Role } from '../../../gym-management-service/prisma/generated/gym-client';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -134,7 +135,7 @@ export class MembersService {
       const payload = {
         ...dto,
         gymId,
-        role: 'MEMBER',
+        role: dto.role || 'MEMBER',
         password: this.generateTempPassword(),
       };
 
@@ -169,6 +170,7 @@ export class MembersService {
         where: { id },
         data: {
           ...dto,
+          role: dto.role ? dto.role as Role : undefined,
           updatedAt: new Date(),
         },
         select: {
@@ -242,8 +244,21 @@ export class MembersService {
   }
 
   async changeRole(id: string, gymId: string, role: string) {
-    // Verificar que el socio existe
-    await this.findOne(id, gymId);
+    // Verificar que el usuario existe en el gimnasio (sin filtrar por rol específico)
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        gymId,
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        status: 404,
+        message: 'Usuario no encontrado en este gimnasio',
+      });
+    }
 
     // Validar el rol
     const validRoles = ['MEMBER', 'RECEPTIONIST'];
