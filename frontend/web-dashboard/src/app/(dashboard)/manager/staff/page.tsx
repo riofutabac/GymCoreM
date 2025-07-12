@@ -62,7 +62,7 @@ export default function ManagerStaffPage() {
             <DataTableSkeleton columnCount={3} />
           ) : (
             <DataTable 
-              columns={columns} 
+              columns={columns(fetchData)} 
               data={staff} 
               filterColumn="email" 
               filterPlaceholder="Filtrar por email..."

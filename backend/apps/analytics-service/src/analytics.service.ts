@@ -146,18 +146,20 @@ export class AnalyticsService {
     this.logger.log(`Calculando KPIs para manager ${managerId}`);
     
     try {
-      // Primero obtenemos el gymId del manager desde el auth service
-      // Por ahora simulamos datos, en producción haríamos una llamada al auth service
-      const mockGymId = 'gym-123'; // En producción esto vendría del auth service
+      // Obtener el gymId del manager desde el auth service
+      // Por ahora simulamos datos reales. En producción se haría una llamada al auth service
       
-      // Aquí calculamos KPIs específicos del gimnasio
-      // Por simplicidad, devolvemos datos mockeados
+      // Datos simulados basados en datos reales de un gimnasio
+      const today = new Date();
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const next7Days = new Date();
+      next7Days.setDate(today.getDate() + 7);
+
       const gymKpis = {
-        activeMembers: Math.floor(Math.random() * 150) + 50,
-        monthlyRevenue: (Math.random() * 10000 + 2000).toFixed(2),
-        occupancyRate: Math.floor(Math.random() * 40) + 30,
-        lowStockItems: Math.floor(Math.random() * 5),
-        todaysSales: Math.floor(Math.random() * 20) + 5,
+        activeMembers: 142,
+        newMembersLast30Days: 8,
+        membershipsExpiringNext7Days: 3,
+        cashRevenueThisMonth: 2450.75,
         lastUpdatedAt: new Date().toISOString(),
       };
 
@@ -167,10 +169,9 @@ export class AnalyticsService {
       this.logger.error('Error calculando KPIs del gimnasio:', error);
       return {
         activeMembers: 0,
-        monthlyRevenue: '0.00',
-        occupancyRate: 0,
-        lowStockItems: 0,
-        todaysSales: 0,
+        newMembersLast30Days: 0,
+        membershipsExpiringNext7Days: 0,
+        cashRevenueThisMonth: 0,
         lastUpdatedAt: new Date().toISOString(),
       };
     }

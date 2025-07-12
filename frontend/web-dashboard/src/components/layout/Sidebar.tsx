@@ -77,7 +77,6 @@ const roleMenus: Record<string, MenuSection[]> = {
     {
       title: "Herramientas",
       items: [
-        { href: '/manager/reports', label: 'Reportes', icon: BarChart3 },
         { href: '/manager/notifications', label: 'Notificaciones', icon: Bell },
         { href: '/manager/settings', label: 'Configuración', icon: Settings },
       ]

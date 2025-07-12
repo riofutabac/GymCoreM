@@ -730,5 +730,90 @@ export class AppService {
       });
     }
   }
+
+  /**
+   * Actualiza el email de un usuario en Supabase Auth
+   */
+  async updateUserAuthEmail(userId: string, newEmail: string) {
+    this.logger.log(`Actualizando email en Supabase para usuario ${userId}`);
+    
+    try {
+      // Actualizar el email en Supabase Auth
+      const { data, error } = await this.supabaseAdmin.auth.admin.updateUserById(userId, {
+        email: newEmail,
+      });
+
+      if (error) {
+        this.logger.error(`Error actualizando email en Supabase:`, error);
+        throw new RpcException({
+          status: 500,
+          message: `Error actualizando email en el sistema de autenticación: ${error.message}`,
+        });
+      }
+
+      // También actualizar en la base de datos local
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { 
+          email: newEmail,
+          updatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`✅ Email actualizado exitosamente para usuario ${userId}`);
+      return { success: true, message: 'Email actualizado exitosamente' };
+
+    } catch (error) {
+      this.logger.error(`Error actualizando email para usuario ${userId}:`, error);
+      
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno actualizando email',
+      });
+    }
+  }
+
+  /**
+   * Envía un correo de reseteo de contraseña
+   */
+  async sendPasswordReset(email: string) {
+    this.logger.log(`Enviando reseteo de contraseña para email: ${email}`);
+    
+    try {
+      const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
+      });
+
+      if (error) {
+        this.logger.error(`Error enviando reseteo de contraseña:`, error);
+        throw new RpcException({
+          status: 400,
+          message: `Error enviando correo de reseteo: ${error.message}`,
+        });
+      }
+
+      this.logger.log(`✅ Correo de reseteo enviado exitosamente a ${email}`);
+      return { 
+        success: true, 
+        message: 'Correo de reseteo de contraseña enviado exitosamente' 
+      };
+
+    } catch (error) {
+      this.logger.error(`Error enviando reseteo de contraseña para ${email}:`, error);
+      
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno enviando reseteo de contraseña',
+      });
+    }
+  }
 }
 

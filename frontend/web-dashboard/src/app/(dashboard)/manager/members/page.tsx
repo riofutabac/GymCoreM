@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { PlusCircle } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { Member } from '@/lib/api/types';
 import { DataTable } from '@/components/shared/DataTable';
 import { DataTableSkeleton } from '@/components/shared/DataTableSkeleton';
 import { columns } from '@/components/manager/members/columns';
 import MemberFormModal from '@/components/manager/members/MemberFormModal';
-import { getMembersForManager } from '@/lib/api/manager';
+import { getMembersForManager, exportMembers } from '@/lib/api/manager';
 
 export default function ManagerMembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -32,7 +32,7 @@ export default function ManagerMembersPage() {
     fetchMembers();
   }, [fetchMembers]);
 
-  const handleOpenModal = (member: Member | null = null) => {
+  const handleOpenModal = (member: Member) => {
     setSelectedMember(member);
     setIsModalOpen(true);
   };
@@ -44,14 +44,30 @@ export default function ManagerMembersPage() {
     fetchMembers();
   };
 
+  const handleExportMembers = async () => {
+    try {
+      const blob = await exportMembers();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `miembros-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exportando miembros:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Gestión de Miembros</CardTitle>
-          <Button onClick={() => handleOpenModal()}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Añadir Miembro
+          <Button onClick={handleExportMembers} variant="outline">
+            <FileText className="mr-2 h-4 w-4" />
+            Exportar Miembros
           </Button>
         </CardHeader>
         <CardContent>
@@ -68,13 +84,23 @@ export default function ManagerMembersPage() {
         </CardContent>
       </Card>
       
-      {isModalOpen && (
+      {isModalOpen && selectedMember && (
         <MemberFormModal
           isOpen={isModalOpen}
           onClose={handleCloseModal}
           member={selectedMember}
         />
       )}
+
+      <Button 
+        onClick={handleExportMembers} 
+        variant="outline" 
+        className="w-full"
+        disabled={loading}
+      >
+        <FileText className="mr-2 h-4 w-4" />
+        Exportar Miembros
+      </Button>
     </div>
   );
 }

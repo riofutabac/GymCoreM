@@ -1,7 +1,7 @@
 // backend/apps/auth-service/src/app.controller.ts (VERSIÓN CORREGIDA)
 
 import { Controller, ValidationPipe } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload, EventPattern } from '@nestjs/microservices';
 import { AppService } from './app.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -71,5 +71,15 @@ export class AppController {
   @MessagePattern({ cmd: 'assign_role' })
   async assignRole(@Payload() data: { managerId: string; targetUserId: string; role: string }) {
     return this.appService.assignRoleInGym(data.managerId, data.targetUserId, data.role);
+  }
+
+  @EventPattern('user.email.updated')
+  async handleUserEmailUpdate(@Payload() data: { userId: string; newEmail: string }) {
+    return this.appService.updateUserAuthEmail(data.userId, data.newEmail);
+  }
+
+  @MessagePattern({ cmd: 'reset_password' })
+  async resetPassword(@Payload() data: { email: string }) {
+    return this.appService.sendPasswordReset(data.email);
   }
 }

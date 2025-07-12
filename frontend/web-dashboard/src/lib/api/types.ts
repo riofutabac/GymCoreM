@@ -31,6 +31,7 @@ export interface ActivateMembershipPayload {
   memberId: string;
   startsAt: string;
   endsAt: string;
+  amount?: number;
   paymentType: 'CASH' | 'ONLINE';
 }
 

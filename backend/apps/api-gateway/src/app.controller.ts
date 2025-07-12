@@ -379,6 +379,28 @@ export class AppController {
     );
   }
 
+  // ─── RESETEAR CONTRASEÑA DE MIEMBRO ───────────────────────────────────────────
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('members/reset-password')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  resetMemberPassword(@Body() data: { email: string }) {
+    return firstValueFrom(
+      this.authClient.send({ cmd: 'reset_password' }, data),
+    );
+  }
+
+  // ─── CAMBIAR ROL DE MIEMBRO ───────────────────────────────────────────────────
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Put('members/:id/role')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  changeMemberRole(@Param('id') id: string, @Body() data: { role: string }, @Req() req: any) {
+    return firstValueFrom(
+      this.gymClient.send({ cmd: 'members_change_role' }, { gymId: req.gymId, id, role: data.role }),
+    );
+  }
+
   // ─── IMPORTACIÓN MASIVA CSV ───────────────────────────────────────────────────
   @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
   @Roles('MANAGER', 'OWNER')

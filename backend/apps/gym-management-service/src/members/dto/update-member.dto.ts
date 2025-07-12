@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, MinLength, IsEmail } from 'class-validator';
 
 export class UpdateMemberDto {
   @IsOptional()
@@ -12,12 +12,14 @@ export class UpdateMemberDto {
   lastName?: string;
 
   @IsOptional()
+  @IsEmail({}, { message: 'Por favor, introduce un email válido' })
+  email?: string;
+
+  @IsOptional()
   @IsString()
   phone?: string;
 
   @IsOptional()
   @IsString()
   address?: string;
-
-  // No permitimos cambiar email por temas de seguridad
 }

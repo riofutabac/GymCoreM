@@ -8,10 +8,31 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
 import ActivateMembershipModal from './ActivateMembershipModal';
+import { resetMemberPassword } from '@/lib/api/manager';
+import { useToast } from '@/hooks/use-toast';
 
 // Componente separado para el botón de acciones
-function ActionButton({ member, onEdit }: { member: Member; onEdit: (member: Member) => void }) {
+function ActionButton({ member, onEdit }: Readonly<{ member: Member; onEdit: (member: Member) => void }>) {
   const [isActivateModalOpen, setIsActivateModalOpen] = React.useState(false);
+  const { toast } = useToast();
+
+  const handleResetPassword = async () => {
+    try {
+      await resetMemberPassword(member.email);
+      toast({
+        title: 'Éxito',
+        description: 'Se ha enviado el correo para resetear la contraseña',
+      });
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast({
+        title: 'Error',
+        description: `Error al enviar el correo: ${errorMessage}`,
+        variant: 'destructive',
+      });
+    }
+  };
   
   return (
     <>
@@ -29,6 +50,9 @@ function ActionButton({ member, onEdit }: { member: Member; onEdit: (member: Mem
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsActivateModalOpen(true)}>
             Activar/Renovar Membresía
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleResetPassword}>
+            Resetear Contraseña
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

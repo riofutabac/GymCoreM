@@ -18,3 +18,20 @@ export const productSchema = z.object({
   description: z.string().optional(),
   barcode: z.string().optional(),
 });
+
+// Esquema para activar membresía
+export const activateMembershipSchema = z.object({
+  userId: z.string().min(1, { message: 'User ID es requerido' }),
+  startDate: z.date({ required_error: 'Fecha de inicio es requerida' }),
+  endDate: z.date({ required_error: 'Fecha de fin es requerida' }),
+  amount: z.number().positive({ message: 'El monto debe ser mayor a 0' }),
+  reason: z.string().optional(),
+}).refine(
+  (data) => data.endDate > data.startDate,
+  {
+    message: 'La fecha de fin debe ser posterior a la fecha de inicio',
+    path: ['endDate'],
+  }
+);
+
+export type ActivateMembershipFormData = z.infer<typeof activateMembershipSchema>;

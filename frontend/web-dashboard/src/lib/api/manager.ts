@@ -155,3 +155,19 @@ export const exportMembers = async (): Promise<Blob> => {
 export const exportSales = async (): Promise<Blob> => {
     return apiFetch('/reports/sales/export', { headers: {} }, true);
 };
+
+// --- Reset Password ---
+export const resetMemberPassword = async (email: string) => {
+    return apiFetch('/members/reset-password', { 
+        method: 'POST', 
+        body: JSON.stringify({ email }) 
+    });
+};
+
+// --- Change User Role ---
+export const changeUserRole = async (userId: string, role: string) => {
+    return apiFetch(`/members/${userId}/role`, { 
+        method: 'PUT', 
+        body: JSON.stringify({ role }) 
+    });
+};

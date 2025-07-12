@@ -39,6 +39,12 @@ export class MembersController {
     return this.membersService.remove(payload.id, payload.gymId);
   }
 
+  @MessagePattern({ cmd: 'members_change_role' })
+  async changeRole(@Payload() payload: { gymId: string; id: string; role: string }) {
+    this.logger.log(`Cambiando rol de socio ${payload.id} a ${payload.role} para gym ${payload.gymId}`);
+    return this.membersService.changeRole(payload.id, payload.gymId, payload.role);
+  }
+
   @MessagePattern({ cmd: 'members_bulk_create' })
   async bulkCreate(@Payload() payload: { gymId: string; members: CreateMemberDto[] }) {
     this.logger.log(`Importación masiva de ${payload.members.length} socios para gym ${payload.gymId}`);
