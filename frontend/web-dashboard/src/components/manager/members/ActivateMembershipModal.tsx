@@ -89,11 +89,26 @@ export default function ActivateMembershipModal({
     } catch (error) {
       console.error(error);
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      toast({
-        title: 'Error',
-        description: `Error al activar la membresía: ${errorMessage}`,
-        variant: 'destructive',
-      });
+      
+      // --- Manejo de error específico para membresía pendiente no encontrada ---
+      const pendingMembershipErrorMsg = "Acción denegada. No se encontró una membresía pendiente para este usuario en tu gimnasio.";
+      
+      if (errorMessage.includes(pendingMembershipErrorMsg)) {
+        toast({
+          title: 'Error de Activación',
+          description: 'No se encontró una membresía pendiente para este socio. Asegúrate de que se haya unido al gimnasio primero.',
+          variant: 'destructive',
+        });
+      } else {
+        // --- Manejo de otros errores ---
+        toast({
+          title: 'Error',
+          description: `Error al activar la membresía: ${errorMessage}`,
+          variant: 'destructive',
+        });
+      }
+      // --- Fin del manejo de error específico ---
+
     } finally {
       setIsSubmitting(false);
     }
@@ -132,33 +147,33 @@ export default function ActivateMembershipModal({
               <div className="flex gap-2">
                 <Button 
                   type="button" 
-                  variant="outline" 
+                  variant="ghost" 
                   onClick={() => handleDurationSelect(1)}
-                  className="flex-1"
+                  className="flex-1 border border-black text-black bg-white hover:bg-neutral-100"
                 >
                   1 Mes
                 </Button>
                 <Button 
                   type="button" 
-                  variant="outline" 
+                  variant="ghost" 
                   onClick={() => handleDurationSelect(3)}
-                  className="flex-1"
+                  className="flex-1 border border-black text-black bg-white hover:bg-neutral-100"
                 >
                   3 Meses
                 </Button>
                 <Button 
                   type="button" 
-                  variant="outline" 
+                  variant="ghost" 
                   onClick={() => handleDurationSelect(6)}
-                  className="flex-1"
+                  className="flex-1 border border-black text-black bg-white hover:bg-neutral-100"
                 >
                   6 Meses
                 </Button>
                 <Button 
                   type="button" 
-                  variant="outline" 
+                  variant="ghost" 
                   onClick={() => handleDurationSelect(12)}
-                  className="flex-1"
+                  className="flex-1 border border-black text-black bg-white hover:bg-neutral-100"
                 >
                   1 Año
                 </Button>

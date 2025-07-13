@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ActivateMembershipModal from './ActivateMembershipModal';
-import { resetMemberPassword } from '@/lib/api/manager';
+import { resetMemberPassword, banMembership } from '@/lib/api/manager';
 import { useToast } from '@/hooks/use-toast';
-import { MoreHorizontal, KeyRound, CreditCard, UserCog } from 'lucide-react';
+import { MoreHorizontal, KeyRound, CreditCard, UserCog, Ban, CircleSlash } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { addDays } from 'date-fns';
 
@@ -36,6 +36,7 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
   };
 
   const isMembershipActive = member.membershipStatus === 'ACTIVE';
+  const isMembershipBanned = member.membershipStatus === 'BANNED';
 
   return (
     <>
@@ -63,7 +64,7 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
               <p>Resetear Contraseña</p>
             </TooltipContent>
           </Tooltip>
-          {!isMembershipActive && ( // ⬅️  solo si NO está activa
+          {!isMembershipActive && !isMembershipBanned && ( // ⬅️ solo si NO está activa Y NO está baneada
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -78,6 +79,62 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
               </TooltipTrigger>
               <TooltipContent>
                 <p>Activar Membresía</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {!isMembershipBanned && member.activeMembershipId && ( // ⬅️ solo si NO está baneada Y tenemos el ID
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={async () => {
+                    if (confirm('¿Seguro que quieres banear a este socio?')) {
+                      try {
+                         await banMembership(member.activeMembershipId!); // Use the extracted ID
+                         toast({ title: 'Socio baneado' });
+                         // TODO: Trigger data refetch here (e.g., mutate or refetch)
+                      } catch (error) {
+                         const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+                         toast({
+                           title: 'Error al banear',
+                           description: errorMessage,
+                           variant: 'destructive',
+                         });
+                      }
+                    }
+                  }}
+                >
+                  <CircleSlash className="h-4 w-4" /> {/* Changed icon to CircleSlash */}
+                  <span className="sr-only">Banear</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Banear socio</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+           {isMembershipBanned && ( // ⬅️ Mostrar botón de desbanear si está baneada
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={async () => {
+                    if (confirm('¿Seguro que quieres desbanear a este socio?')) {
+                      // TODO: Implement unban logic
+                      toast({ title: 'Funcionalidad de desbanear pendiente' });
+                    }
+                  }}
+                >
+                  <Ban className="h-4 w-4 rotate-180" /> {/* Keep Ban icon for unban */}
+                  <span className="sr-only">Desbanear</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Desbanear socio</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -127,7 +184,20 @@ export const columns = (onEdit: (member: Member) => void): ColumnDef<Member>[] =
     header: 'Estado Membresía',
     cell: ({ row }) => {
       const status = row.original.membershipStatus;
-      const variant = status === 'ACTIVE' ? 'default' : 'destructive';
+      let variant: 'default' | 'destructive' | 'secondary' | 'outline' = 'outline'; // Add secondary
+      switch (status) {
+        case 'ACTIVE':
+          variant = 'default';
+          break;
+        case 'BANNED':
+          variant = 'destructive'; // Use destructive for banned
+          break;
+        case 'EXPIRED':
+          variant = 'secondary'; // Use secondary for expired
+          break;
+        default:
+          variant = 'outline'; // For INACTIVE, PENDING_PAYMENT, etc.
+      }
       return <Badge variant={variant}>{status}</Badge>;
     }
   },

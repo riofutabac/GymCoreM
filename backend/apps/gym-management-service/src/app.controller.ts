@@ -97,4 +97,9 @@ export class AppController {
     this.logger.log(`Obteniendo estadísticas de membresías para gym ${payload.gymId}`);
     return this.appService.getMembershipStats(payload.gymId, payload.today, payload.startOfMonth);
   }
+
+  @MessagePattern({ cmd: 'ban_membership' })
+  banMembership(@Payload() p: { membershipId: string; managerId: string; reason?: string }) {
+    return this.membershipService.ban(p.membershipId, p.managerId, p.reason);
+  }
 }

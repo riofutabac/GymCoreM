@@ -26,7 +26,20 @@ const apiFetch = async (url: string, options?: RequestInit, returnBlob = false) 
         const res = await fetch(`${API_BASE_URL}/api/v1${url}`, defaultOptions);
         
         if (!res.ok) {
-            const errorBody = await res.json().catch(() => ({ message: res.statusText }));
+            // --- MODIFICACIÓN PARA DIAGNÓSTICO ---
+            const errorText = await res.text(); // Get raw response text
+            console.error(`API Error Response (raw): ${errorText}`); // Log raw text
+            // --- FIN MODIFICACIÓN ---
+            
+            let errorBody;
+            try {
+                errorBody = JSON.parse(errorText); // Try parsing as JSON
+            } catch (jsonError) {
+                // If JSON parsing fails, use the raw text as the message
+                errorBody = { message: `API request failed: ${res.status} - ${errorText}` };
+                console.error(`Failed to parse error response as JSON:`, jsonError);
+            }
+
             const error = new Error(errorBody.message || `API request failed: ${res.status}`);
             handleAuthError(error); // Handle authentication errors globally
             throw error;
@@ -67,22 +80,29 @@ export const getMembersForManager = async (): Promise<Member[]> => {
     const activeMembership = member.memberships?.[0];
     
     // Determinar el estado de membresía
-    let membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' = 'INACTIVE';
+    let membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'BANNED' = 'INACTIVE'; // Add BANNED
     let membershipEndDate = '';
+    let activeMembershipId = undefined; // Initialize activeMembershipId
     
     if (activeMembership) {
       const endDate = new Date(activeMembership.endDate);
       const today = new Date();
       
-      if (activeMembership.status === 'ACTIVE') {
+      // Handle BANNED status
+      if (activeMembership.status === 'BANNED') {
+        membershipStatus = 'BANNED';
+      } else if (activeMembership.status === 'ACTIVE') {
         if (endDate > today) {
           membershipStatus = 'ACTIVE';
         } else {
           membershipStatus = 'EXPIRED';
         }
+      } else { // PENDING_PAYMENT, CANCELLED, GRACE_PERIOD
+         membershipStatus = activeMembership.status; // Map other statuses
       }
       
       membershipEndDate = activeMembership.endDate;
+      activeMembershipId = activeMembership.id; // Extract the membership ID
     }
     
     return {
@@ -94,6 +114,7 @@ export const getMembersForManager = async (): Promise<Member[]> => {
       address: member.address || '',
       membershipStatus,
       membershipEndDate,
+      activeMembershipId, // Include the membership ID
       role: member.role
     };
   });
@@ -121,6 +142,12 @@ export const activateMembership = async (payload: ActivateMembershipPayload) => 
         }),
     });
 };
+
+export const banMembership = async (membershipId: string, reason?: string) =>
+  apiFetch(`/memberships/${membershipId}/ban`, {
+    method: 'POST',
+    body  : JSON.stringify({ reason }),
+  });
 
 // --- Staff ---
 export const getGymStaff = async (): Promise<StaffMember[]> => {

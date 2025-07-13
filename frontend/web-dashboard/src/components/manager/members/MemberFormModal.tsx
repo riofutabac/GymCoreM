@@ -15,7 +15,7 @@ import { createMember, updateMember } from '@/lib/api/manager';
 
 interface MemberFormModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (saved?: boolean) => void;   // ← devuelve true sólo si hubo cambios
   member: Member | null;
 }
 
@@ -44,7 +44,7 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
       } else { 
         await createMember(values); 
       }
-      onClose();
+      onClose(true);          // ✅ avisa que sí se guardó
     } catch (error) { 
       console.error('Failed to save member', error); 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -132,7 +132,7 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={onClose}>
+              <Button type="button" variant="ghost" onClick={() => onClose(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>

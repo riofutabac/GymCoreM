@@ -1154,4 +1154,26 @@ async changeStaffRole(@Param('id') userId: string, @Body() body: { role: string 
       );
     }
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('memberships/:id/ban')
+  @HttpCode(HttpStatus.OK)
+  async banMembership(
+    @Param('id') membershipId: string,
+    @Body() body: { reason?: string },
+    @Req() req,
+  ) {
+    const managerId = req.user.sub;
+    try {
+      return await firstValueFrom(
+        this.gymClient.send(
+          { cmd: 'ban_membership' },
+          { membershipId, managerId, reason: body.reason },
+        ),
+      );
+    } catch (e: any) {
+      throw new HttpException(e.message, e.status || 500);
+    }
+  }
 }

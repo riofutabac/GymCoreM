@@ -300,4 +300,42 @@ export class MembershipService {
       };
     });
   }
+
+  async ban(membershipId: string, managerId: string, reason?: string) {
+    const membership = await this.prisma.membership.findUnique({ where: { id: membershipId }});
+    if (!membership) throw new NotFoundException('Membresía no encontrada');
+
+    // ⛔ solo el manager/owner del mismo gym
+    await this.validatePermissions(managerId, membership.userId, membership.gymId);
+
+    if (membership.status === 'BANNED') {
+      throw new ConflictException('La membresía ya está baneada');
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const banned = await tx.membership.update({
+        where: { id: membershipId },
+        data : { status: 'BANNED' },
+      });
+
+      await tx.membershipLog.create({
+        data: {
+          membershipId,
+          action: 'BANNED',
+          performedById: managerId,
+          reason: reason ?? 'Baneo manual del socio',
+        },
+      });
+
+      // 🚪 Notificar a biometric-service para invalidar huella / QR
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'membership.banned',
+        { membershipId, userId: membership.userId, gymId: membership.gymId },
+        { persistent: true },
+      );
+
+      return banned;
+    });
+  }
 }

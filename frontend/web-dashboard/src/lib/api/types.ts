@@ -8,6 +8,7 @@ export interface Member {
   address?: string;
   membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED';
   membershipEndDate: string;
+  activeMembershipId?: string; // Add this line
   role: 'MEMBER' | 'RECEPTIONIST' | 'MANAGER';
 }
 
@@ -34,6 +35,7 @@ export interface ActivateMembershipPayload {
   endsAt: string;
   amount?: number;
   paymentType: 'CASH' | 'ONLINE';
+  reason?: string; // Add this line
 }
 
 export interface CreateMemberPayload {
