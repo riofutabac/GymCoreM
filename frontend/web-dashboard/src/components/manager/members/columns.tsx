@@ -6,13 +6,15 @@ import { Member } from '@/lib/api/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
 import ActivateMembershipModal from './ActivateMembershipModal';
 import { resetMemberPassword } from '@/lib/api/manager';
 import { useToast } from '@/hooks/use-toast';
+import { MoreHorizontal, KeyRound, CreditCard, UserCog } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { addDays } from 'date-fns';
 
 // Componente separado para el botón de acciones
-function ActionButton({ member, onEdit }: Readonly<{ member: Member; onEdit: (member: Member) => void }>) {
+function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (member: Member) => void }>) {
   const [isActivateModalOpen, setIsActivateModalOpen] = React.useState(false);
   const { toast } = useToast();
 
@@ -24,7 +26,6 @@ function ActionButton({ member, onEdit }: Readonly<{ member: Member; onEdit: (me
         description: 'Se ha enviado el correo para resetear la contraseña',
       });
     } catch (error) {
-      console.error(error);
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       toast({
         title: 'Error',
@@ -33,42 +34,60 @@ function ActionButton({ member, onEdit }: Readonly<{ member: Member; onEdit: (me
       });
     }
   };
-  
+
+  const isMembershipActive = member.membershipStatus === 'ACTIVE';
+
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-8 w-8 p-0">
-            <span className="sr-only">Abrir menú</span>
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => onEdit(member)}>
-            Editar Perfil
-          </DropdownMenuItem>
-          {member.membershipStatus !== 'ACTIVE' && (
-            <DropdownMenuItem onClick={() => setIsActivateModalOpen(true)}>
-              Activar Membresía
-            </DropdownMenuItem>
-          )}
-          {member.membershipStatus === 'ACTIVE' && (
-            <DropdownMenuItem onClick={() => setIsActivateModalOpen(true)}>
-              Renovar Membresía
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={handleResetPassword}>
-            Resetear Contraseña
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      
+      <TooltipProvider delayDuration={100}>
+        <div className="flex items-center justify-end gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(member)}>
+                <UserCog className="h-4 w-4" />
+                <span className="sr-only">Editar Perfil</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Editar Perfil</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleResetPassword}>
+                <KeyRound className="h-4 w-4" />
+                <span className="sr-only">Resetear Contraseña</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Resetear Contraseña</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setIsActivateModalOpen(true)}
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="sr-only">{isMembershipActive ? 'Renovar Membresía' : 'Activar Membresía'}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{isMembershipActive ? 'Renovar Membresía' : 'Activar Membresía'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
       {isActivateModalOpen && (
-        <ActivateMembershipModal 
-          isOpen={isActivateModalOpen} 
-          onClose={() => setIsActivateModalOpen(false)} 
+        <ActivateMembershipModal
+          isOpen={isActivateModalOpen}
+          onClose={() => setIsActivateModalOpen(false)}
           memberId={member.id}
+          membershipStatus={member.membershipStatus}
+          membershipEndDate={member.membershipEndDate}
         />
       )}
     </>
@@ -120,9 +139,10 @@ export const columns = (onEdit: (member: Member) => void): ColumnDef<Member>[] =
   },
   {
     id: 'actions',
+    header: () => <div className="text-right">Acciones</div>,
     cell: ({ row }) => {
       const member = row.original;
-      return <ActionButton member={member} onEdit={onEdit} />;
+      return <ActionButtons member={member} onEdit={onEdit} />;
     },
   },
 ];

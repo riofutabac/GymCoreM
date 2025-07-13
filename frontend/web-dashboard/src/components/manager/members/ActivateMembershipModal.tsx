@@ -11,17 +11,27 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { activateMembershipSchema, type ActivateMembershipFormData } from '@/lib/validations/manager-validations';
 import { activateMembership } from '@/lib/api/manager';
 import { useToast } from '@/hooks/use-toast';
-import { addMonths } from 'date-fns';
+import { addMonths, addDays } from 'date-fns';
+import { Member } from '@/lib/api/types';
 
-interface ActivateMembershipModalProps { 
-  readonly isOpen: boolean; 
-  readonly onClose: () => void; 
-  readonly memberId: string; 
+interface ActivateMembershipModalProps {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly memberId: string;
+  readonly membershipStatus: Member['membershipStatus'];
+  readonly membershipEndDate: string | null;
 }
 
-export default function ActivateMembershipModal({ isOpen, onClose, memberId }: ActivateMembershipModalProps) {
+export default function ActivateMembershipModal({
+  isOpen,
+  onClose,
+  memberId,
+  membershipStatus,
+  membershipEndDate,
+}: ActivateMembershipModalProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isRenewal = membershipStatus === 'ACTIVE';
 
   const form = useForm<ActivateMembershipFormData>({
     resolver: zodResolver(activateMembershipSchema),
@@ -34,14 +44,24 @@ export default function ActivateMembershipModal({ isOpen, onClose, memberId }: A
     },
   });
 
-  // Setear la fecha de inicio al día actual cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
-      const today = new Date();
-      form.setValue('startDate', today);
-      form.setValue('userId', memberId);
+      let startDate = new Date();
+      if (isRenewal && membershipEndDate) {
+        const currentEndDate = new Date(membershipEndDate);
+        if (currentEndDate > startDate) {
+          startDate = addDays(currentEndDate, 1);
+        }
+      }
+      form.reset({
+        userId: memberId,
+        startDate: startDate,
+        endDate: addMonths(startDate, 1),
+        amount: 0,
+        reason: isRenewal ? 'Renovación manual (pago en efectivo)' : 'Activación manual (pago en efectivo)',
+      });
     }
-  }, [isOpen, memberId, form]);
+  }, [isOpen, memberId, membershipStatus, membershipEndDate, form, isRenewal]);
 
   const handleDurationSelect = (months: number) => {
     const startDate = form.getValues('startDate');

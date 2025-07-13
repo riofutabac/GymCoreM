@@ -1,5 +1,5 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { Injectable, Logger, Inject, BadRequestException } from '@nestjs/common';
+import { RpcException, ClientProxy, EventPattern, Payload } from '@nestjs/microservices';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMemberDto, UpdateMemberDto, ListMembersDto } from './dto';
@@ -250,72 +250,38 @@ export class MembersService {
     }
   }
 
-  async changeRole(id: string, gymId: string, role: string) {
-    // Verificar que el usuario existe en el gimnasio (sin filtrar por rol específico)
-    const user = await this.prisma.user.findFirst({
-      where: {
-        id,
-        gymId,
-        deletedAt: null,
-      },
-    });
-
-    if (!user) {
-      throw new RpcException({
-        status: 404,
-        message: 'Usuario no encontrado en este gimnasio',
-      });
-    }
-
-    // Validar el rol
+ async changeRole(
+    managerId: string,
+    targetUserId: string,
+    role: 'MEMBER' | 'RECEPTIONIST',
+  ) {
     const validRoles = ['MEMBER', 'RECEPTIONIST'];
-    if (!validRoles.includes(role)) {
-      throw new RpcException({
-        status: 400,
-        message: 'Rol no válido. Los roles permitidos son: MEMBER, RECEPTIONIST',
-      });
-    }
+    if (!validRoles.includes(role))
+      throw new BadRequestException('Rol no permitido');
 
+    // se delega al auth-service
+    return firstValueFrom(
+      this.authClient.send(
+        { cmd: 'assign_role' },
+        { managerId, targetUserId, role },
+      ),
+    );
+  }
+
+  @EventPattern('user.role.updated')
+  async onUserRoleUpdated(
+    @Payload() data: { userId: string; newRole: string },
+  ) {
+    this.logger.log(`🔄 Sincronizando rol para usuario ${data.userId}: ${data.newRole}`);
     try {
-      const updated = await this.prisma.user.update({
-        where: { id },
-        data: {
-          role: role as any,
-          updatedAt: new Date(),
-        },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+      await this.prisma.user.update({
+        where: { id: data.userId },
+        data: { role: data.newRole as any },
       });
-
-      // Emitir evento para sincronizar con auth-service
-      await this.amqpConnection.publish(
-        'gymcore-exchange',
-        'user.role.updated',
-        { 
-          userId: id, 
-          newRole: role,
-          gymId: gymId 
-        },
-        { persistent: true }
-      );
-      this.logger.log(`📤 Evento user.role.updated publicado para usuario ${id}`);
-
-      this.logger.log(`Rol de socio ${id} cambiado a ${role} exitosamente`);
-      return updated;
-
-    } catch (err) {
-      this.logger.error(`Error cambiando rol de socio ${id}:`, err);
-      throw new RpcException({
-        status: 500,
-        message: 'Error cambiando el rol del socio',
-      });
+      this.logger.log(`✅ Rol sincronizado para usuario ${data.userId}`);
+    } catch (error) {
+      this.logger.error(`❌ Error sincronizando rol para usuario ${data.userId}:`, error);
+      // Dependiendo de la estrategia de manejo de errores, podrías reintentar o loguear más detalles
     }
   }
 

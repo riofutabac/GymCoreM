@@ -676,7 +676,7 @@ export class AppService {
       }
 
       // Validar el rol que se quiere asignar
-      const validRoles = ['RECEPTIONIST'];
+      const validRoles = ['RECEPTIONIST','MEMBER'];
       if (!validRoles.includes(role)) {
         throw new RpcException({
           message: 'Los managers solo pueden asignar el rol RECEPTIONIST',

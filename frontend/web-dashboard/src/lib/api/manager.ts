@@ -167,7 +167,7 @@ export const resetMemberPassword = async (email: string) => {
 
 // --- Change User Role ---
 export const changeUserRole = async (userId: string, role: string) => {
-    return apiFetch(`/members/${userId}/role`, { 
+    return apiFetch(`/staff/${userId}/role`, { 
         method: 'PUT', 
         body: JSON.stringify({ role }) 
     });

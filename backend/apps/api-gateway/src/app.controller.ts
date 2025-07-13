@@ -391,15 +391,16 @@ export class AppController {
   }
 
   // ─── CAMBIAR ROL DE MIEMBRO ───────────────────────────────────────────────────
-  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
-  @Roles('MANAGER', 'OWNER')
-  @Put('members/:id/role')
-  @UsePipes(new ValidationPipe({ whitelist: true }))
-  changeMemberRole(@Param('id') id: string, @Body() data: { role: string }, @Req() req: any) {
-    return firstValueFrom(
-      this.gymClient.send({ cmd: 'members_change_role' }, { gymId: req.gymId, id, role: data.role }),
-    );
-  }
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('MANAGER', 'OWNER')
+@Put('staff/:id/role')
+@UsePipes(new ValidationPipe({ whitelist: true }))
+async changeStaffRole(@Param('id') userId: string, @Body() body: { role: string }, @Req() req: any) {
+  const managerId = req.user.sub;
+  return firstValueFrom(
+    this.authClient.send({ cmd: 'assign_role' }, { managerId, targetUserId: userId, role: body.role })
+  );
+}
 
   // === NUEVO ENDPOINT PARA KPIs ESPECÍFICOS DEL MANAGER ===
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -1063,25 +1064,25 @@ export class AppController {
   }
 
   // --- STAFF USERS ENDPOINT (OWNER ONLY) ---
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER')
-  @Get('staff')
-  @HttpCode(HttpStatus.OK)
-  async getStaffUsers() {
-    this.logger.log('Solicitando lista de usuarios administrativos...');
-    try {
-      return await firstValueFrom(
-        this.authClient.send({ cmd: 'get_staff_users' }, {}),
-      );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      this.logger.error(`Error obteniendo usuarios administrativos: ${errorMessage}`);
-      throw new HttpException(
-        'No se pudo obtener la lista de usuarios administrativos',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles('OWNER')
+  // @Get('staff')
+  // @HttpCode(HttpStatus.OK)
+  // async getStaffUsers() {
+  //   this.logger.log('Solicitando lista de usuarios administrativos...');
+  //   try {
+  //     return await firstValueFrom(
+  //       this.authClient.send({ cmd: 'get_staff_users' }, {}),
+  //     );
+  //   } catch (error) {
+  //     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+  //     this.logger.error(`Error obteniendo usuarios administrativos: ${errorMessage}`);
+  //     throw new HttpException(
+  //       'No se pudo obtener la lista de usuarios administrativos',
+  //       HttpStatus.INTERNAL_SERVER_ERROR,
+  //     );
+  //   }
+  // }
 
   // --- UPDATE USER PROFILE ENDPOINT (OWNER ONLY) ---
   @UseGuards(JwtAuthGuard, RolesGuard)
