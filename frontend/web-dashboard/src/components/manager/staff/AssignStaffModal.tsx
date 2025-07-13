@@ -21,6 +21,8 @@ interface AssignStaffModalProps {
 type AssignStaffFormValues = z.infer<typeof assignStaffFormSchema>;
 
 export default function AssignStaffModal({ isOpen, onClose, members }: AssignStaffModalProps) {
+  // Filtrar miembros baneados o inactivos
+  const availableMembers = members.filter(m => m.membershipStatus !== 'BANNED' && m.membershipStatus !== 'INACTIVE');
   const form = useForm<AssignStaffFormValues>({ 
     resolver: zodResolver(assignStaffFormSchema) 
   });
@@ -61,7 +63,7 @@ export default function AssignStaffModal({ isOpen, onClose, members }: AssignSta
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {members.map(member => (
+                          {availableMembers.map(member => (
                             <SelectItem key={member.id} value={member.id}>
                               {member.name} ({member.email})
                             </SelectItem>
