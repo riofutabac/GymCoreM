@@ -73,18 +73,18 @@ export default function ActivateMembershipModal({
     setIsSubmitting(true);
     try {
       await activateMembership({
-        memberId: data.userId,
-        startsAt: data.startDate.toISOString(),
+        memberId: data.userId, // sigue igual
+        startsAt: data.startDate.toISOString(), // pero los keys cambian dentro de manager.ts
         endsAt: data.endDate.toISOString(),
         amount: data.amount,
-        paymentType: 'CASH',
+        reason: data.reason,
       });
-      
+
       toast({
         title: 'Éxito',
         description: 'Membresía activada correctamente',
       });
-      
+
       onClose();
     } catch (error) {
       console.error(error);

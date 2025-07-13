@@ -109,7 +109,17 @@ export const updateMember = async (payload: UpdateMemberPayload) => {
 
 // --- Memberships ---
 export const activateMembership = async (payload: ActivateMembershipPayload) => {
-    return apiFetch('/memberships/activate', { method: 'POST', body: JSON.stringify(payload) });
+    return apiFetch('/memberships/activate', {
+        method: 'POST',
+        body: JSON.stringify({
+            // 👇  nombres que entiende el microservicio
+            userId: payload.memberId,
+            startDate: payload.startsAt,
+            endDate: payload.endsAt,
+            amount: payload.amount,
+            reason: payload.reason ?? 'Activación manual (pago en efectivo)',
+        }),
+    });
 };
 
 // --- Staff ---
