@@ -119,6 +119,7 @@ export default function ActivateMembershipModal({
                       type="date"
                       value={field.value instanceof Date ? field.value.toISOString().split('T')[0] : ''}
                       onChange={(e) => field.onChange(new Date(e.target.value))}
+                      disabled={isRenewal} // no mover la fecha si es renovación
                     />
                   </FormControl>
                   <FormMessage />

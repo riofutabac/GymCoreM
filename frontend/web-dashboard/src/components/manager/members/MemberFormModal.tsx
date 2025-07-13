@@ -13,10 +13,10 @@ import { memberFormSchema } from '@/lib/validations/manager-validations';
 import { Member } from '@/lib/api/types';
 import { createMember, updateMember } from '@/lib/api/manager';
 
-interface MemberFormModalProps { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  member: Member | null; 
+interface MemberFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  member: Member | null;
 }
 
 type MemberFormValues = z.infer<typeof memberFormSchema>;
@@ -38,8 +38,9 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
 
   const onSubmit = async (values: MemberFormValues) => {
     try {
-      if (isEditMode) { 
-        await updateMember({ id: member.id, ...values }); 
+      if (isEditMode) {
+        const { firstName, lastName } = values;
+        await updateMember({ id: member.id, firstName, lastName });
       } else { 
         await createMember(values); 
       }
@@ -86,26 +87,35 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
                 </FormItem> 
               )} 
             />
-            <FormField 
-              control={form.control} 
-              name="email" 
-              render={({ field }) => ( 
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="juan.perez@example.com" {...field} />
+                    <Input
+                      type="email"
+                      placeholder="juan.perez@example.com"
+                      {...field}
+                      disabled={isEditMode} // solo lectura si editas
+                    />
                   </FormControl>
                   <FormMessage />
-                </FormItem> 
-              )} 
+                </FormItem>
+              )}
             />
-            <FormField 
-              control={form.control} 
-              name="role" 
-              render={({ field }) => ( 
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Rol</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    disabled={isEditMode} // lo mismo para el rol
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona un rol" />
@@ -118,8 +128,8 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
                     </SelectContent>
                   </Select>
                   <FormMessage />
-                </FormItem> 
-              )} 
+                </FormItem>
+              )}
             />
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>

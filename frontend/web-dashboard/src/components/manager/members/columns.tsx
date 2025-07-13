@@ -63,22 +63,24 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
               <p>Resetear Contraseña</p>
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setIsActivateModalOpen(true)}
-              >
-                <CreditCard className="h-4 w-4" />
-                <span className="sr-only">{isMembershipActive ? 'Renovar Membresía' : 'Activar Membresía'}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{isMembershipActive ? 'Renovar Membresía' : 'Activar Membresía'}</p>
-            </TooltipContent>
-          </Tooltip>
+          {!isMembershipActive && ( // ⬅️  solo si NO está activa
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setIsActivateModalOpen(true)}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span className="sr-only">Activar Membresía</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Activar Membresía</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </TooltipProvider>
       {isActivateModalOpen && (
