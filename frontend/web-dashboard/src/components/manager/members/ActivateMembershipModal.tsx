@@ -44,6 +44,12 @@ export default function ActivateMembershipModal({
     },
   });
 
+  // Log para saber cuál es la endDate que está llegando
+  useEffect(() => {
+    const endDate = form.getValues('endDate');
+    console.log('log matias - endDate actual:', endDate);
+  }, [form.watch('endDate')]);
+
   useEffect(() => {
     if (isOpen) {
       let startDate = new Date();
@@ -71,14 +77,29 @@ export default function ActivateMembershipModal({
 
   const onSubmit = async (data: ActivateMembershipFormData) => {
     setIsSubmitting(true);
+    
+    // 🐛 LOGS DE DEPURACIÓN - Fechas de membresía
+    console.log('🔄 ACTIVANDO MEMBRESÍA - Datos del formulario:');
+    console.log('   • Usuario ID:', data.userId);
+    console.log('   • Fecha de Inicio (raw):', data.startDate);
+    console.log('   • Fecha de Inicio (ISO):', data.startDate.toISOString());
+    console.log('   • Fecha de Fin (raw):', data.endDate);
+    console.log('   • Fecha de Fin (ISO):', data.endDate.toISOString());
+    console.log('   • Duración:', Math.round((data.endDate.getTime() - data.startDate.getTime()) / (1000 * 60 * 60 * 24)), 'días');
+    console.log('   • Monto:', data.amount);
+    console.log('   • Razón:', data.reason);
+    
     try {
       await activateMembership({
-        memberId: data.userId, // sigue igual
-        startsAt: data.startDate.toISOString(), // pero los keys cambian dentro de manager.ts
+        memberId: data.userId,
+        startsAt: data.startDate.toISOString(),
         endsAt: data.endDate.toISOString(),
         amount: data.amount,
+        paymentType: 'CASH', // ← Campo requerido para activación manual
         reason: data.reason,
       });
+
+      console.log('✅ Membresía enviada exitosamente al backend');
 
       toast({
         title: 'Éxito',

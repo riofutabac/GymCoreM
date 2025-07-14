@@ -22,7 +22,7 @@ type AssignStaffFormValues = z.infer<typeof assignStaffFormSchema>;
 
 export default function AssignStaffModal({ isOpen, onClose, members }: AssignStaffModalProps) {
   // Filtrar miembros baneados o inactivos
-  const availableMembers = members.filter(m => m.membershipStatus !== 'BANNED' && m.membershipStatus !== 'INACTIVE');
+  const availableMembers = members.filter(m => m.membershipStatus !== 'BANNED');
   const form = useForm<AssignStaffFormValues>({ 
     resolver: zodResolver(assignStaffFormSchema) 
   });

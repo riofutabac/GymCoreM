@@ -53,16 +53,18 @@ export class MembershipService {
     }
 
     // 4. SI LA VALIDACIÓN PASA, PROCEDEMOS CON LA ACTIVACIÓN
+    this.logger.log(`🔄 Iniciando activación de membresía para usuario ${dto.userId}`);
+    this.logger.log(`📅 Fechas de membresía - Inicio: ${startDate.toISOString()}, Fin: ${endDate.toISOString()}`);
     return this.prisma.$transaction(async (tx) => {
       // Actualizar la membresía a ACTIVA (no crear una nueva)
       const activatedMembership = await tx.membership.update({
-        where: { id: pendingMembership.id },
-        data: {
-          status: 'ACTIVE',
-          startDate: startDate,
-          endDate: endDate,
-          activatedById: managerId,
-        },
+      where: { id: pendingMembership.id },
+      data: {
+        status: 'ACTIVE',
+        startDate: startDate,
+        endDate: endDate,
+        activatedById: managerId,
+      },
       });
 
       // Crear el log de auditoría
@@ -111,6 +113,16 @@ export class MembershipService {
       );
 
       this.logger.log(`Evento de notificación emitido para membresía ${activatedMembership.id}`);
+
+      // Log final con resumen completo de la membresía activada
+      this.logger.log(`✅ MEMBRESÍA ACTIVADA EXITOSAMENTE:`);
+      this.logger.log(`   • ID Membresía: ${activatedMembership.id}`);
+      this.logger.log(`   • Usuario ID: ${dto.userId}`);
+      this.logger.log(`   • Fecha de Inicio: ${startDate.toLocaleDateString('es-ES')} (${startDate.toISOString()})`);
+      this.logger.log(`   • Fecha de Fin: ${endDate.toLocaleDateString('es-ES')} (${endDate.toISOString()})`);
+      this.logger.log(`   • Duración: ${Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} días`);
+      this.logger.log(`   • Monto: $${dto.amount || 0} USD`);
+      this.logger.log(`   • Activado por Manager: ${managerId}`);
 
       return activatedMembership;
     });
@@ -176,6 +188,12 @@ export class MembershipService {
     if (!membership) {
       this.logger.error(`[Error] Membresía con ID ${payload.membershipId} no fue encontrada en la base de datos.`);
       throw new NotFoundException(`Membresía ${payload.membershipId} no encontrada.`);
+    }
+
+    // 🛠️ CORRECCIÓN: Evitar procesar membresías ya activadas manualmente
+    if (membership.status === 'ACTIVE' && membership.activatedById) {
+      this.logger.warn(`⚠️ Membresía ${payload.membershipId} ya fue activada manualmente por manager ${membership.activatedById}. Ignorando evento de pago automático.`);
+      return; // Salir sin hacer nada
     }
 
     // --- CORRECCIÓN DE LÓGICA DE FECHAS ---
