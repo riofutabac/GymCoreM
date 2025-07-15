@@ -23,7 +23,7 @@ export class AppService implements OnModuleInit {
   private async handleArduinoResponse(data: string) {
     // Procesar respuesta de enrollment exitoso
     if (data.startsWith('ENROLL_SUCCESS:ID=') && this.currentEnrollmentUserId) {
-      const enrollmentId = data.split('=')[1];
+      const enrollmentId = parseInt(data.split('=')[1]);
       this.logger.log(`✅ Inscripción exitosa en Arduino con ID: ${enrollmentId}`);
       
       // Generar plantilla simulada (en el futuro, obtendremos la plantilla real del Arduino)
@@ -49,6 +49,18 @@ export class AppService implements OnModuleInit {
       } catch (authError) {
         this.logger.error(`❌ Error guardando en auth-service: ${authError instanceof Error ? authError.message : String(authError)}`);
         this.logger.error(`📊 Detalles del error: ${JSON.stringify(authError)}`);
+        
+        // 🔄 ROLLBACK: Eliminar la huella del Arduino porque falló la sincronización con la base de datos
+        this.logger.warn(`🔄 Iniciando rollback: eliminando huella ID ${enrollmentId} del Arduino...`);
+        
+        try {
+          await this.performRollback(enrollmentId);
+          this.logger.log(`✅ Rollback completado: huella ID ${enrollmentId} eliminada del Arduino`);
+        } catch (rollbackError) {
+          this.logger.error(`❌ Error durante rollback: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
+          this.logger.error(`⚠️ ATENCIÓN: La huella ID ${enrollmentId} quedó en el Arduino sin vincularse a usuario`);
+        }
+        
         // Resetear el usuario actual en caso de error
         this.currentEnrollmentUserId = null;
       }
@@ -269,6 +281,65 @@ export class AppService implements OnModuleInit {
     } catch (error) {
       this.logger.error(`❌ Error al eliminar huella: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
+    }
+  }
+
+  /**
+   * Realiza rollback eliminando la huella del Arduino cuando falla la sincronización con la base de datos
+   * @param fingerprintId ID de la huella a eliminar del Arduino
+   */
+  private async performRollback(fingerprintId: number): Promise<void> {
+    try {
+      this.logger.log(`🔄 Ejecutando rollback para huella ID: ${fingerprintId}`);
+      
+      if (!this.serialService.isArduinoConnected()) {
+        throw new Error('Arduino no está conectado - no se puede realizar rollback');
+      }
+
+      const command = `DELETE:${fingerprintId}`;
+      const response = await this.serialService.sendCommand(command);
+      
+      this.logger.log(`📡 Respuesta del rollback: ${response}`);
+      
+      if (response.startsWith('DELETE_SUCCESS:ID:')) {
+        const deletedId = response.split(':')[2];
+        this.logger.log(`✅ Rollback exitoso: huella ID ${deletedId} eliminada del Arduino`);
+      } else if (response.startsWith('DELETE_ERROR:NOT_FOUND:')) {
+        this.logger.warn(`⚠️ Rollback: huella ID ${fingerprintId} no encontrada en Arduino (ya fue eliminada)`);
+      } else if (response.startsWith('DELETE_ERROR:INVALID_ID:')) {
+        throw new Error(`ID ${fingerprintId} es inválido para rollback`);
+      } else if (response.startsWith('DELETE_ERROR:FAILED:')) {
+        throw new Error(`Error al eliminar huella ID ${fingerprintId} durante rollback`);
+      } else {
+        this.logger.warn(`⚠️ Respuesta inesperada durante rollback: ${response}`);
+      }
+    } catch (error) {
+      this.logger.error(`❌ Error durante performRollback: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Método para probar el rollback manualmente (útil para debugging)
+   * @param fingerprintId ID de la huella a eliminar
+   */
+  async testRollback(fingerprintId: number): Promise<any> {
+    this.logger.log(`🧪 Probando rollback para huella ID: ${fingerprintId}`);
+    
+    try {
+      await this.performRollback(fingerprintId);
+      return {
+        success: true,
+        message: `Rollback de prueba exitoso para huella ID ${fingerprintId}`,
+        fingerprintId: fingerprintId
+      };
+    } catch (error) {
+      this.logger.error(`❌ Error en rollback de prueba: ${error instanceof Error ? error.message : String(error)}`);
+      return {
+        success: false,
+        message: `Error en rollback de prueba: ${error instanceof Error ? error.message : String(error)}`,
+        fingerprintId: fingerprintId
+      };
     }
   }
 }

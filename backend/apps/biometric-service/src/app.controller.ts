@@ -76,4 +76,17 @@ export class AppController {
       );
     }
   }
+
+  @Post('test-rollback')
+  async testRollback(@Body() body: { fingerprintId: number }) {
+    try {
+      const result = await this.appService.testRollback(body.fingerprintId);
+      return result;
+    } catch (error) {
+      throw new HttpException(
+        error instanceof Error ? error.message : 'Error desconocido',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
 }
