@@ -55,7 +55,6 @@ export class AppService implements OnModuleInit {
         
         try {
           await this.performRollback(enrollmentId);
-          this.logger.log(`✅ Rollback completado: huella ID ${enrollmentId} eliminada del Arduino`);
         } catch (rollbackError) {
           this.logger.error(`❌ Error durante rollback: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
           this.logger.error(`⚠️ ATENCIÓN: La huella ID ${enrollmentId} quedó en el Arduino sin vincularse a usuario`);
@@ -289,34 +288,77 @@ export class AppService implements OnModuleInit {
    * @param fingerprintId ID de la huella a eliminar del Arduino
    */
   private async performRollback(fingerprintId: number): Promise<void> {
-    try {
-      this.logger.log(`🔄 Ejecutando rollback para huella ID: ${fingerprintId}`);
-      
-      if (!this.serialService.isArduinoConnected()) {
-        throw new Error('Arduino no está conectado - no se puede realizar rollback');
-      }
+    return new Promise<void>((resolve, reject) => {
+      try {
+        this.logger.log(`🔄 Ejecutando rollback para huella ID: ${fingerprintId}`);
+        
+        if (!this.serialService.isArduinoConnected()) {
+          reject(new Error('Arduino no está conectado - no se puede realizar rollback'));
+          return;
+        }
 
-      const command = `DELETE:${fingerprintId}`;
-      const response = await this.serialService.sendCommand(command);
-      
-      this.logger.log(`📡 Respuesta del rollback: ${response}`);
-      
-      if (response.startsWith('DELETE_SUCCESS:ID:')) {
-        const deletedId = response.split(':')[2];
-        this.logger.log(`✅ Rollback exitoso: huella ID ${deletedId} eliminada del Arduino`);
-      } else if (response.startsWith('DELETE_ERROR:NOT_FOUND:')) {
-        this.logger.warn(`⚠️ Rollback: huella ID ${fingerprintId} no encontrada en Arduino (ya fue eliminada)`);
-      } else if (response.startsWith('DELETE_ERROR:INVALID_ID:')) {
-        throw new Error(`ID ${fingerprintId} es inválido para rollback`);
-      } else if (response.startsWith('DELETE_ERROR:FAILED:')) {
-        throw new Error(`Error al eliminar huella ID ${fingerprintId} durante rollback`);
-      } else {
-        this.logger.warn(`⚠️ Respuesta inesperada durante rollback: ${response}`);
+        let rollbackCompleted = false;
+        const timeout = setTimeout(() => {
+          if (!rollbackCompleted) {
+            reject(new Error('Timeout: Rollback no completado en 5 segundos'));
+          }
+        }, 5000);
+
+        // Escuchar las respuestas del Arduino durante el rollback
+        const rollbackHandler = (data: string) => {
+          if (rollbackCompleted) return;
+
+          this.logger.log(`📡 Respuesta del rollback: ${data}`);
+          
+          if (data.startsWith('DELETE_START:ID:')) {
+            // Esta es la respuesta inicial, continúa esperando DELETE_SUCCESS
+            const startId = data.split(':')[2];
+            this.logger.log(`🔄 Rollback iniciado para huella ID: ${startId}`);
+          } else if (data.startsWith('DELETE_SUCCESS:ID:')) {
+            rollbackCompleted = true;
+            clearTimeout(timeout);
+            this.serialService.removeDataCallback(rollbackHandler);
+            
+            const deletedId = data.split(':')[2];
+            this.logger.log(`✅ Rollback exitoso: huella ID ${deletedId} eliminada del Arduino`);
+            resolve();
+          } else if (data.startsWith('DELETE_ERROR:NOT_FOUND:')) {
+            rollbackCompleted = true;
+            clearTimeout(timeout);
+            this.serialService.removeDataCallback(rollbackHandler);
+            
+            this.logger.warn(`⚠️ Rollback: huella ID ${fingerprintId} no encontrada en Arduino (ya fue eliminada)`);
+            resolve(); // No es un error crítico, la huella ya no existe
+          } else if (data.startsWith('DELETE_ERROR:INVALID_ID:')) {
+            rollbackCompleted = true;
+            clearTimeout(timeout);
+            this.serialService.removeDataCallback(rollbackHandler);
+            
+            reject(new Error(`ID ${fingerprintId} es inválido para rollback`));
+          } else if (data.startsWith('DELETE_ERROR:FAILED:')) {
+            rollbackCompleted = true;
+            clearTimeout(timeout);
+            this.serialService.removeDataCallback(rollbackHandler);
+            
+            reject(new Error(`Error al eliminar huella ID ${fingerprintId} durante rollback`));
+          }
+        };
+
+        // Registrar el handler y enviar el comando
+        this.serialService.onData(rollbackHandler);
+        
+        const command = `DELETE:${fingerprintId}`;
+        this.serialService.sendCommand(command).catch(error => {
+          rollbackCompleted = true;
+          clearTimeout(timeout);
+          this.serialService.removeDataCallback(rollbackHandler);
+          reject(error);
+        });
+        
+      } catch (error) {
+        reject(error);
       }
-    } catch (error) {
-      this.logger.error(`❌ Error durante performRollback: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-    }
+    });
   }
 
   /**
