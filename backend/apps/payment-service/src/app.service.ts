@@ -438,4 +438,76 @@ export class AppService {
       throw error;
     }
   }
+
+  /**
+   * Obtiene los ingresos en efectivo de un gimnasio específico en un rango de fechas
+   */
+  async getCashRevenueForGym(gymId: string, startOfMonth: string, endOfMonth: string): Promise<{ totalCashRevenue: number }> {
+    this.logger.log(`Calculando ingresos en efectivo para gym ${gymId} desde ${startOfMonth} hasta ${endOfMonth}`);
+
+    try {
+      // Obtener todos los pagos en efectivo completados en el rango de fechas
+      const cashPayments = await this.prisma.payment.findMany({
+        where: {
+          method: 'CASH',
+          status: 'COMPLETED',
+          completedAt: {
+            gte: new Date(startOfMonth),
+            lte: new Date(endOfMonth),
+          },
+          // Necesitamos filtrar por gymId, pero no está en Payment
+          // Tendremos que consultar el gym-service para validar cada payment
+        },
+        select: {
+          id: true,
+          amount: true,
+          membershipId: true,
+          userId: true,
+          completedAt: true,
+        },
+      });
+
+      this.logger.log(`Encontrados ${cashPayments.length} pagos en efectivo en el período`);
+
+      // Filtrar pagos que pertenecen al gimnasio específico
+      let totalCashRevenue = 0;
+      
+      for (const payment of cashPayments) {
+        try {
+          // Si tiene membershipId, verificar que la membresía pertenece al gimnasio
+          if (payment.membershipId) {
+            const membershipInfo = await firstValueFrom(
+              this.gymClient.send({ cmd: 'get_membership_gym' }, { membershipId: payment.membershipId })
+            );
+            
+            if (membershipInfo?.gymId === gymId) {
+              totalCashRevenue += payment.amount;
+              this.logger.log(`Pago de membresía $${payment.amount} incluido para gym ${gymId}`);
+            }
+          }
+          // Si tiene userId pero no membershipId (venta POS), verificar que el usuario pertenece al gimnasio
+          else if (payment.userId) {
+            const userInfo = await firstValueFrom(
+              this.gymClient.send({ cmd: 'get_user_gym' }, { userId: payment.userId })
+            );
+            
+            if (userInfo?.gymId === gymId) {
+              totalCashRevenue += payment.amount;
+              this.logger.log(`Pago POS $${payment.amount} incluido para gym ${gymId}`);
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`Error verificando pago ${payment.id}:`, error);
+          // Continuar con el siguiente pago
+        }
+      }
+
+      this.logger.log(`Total ingresos en efectivo calculados para gym ${gymId}: $${totalCashRevenue}`);
+      return { totalCashRevenue };
+
+    } catch (error) {
+      this.logger.error(`Error calculando ingresos en efectivo para gym ${gymId}:`, error);
+      return { totalCashRevenue: 0 };
+    }
+  }
 }

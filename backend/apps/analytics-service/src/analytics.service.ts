@@ -13,6 +13,7 @@ export class AnalyticsService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -182,10 +183,24 @@ export class AnalyticsService {
         })
       );
 
-      // Obtener ingresos en efectivo del mes actual solo del gimnasio específico
-      // Como DailyAnalyticsSummary no tiene gymId, necesitamos agregarlo al esquema
-      // Por ahora, devolvemos 0 para ingresos hasta que se agregue gymId al esquema
-      const cashRevenueThisMonth = 0; // TODO: Agregar gymId a DailyAnalyticsSummary
+      // Obtener ingresos en efectivo del mes actual del gimnasio específico
+      // Implementación temporal: consultar directamente al payment-service
+      let cashRevenueThisMonth = 0;
+      
+      try {
+        const paymentStats = await firstValueFrom(
+          this.paymentClient.send({ cmd: 'get_cash_revenue_for_gym' }, { 
+            gymId,
+            startOfMonth: startOfMonth.toISOString(),
+            endOfMonth: today.toISOString()
+          })
+        );
+        cashRevenueThisMonth = paymentStats?.totalCashRevenue || 0;
+        this.logger.log(`Ingresos en efectivo calculados para gym ${gymId}: $${cashRevenueThisMonth}`);
+      } catch (error) {
+        this.logger.warn(`No se pudieron obtener ingresos en efectivo para gym ${gymId}:`, error);
+        cashRevenueThisMonth = 0;
+      }
 
       const gymKpis = {
         activeMembers: membershipStats?.activeMembers || 0,

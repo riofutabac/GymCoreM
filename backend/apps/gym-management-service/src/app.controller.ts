@@ -102,4 +102,16 @@ export class AppController {
   banMembership(@Payload() p: { membershipId: string; managerId: string; reason?: string }) {
     return this.membershipService.ban(p.membershipId, p.managerId, p.reason);
   }
+
+  @MessagePattern({ cmd: 'get_membership_gym' })
+  async getMembershipGym(@Payload() payload: { membershipId: string }) {
+    this.logger.log(`Obteniendo información de gimnasio para membresía ${payload.membershipId}`);
+    return this.appService.getMembershipGym(payload.membershipId);
+  }
+
+  @MessagePattern({ cmd: 'get_user_gym' })
+  async getUserGym(@Payload() payload: { userId: string }) {
+    this.logger.log(`Obteniendo información de gimnasio para usuario ${payload.userId}`);
+    return this.appService.getUserGym(payload.userId);
+  }
 }

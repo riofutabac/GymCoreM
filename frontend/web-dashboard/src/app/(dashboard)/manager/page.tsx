@@ -123,7 +123,7 @@ export default function ManagerDashboardPage() {
             <div className="text-2xl font-bold">{kpis?.membershipsExpiringNext7Days ?? 0}</div>
             <p className="text-xs text-muted-foreground">Próximos 7 días</p>
           </CardContent>
-        </Card>
+        </Card> 
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

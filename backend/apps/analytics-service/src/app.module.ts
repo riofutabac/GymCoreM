@@ -38,6 +38,14 @@ import { PrismaModule } from './prisma/prisma.module';
           port: 3002,
         },
       },
+      {
+        name: 'PAYMENT_SERVICE',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3003,
+        },
+      },
     ]),
     // Módulo de RabbitMQ para recibir eventos
     RabbitMQModule.forRootAsync({

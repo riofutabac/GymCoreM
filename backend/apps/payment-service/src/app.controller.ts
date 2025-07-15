@@ -38,6 +38,11 @@ export class AppController {
     return this.appService.createSaleCheckout(payload);
   }
 
+  @MessagePattern({ cmd: 'get_cash_revenue_for_gym' })
+  getCashRevenueForGym(@Payload() data: { gymId: string; startOfMonth: string; endOfMonth: string }) {
+    return this.appService.getCashRevenueForGym(data.gymId, data.startOfMonth, data.endOfMonth);
+  }
+
   // --- WEBHOOK CON VERIFICACIÓN DE FIRMA USANDO SDK ---
   @MessagePattern({ cmd: 'handle_paypal_webhook' })
   handleWebhook(@Payload() data: { body: any; headers: any; rawBody: string }) {
