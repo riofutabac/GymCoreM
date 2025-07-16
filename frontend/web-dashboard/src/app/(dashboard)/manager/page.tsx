@@ -8,6 +8,15 @@ import { getManagerDashboardKpis, exportSales } from '@/lib/api/manager';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 interface KpiData {
   activeMembers: number;
@@ -22,6 +31,33 @@ export default function ManagerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Construir datos de ingresos por mes basado en datos reales
+  // Por ahora solo tenemos el mes actual, pero la estructura está lista 
+  // para agregar más meses cuando tengamos datos históricos reales
+  const buildMonthlyRevenueData = () => {
+    const data = [];
+    const currentRevenue = kpis?.cashRevenueThisMonth || 0;
+    
+    // Solo agregar el mes actual si tiene ingresos reales
+    if (currentRevenue > 0) {
+      const currentMonth = new Date().toLocaleDateString('es-ES', { month: 'short' });
+      const currentYear = new Date().getFullYear();
+      
+      data.push({
+        month: `${currentMonth} ${currentYear}`,
+        revenue: currentRevenue,
+      });
+    }
+    
+    // TODO: Cuando tengas endpoint de datos históricos, agregar aquí:
+    // const historicalData = await getHistoricalRevenue();
+    // historicalData.forEach(monthData => data.push(monthData));
+    
+    return data;
+  };
+
+  const monthlyRevenueData = buildMonthlyRevenueData();
 
   useEffect(() => {
     getManagerDashboardKpis()
@@ -61,6 +97,7 @@ export default function ManagerDashboardPage() {
             </Card>
           ))}
         </div>
+        <Skeleton className="h-80 w-full" />
         <div className="grid gap-4 md:grid-cols-2">
           {[...Array(4)].map((_, i) => (
             <Card key={`shortcut-skeleton-${Date.now()}-${i}`}>
@@ -136,6 +173,37 @@ export default function ManagerDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Gráfico de Ingresos */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ingresos por Mes</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Evolución de ingresos reales por mes
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyRevenueData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value) => [`$${value}`, 'Ingresos']}
+                  labelFormatter={(label) => `Mes: ${label}`}
+                />
+                <Bar dataKey="revenue" fill="#8884d8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {!monthlyRevenueData || monthlyRevenueData.length === 0 && (
+            <div className="flex items-center justify-center h-80">
+              <p className="text-muted-foreground">No hay datos disponibles</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Accesos Directos */}
       <div>
