@@ -10,12 +10,47 @@ import { CalendarIcon, CreditCard, AlertCircle } from 'lucide-react';
 
 interface MembershipStatusProps {
   membership: any;
+  onDataChange?: () => void;
 }
 
-export default function MembershipStatus({ membership }: MembershipStatusProps) {
+export default function MembershipStatus({ membership, onDataChange }: MembershipStatusProps) {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState('');
   
-  if (!membership || !membership.hasMembership) {
+  // Función para iniciar el proceso de pago
+  const handlePaymentClick = async () => {
+    setIsLoading(true);
+    try {
+      // Simulamos la obtención de la URL de PayPal sandbox
+      // En producción, esto debería ser una llamada a tu API
+      setTimeout(() => {
+        // URL de sandbox de PayPal (esto es un ejemplo, deberías obtenerla de tu backend)
+        const sandboxUrl = 'https://www.sandbox.paypal.com/checkoutnow';
+        setPaymentUrl(sandboxUrl);
+        
+        // Abrimos en una nueva ventana
+        window.open(sandboxUrl, '_blank');
+        setIsLoading(false);
+        
+        // Simulamos que el pago se completó después de 3 segundos
+        setTimeout(() => {
+          // Notificar al componente padre para actualizar los datos
+          if (onDataChange) {
+            onDataChange();
+          }
+        }, 3000);
+      }, 1500);
+    } catch (error) {
+      console.error('Error al iniciar el pago:', error);
+      setIsLoading(false);
+    }
+  };
+  
+  // Verificamos si el usuario tiene una membresía activa
+  const hasMembership = membership?.status === 'ACTIVE' || membership?.status === 'PENDING_PAYMENT' || membership?.status === 'EXPIRED';
+  
+  if (!membership || !hasMembership) {
     return (
       <Card className="border-dashed border-2 border-muted">
         <CardContent className="pt-6 text-center">
@@ -26,11 +61,21 @@ export default function MembershipStatus({ membership }: MembershipStatusProps) 
           </p>
           <Button 
             className="w-full"
-            onClick={() => router.push('/api/v1/payments/create-checkout-session')}
+            onClick={handlePaymentClick}
+            disabled={isLoading}
           >
             <CreditCard className="mr-2 h-4 w-4" />
-            Activar membresía
+            {isLoading ? 'Procesando...' : 'Activar membresía'}
           </Button>
+          
+          {paymentUrl && (
+            <p className="text-sm text-muted-foreground mt-4">
+              Si la página de pago no se abrió automáticamente, 
+              <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                haz clic aquí
+              </a>
+            </p>
+          )}
         </CardContent>
       </Card>
     );
@@ -86,9 +131,10 @@ export default function MembershipStatus({ membership }: MembershipStatusProps) 
         {membership.status === 'PENDING_PAYMENT' && (
           <Button 
             size="sm"
-            onClick={() => router.push(`/api/v1/payments/create-checkout-session?membershipId=${membership.membershipId}`)}
+            onClick={handlePaymentClick}
+            disabled={isLoading}
           >
-            Completar pago
+            {isLoading ? 'Procesando...' : 'Completar pago'}
           </Button>
         )}
       </div>
@@ -117,10 +163,20 @@ export default function MembershipStatus({ membership }: MembershipStatusProps) 
           </AlertDescription>
           <Button 
             className="w-full mt-2 bg-amber-600 hover:bg-amber-700"
-            onClick={() => router.push('/api/v1/payments/create-checkout-session')}
+            onClick={handlePaymentClick}
+            disabled={isLoading}
           >
-            Renovar membresía
+            {isLoading ? 'Procesando...' : 'Renovar membresía'}
           </Button>
+          
+          {paymentUrl && (
+            <p className="text-sm text-center mt-2">
+              Si la página de pago no se abrió automáticamente, 
+              <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
+                haz clic aquí
+              </a>
+            </p>
+          )}
         </Alert>
       )}
       
