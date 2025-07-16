@@ -5,27 +5,16 @@ import { ColumnDef } from '@tanstack/react-table';
 import { StaffMember } from '@/lib/api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
+import { UserMinus, Lock } from 'lucide-react';
 import { changeUserRole } from '@/lib/api/manager';
 import { useToast } from '@/hooks/use-toast';
 
-// Componente separado para el botón de acciones
+// Componente separado para los botones de acciones
 function ActionButton({ staff, onRefresh }: Readonly<{ staff: StaffMember; onRefresh: () => void }>) {
   const { toast } = useToast();
 
   const handleRevokeRole = async () => {
     try {
-      // Solo podemos revocar el rol de RECEPTIONIST, no MANAGER u OWNER
-      if (staff.role !== 'RECEPTIONIST') {
-        toast({
-          title: 'Error',
-          description: 'Solo se puede revocar el rol de Recepcionista',
-          variant: 'destructive',
-        });
-        return;
-      }
-
       await changeUserRole(staff.id, 'MEMBER');
 
       toast({
@@ -45,28 +34,33 @@ function ActionButton({ staff, onRefresh }: Readonly<{ staff: StaffMember; onRef
     }
   };
 
+  // Solo se puede modificar el rol RECEPTIONIST
+  const canModifyRole = staff.role === 'RECEPTIONIST';
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0">
-          <span className="sr-only">Abrir menú</span>
-          <MoreHorizontal className="h-4 w-4" />
+    <div className="flex items-center gap-2">
+      {canModifyRole ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRevokeRole}
+          className="h-8 px-2 w-32"
+        >
+          <UserMinus className="h-4 w-4 mr-1" />
+          Quitar Rol
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-        {staff.role === 'RECEPTIONIST' && (
-          <DropdownMenuItem onClick={handleRevokeRole}>
-            Quitar Rol de Recepcionista
-          </DropdownMenuItem>
-        )}
-        {staff.role !== 'RECEPTIONIST' && (
-          <DropdownMenuItem disabled>
-            No se puede modificar este rol
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled
+          className="h-8 px-2 w-32"
+        >
+          <Lock className="h-4 w-4 mr-1" />
+          Rol Protegido
+        </Button>
+      )}
+    </div>
   );
 }
 
