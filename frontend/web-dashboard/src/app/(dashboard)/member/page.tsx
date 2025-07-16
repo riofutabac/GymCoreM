@@ -1,10 +1,59 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Activity, CreditCard, Clock } from "lucide-react";
+import { Activity, CreditCard, Clock, Loader2, User, BarChart3 } from "lucide-react";
+import { JoinGym } from "@/components/member/JoinGym";
+import { getMemberProfile, getMembershipStatus } from "@/lib/api/member";
+import { MemberProfile, MembershipStatus } from "@/lib/api/types";
 
 export default function MemberDashboardPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [memberData, setMemberData] = useState<MemberProfile | null>(null);
+  const [membershipData, setMembershipData] = useState<MembershipStatus | null>(null);
+  const router = useRouter();
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [memberProfile, membershipStatus] = await Promise.all([
+          getMemberProfile().catch(() => null),
+          getMembershipStatus().catch(() => null)
+        ]);
+        
+        setMemberData(memberProfile);
+        setMembershipData(membershipStatus);
+      } catch (err: any) {
+        setError(err.message || 'Error al cargar los datos');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
+  
+  // If loading, show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando información...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // If no gym assigned, show join gym component
+  if (!memberData?.gymId) {
+    return <JoinGym />;
+  }
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -23,9 +72,9 @@ export default function MemberDashboardPage() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">14</div>
+            <div className="text-2xl font-bold">{memberData?.visits?.thisMonth || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +3 vs mes anterior
+              {memberData?.visits?.change > 0 ? `+${memberData?.visits?.change}` : memberData?.visits?.change || '0'} vs mes anterior
             </p>
           </CardContent>
         </Card>
@@ -33,12 +82,19 @@ export default function MemberDashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Estado de Membresía</CardTitle>
-            <Badge variant="default" className="text-xs">Activa</Badge>
+            <Badge 
+              variant={membershipData?.status === 'ACTIVE' ? 'default' : 'destructive'} 
+              className="text-xs"
+            >
+              {membershipData?.status === 'ACTIVE' ? 'Activa' : 'Inactiva'}
+            </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-green-600">Activa</div>
+            <div className={`text-xl font-bold ${membershipData?.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'}`}>
+              {membershipData?.status === 'ACTIVE' ? 'Activa' : 'Inactiva'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Vence: 15/12/2024
+              {membershipData?.status === 'ACTIVE' ? `Vence: ${new Date(membershipData?.expiresAt).toLocaleDateString()}` : 'Membresía vencida'}
             </p>
           </CardContent>
         </Card>
@@ -49,85 +105,86 @@ export default function MemberDashboardPage() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">€29.99</div>
+            <div className="text-xl font-bold">{membershipData?.nextPayment?.amount || '€0.00'}</div>
             <p className="text-xs text-muted-foreground">
-              15 de Diciembre
+              {membershipData?.nextPayment?.date ? new Date(membershipData?.nextPayment?.date).toLocaleDateString() : 'No programado'}
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Member Services */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Mi Información</CardTitle>
-            <CardDescription>
-              Gestiona tus datos personales y configuraciones
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button variant="outline" className="w-full justify-start h-auto p-4">
-              <div className="text-left">
-                <div className="font-medium">Actualizar Datos Personales</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Email, teléfono, dirección
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold tracking-tight">Servicios</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="bg-muted/50">
+            <CardContent className="p-0">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start h-auto p-4"
+                onClick={() => router.push('/member/profile')}
+              >
+                <div className="text-left">
+                  <div className="font-medium">Actualizar Datos</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Modifica tu información personal
+                  </div>
                 </div>
-              </div>
-            </Button>
-            <Button variant="outline" className="w-full justify-start h-auto p-4">
-              <div className="text-left">
-                <div className="font-medium">Historial de Pagos</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Ver facturas y recibos
+              </Button>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-muted/50">
+            <CardContent className="p-0">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start h-auto p-4"
+                onClick={() => router.push('/member/visits')}
+              >
+                <div className="text-left">
+                  <div className="font-medium">Historial de Visitas</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Ver tus entradas al gimnasio
+                  </div>
                 </div>
-              </div>
-            </Button>
-            <Button variant="outline" className="w-full justify-start h-auto p-4">
-              <div className="text-left">
-                <div className="font-medium">Historial de Visitas</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Check-ins anteriores
+              </Button>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-muted/50">
+            <CardContent className="p-0">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start h-auto p-4"
+                onClick={() => router.push('/member/payments')}
+              >
+                <div className="text-left">
+                  <div className="font-medium">Historial de Pagos</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Ver facturas y recibos
+                  </div>
                 </div>
-              </div>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Servicios</CardTitle>
-            <CardDescription>
-              Accede a todas las funcionalidades disponibles
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button className="w-full justify-start h-auto p-4">
-              <div className="text-left">
-                <div className="font-medium">Reservar Clase</div>
-                <div className="text-sm text-primary-foreground/80 mt-1">
-                  Yoga, Spinning, Zumba...
+              </Button>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-muted/50">
+            <CardContent className="p-0">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start h-auto p-4"
+                onClick={() => router.push('/member/classes')}
+              >
+                <div className="text-left">
+                  <div className="font-medium">Reservar Clases</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Inscríbete a clases grupales
+                  </div>
                 </div>
-              </div>
-            </Button>
-            <Button variant="outline" className="w-full justify-start h-auto p-4">
-              <div className="text-left">
-                <div className="font-medium">Congelar Membresía</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Pausar temporalmente
-                </div>
-              </div>
-            </Button>
-            <Button variant="outline" className="w-full justify-start h-auto p-4">
-              <div className="text-left">
-                <div className="font-medium">Invitar Amigo</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Pase de prueba gratuito
-                </div>
-              </div>
-            </Button>
-          </CardContent>
-        </Card>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Quick Info */}
@@ -155,6 +212,8 @@ export default function MemberDashboardPage() {
           </div>
         </AlertDescription>
       </Alert>
+      
+
     </div>
   );
 }

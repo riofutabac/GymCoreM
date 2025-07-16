@@ -131,3 +131,63 @@ export interface ProductDto {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Types for Member Portal
+export interface MemberProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  gymId: string | null;
+  gym?: {
+    id: string;
+    name: string;
+    address: string;
+    openingHours?: string;
+    contactPhone?: string;
+  };
+  visits?: {
+    thisMonth: number;
+    change: number;
+    history?: Array<{
+      date: string;
+      checkInTime: string;
+      checkOutTime?: string;
+    }>;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MembershipStatus {
+  id: string;
+  memberId: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'BANNED';
+  type: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'TRIAL';
+  startDate: string;
+  expiresAt: string;
+  nextPayment?: {
+    date: string;
+    amount: string;
+  };
+  paymentMethod?: string;
+  autoRenew: boolean;
+}
+
+export interface Payment {
+  id: string;
+  date: string;
+  amount: string;
+  status: 'completed' | 'pending' | 'failed';
+  description: string;
+  paymentMethod: string;
+  reference?: string;
+}
+
+export interface PayPalCheckoutResponse {
+  url: string;
+  token: string;
+  expiresAt: string;
+}

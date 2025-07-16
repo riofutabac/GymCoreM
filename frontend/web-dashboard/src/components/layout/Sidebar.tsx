@@ -106,14 +106,14 @@ const roleMenus: Record<string, MenuSection[]> = {
       items: [
         { href: '/member', label: 'Dashboard', icon: Home },
         { href: '/member/profile', label: 'Mi Perfil', icon: Users },
-        { href: '/member/membership', label: 'Membresía', icon: CreditCard },
+        { href: '/member/payments', label: 'Pagos', icon: CreditCard },
         { href: '/member/classes', label: 'Clases', icon: Calendar },
       ]
     },
     {
       title: "Servicios",
       items: [
-        { href: '/member/history', label: 'Historial', icon: BarChart3 },
+        { href: '/member/visits', label: 'Mis Visitas', icon: UserCheck },
         { href: '/member/notifications', label: 'Notificaciones', icon: Bell },
       ]
     }
