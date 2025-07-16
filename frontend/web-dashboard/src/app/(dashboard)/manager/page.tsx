@@ -16,6 +16,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from 'recharts';
 
 interface KpiData {
@@ -59,6 +63,35 @@ export default function ManagerDashboardPage() {
 
   const monthlyRevenueData = buildMonthlyRevenueData();
 
+  // Construir datos de membresías por estado
+  const buildMembershipStatusData = () => {
+    const activeMembers = kpis?.activeMembers || 0;
+    const expiringMembers = kpis?.membershipsExpiringNext7Days || 0;
+    
+    const data = [];
+    
+    if (activeMembers > 0) {
+      data.push({
+        name: 'Activas',
+        value: activeMembers,
+        color: '#22c55e', // verde
+      });
+    }
+    
+    if (expiringMembers > 0) {
+      data.push({
+        name: 'Por Vencer',
+        value: expiringMembers,
+        color: '#f59e0b', // amarillo/naranja
+      });
+    }
+    
+    return data;
+  };
+
+  const membershipStatusData = buildMembershipStatusData();
+  const COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#3b82f6'];
+
   useEffect(() => {
     getManagerDashboardKpis()
       .then(setKpis)
@@ -97,7 +130,10 @@ export default function ManagerDashboardPage() {
             </Card>
           ))}
         </div>
-        <Skeleton className="h-80 w-full" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Skeleton className="h-80 w-full" />
+          <Skeleton className="h-80 w-full" />
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           {[...Array(4)].map((_, i) => (
             <Card key={`shortcut-skeleton-${Date.now()}-${i}`}>
@@ -174,36 +210,80 @@ export default function ManagerDashboardPage() {
         </Card>
       </div>
 
-      {/* Gráfico de Ingresos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ingresos por Mes</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Evolución de ingresos reales por mes
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyRevenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip 
-                  formatter={(value) => [`$${value}`, 'Ingresos']}
-                  labelFormatter={(label) => `Mes: ${label}`}
-                />
-                <Bar dataKey="revenue" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          {!monthlyRevenueData || monthlyRevenueData.length === 0 && (
-            <div className="flex items-center justify-center h-80">
-              <p className="text-muted-foreground">No hay datos disponibles</p>
+      {/* Gráficos */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Gráfico de Ingresos */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Ingresos por Mes</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Evolución de ingresos reales por mes
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyRevenueData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value) => [`$${value}`, 'Ingresos']}
+                    labelFormatter={(label) => `Mes: ${label}`}
+                  />
+                  <Bar dataKey="revenue" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {!monthlyRevenueData || monthlyRevenueData.length === 0 && (
+              <div className="flex items-center justify-center h-80">
+                <p className="text-muted-foreground">No hay datos disponibles</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Gráfico de Membresías por Estado */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Estado de Membresías</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Distribución actual de membresías
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={membershipStatusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => 
+                      `${name}: ${value} (${((percent || 0) * 100).toFixed(0)}%)`
+                    }
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {membershipStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [`${value}`, 'Membresías']} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {!membershipStatusData || membershipStatusData.length === 0 && (
+              <div className="flex items-center justify-center h-80">
+                <p className="text-muted-foreground">No hay datos disponibles</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Accesos Directos */}
       <div>
