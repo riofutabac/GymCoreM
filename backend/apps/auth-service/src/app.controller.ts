@@ -3,8 +3,8 @@
 import { Controller, ValidationPipe } from '@nestjs/common';
 import { MessagePattern, Payload, EventPattern } from '@nestjs/microservices';
 import { AppService } from './app.service';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 @Controller()
 export class AppController {
@@ -42,12 +42,17 @@ export class AppController {
   }
 
   @MessagePattern({ cmd: 'update_user_profile' })
-  async updateUserProfile(@Payload() payload: { userId: string; data: { firstName?: string; lastName?: string } }) {
+  async updateUserProfile(@Payload() payload: { userId: string; data: UpdateProfileDto }) {
+    return this.appService.updateUserProfile(payload.userId, payload.data);
+  }
+  
+  @MessagePattern({ cmd: 'update_profile' })
+  async updateProfile(@Payload() payload: { userId: string; data: UpdateProfileDto }) {
     return this.appService.updateUserProfile(payload.userId, payload.data);
   }
 
   @MessagePattern({ cmd: 'request_password_reset' })
-  async requestPasswordReset(@Payload() data: { email: string }) {
+  async requestPasswordReset(@Payload(new ValidationPipe()) data: ForgotPasswordDto) {
     return this.appService.requestPasswordReset(data.email);
   }
 
@@ -77,8 +82,7 @@ export class AppController {
   async handleUserEmailUpdate(@Payload() data: { userId: string; newEmail: string }) {
     return this.appService.updateUserAuthEmail(data.userId, data.newEmail);
   }
-
-  @MessagePattern({ cmd: 'reset_password' })
+   @MessagePattern({ cmd: 'reset_password' })
   async resetPassword(@Payload() data: { email: string }) {
     return this.appService.sendPasswordReset(data.email);
   }
