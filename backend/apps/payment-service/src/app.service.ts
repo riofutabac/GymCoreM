@@ -440,10 +440,11 @@ export class AppService {
   }
 
   /**
-   * Obtiene los ingresos en efectivo de un gimnasio específico en un rango de fechas
+   * Obtiene los ingresos totales en efectivo de un gimnasio específico en un rango de fechas
+   * Incluye: membresías pagadas en efectivo + ventas POS en efectivo
    */
   async getCashRevenueForGym(gymId: string, startOfMonth: string, endOfMonth: string): Promise<{ totalCashRevenue: number }> {
-    this.logger.log(`Calculando ingresos en efectivo para gym ${gymId} desde ${startOfMonth} hasta ${endOfMonth}`);
+    this.logger.log(`Calculando ingresos totales en efectivo para gym ${gymId} desde ${startOfMonth} hasta ${endOfMonth}`);
 
     try {
       // Obtener todos los pagos en efectivo completados en el rango de fechas
@@ -455,8 +456,6 @@ export class AppService {
             gte: new Date(startOfMonth),
             lte: new Date(endOfMonth),
           },
-          // Necesitamos filtrar por gymId, pero no está en Payment
-          // Tendremos que consultar el gym-service para validar cada payment
         },
         select: {
           id: true,
@@ -467,7 +466,7 @@ export class AppService {
         },
       });
 
-      this.logger.log(`Encontrados ${cashPayments.length} pagos en efectivo en el período`);
+      this.logger.log(`Encontrados ${cashPayments.length} pagos en efectivo en el período (membresías + POS)`);
 
       // Filtrar pagos que pertenecen al gimnasio específico
       let totalCashRevenue = 0;
@@ -485,15 +484,22 @@ export class AppService {
               this.logger.log(`Pago de membresía $${payment.amount} incluido para gym ${gymId}`);
             }
           }
-          // Si tiene userId pero no membershipId (venta POS), verificar que el usuario pertenece al gimnasio
+          // Si tiene userId pero no membershipId, podría ser venta POS (userId = gymId) o usuario normal
           else if (payment.userId) {
-            const userInfo = await firstValueFrom(
-              this.gymClient.send({ cmd: 'get_user_gym' }, { userId: payment.userId })
-            );
-            
-            if (userInfo?.gymId === gymId) {
+            // Si el userId coincide con el gymId, es una venta POS
+            if (payment.userId === gymId) {
               totalCashRevenue += payment.amount;
-              this.logger.log(`Pago POS $${payment.amount} incluido para gym ${gymId}`);
+              this.logger.log(`Pago POS en efectivo $${payment.amount} incluido para gym ${gymId}`);
+            } else {
+              // Es un usuario normal, verificar que pertenece al gimnasio
+              const userInfo = await firstValueFrom(
+                this.gymClient.send({ cmd: 'get_user_gym' }, { userId: payment.userId })
+              );
+              
+              if (userInfo?.gymId === gymId) {
+                totalCashRevenue += payment.amount;
+                this.logger.log(`Pago de usuario $${payment.amount} incluido para gym ${gymId}`);
+              }
             }
           }
         } catch (error) {
@@ -502,12 +508,61 @@ export class AppService {
         }
       }
 
-      this.logger.log(`Total ingresos en efectivo calculados para gym ${gymId}: $${totalCashRevenue}`);
+      this.logger.log(`Total ingresos en efectivo calculados para gym ${gymId}: $${totalCashRevenue} (membresías + POS)`);
       return { totalCashRevenue };
 
     } catch (error) {
       this.logger.error(`Error calculando ingresos en efectivo para gym ${gymId}:`, error);
       return { totalCashRevenue: 0 };
+    }
+  }
+
+  /**
+   * Crear un registro de Payment desde una venta POS (inventory-service)
+   */
+  async createPaymentFromPOSSale(eventData: any) {
+    try {
+      this.logger.log(`Creando registro de Payment desde venta POS: ${JSON.stringify(eventData)}`);
+
+      // Validar que tenemos los datos necesarios
+      if (!eventData.saleId || !eventData.amount || !eventData.paymentMethod || !eventData.gymId) {
+        this.logger.error('Datos insuficientes en evento POS:', eventData);
+        return;
+      }
+
+      // Verificar si ya existe un Payment para esta venta
+      const existingPayment = await this.prisma.payment.findFirst({
+        where: {
+          saleId: eventData.saleId,
+        },
+      });
+
+      if (existingPayment) {
+        this.logger.log(`Payment ya existe para venta POS ${eventData.saleId}, omitiendo`);
+        return;
+      }
+
+      // Crear el registro de Payment
+      const payment = await this.prisma.payment.create({
+        data: {
+          amount: eventData.amount,
+          method: eventData.paymentMethod, // 'CASH', 'CARD_PRESENT', etc.
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          transactionId: `POS-${eventData.saleId}`, // Referencia única para ventas POS
+          saleId: eventData.saleId, // ID de la venta POS
+          userId: eventData.gymId, // Usaremos userId para almacenar gymId para ventas POS
+          membershipId: null, // Las ventas POS no tienen membershipId
+        },
+      });
+
+      this.logger.log(`✅ Payment creado para venta POS: ${payment.id} (${payment.method}) por $${payment.amount}`);
+      
+      return payment;
+
+    } catch (error) {
+      this.logger.error('Error creando Payment desde venta POS:', error);
+      throw error;
     }
   }
 }

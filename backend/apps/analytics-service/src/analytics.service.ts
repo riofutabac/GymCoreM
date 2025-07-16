@@ -183,8 +183,8 @@ export class AnalyticsService {
         })
       );
 
-      // Obtener ingresos en efectivo del mes actual del gimnasio específico
-      // Implementación temporal: consultar directamente al payment-service
+      // Obtener ingresos totales en efectivo del mes actual del gimnasio específico
+      // Incluye: membresías pagadas en efectivo + ventas POS en efectivo
       let cashRevenueThisMonth = 0;
       
       try {
@@ -196,7 +196,7 @@ export class AnalyticsService {
           })
         );
         cashRevenueThisMonth = paymentStats?.totalCashRevenue || 0;
-        this.logger.log(`Ingresos en efectivo calculados para gym ${gymId}: $${cashRevenueThisMonth}`);
+        this.logger.log(`Ingresos totales en efectivo calculados para gym ${gymId}: $${cashRevenueThisMonth} (membresías + POS)`);
       } catch (error) {
         this.logger.warn(`No se pudieron obtener ingresos en efectivo para gym ${gymId}:`, error);
         cashRevenueThisMonth = 0;

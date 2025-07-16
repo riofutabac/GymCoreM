@@ -19,7 +19,10 @@ import { Response } from 'express';
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) {
+    // Log para verificar que el controlador se inicializa
+    this.logger.log('🚀 PaymentService AppController inicializado');
+  }
 
   @Get()
   getHello(): string {
@@ -45,9 +48,45 @@ export class AppController {
 
   // --- WEBHOOK CON VERIFICACIÓN DE FIRMA USANDO SDK ---
   @MessagePattern({ cmd: 'handle_paypal_webhook' })
-  handleWebhook(@Payload() data: { body: any; headers: any; rawBody: string }) {
-    // Pasamos el cuerpo, las cabeceras y el rawBody (como string) al servicio
+  async handlePaypalWebhook(@Payload() data: any) {
+    this.logger.log('📥 Webhook de PayPal recibido en payment-service');
     return this.appService.handlePaypalWebhook(data);
+  }
+
+  // Escuchar eventos payment.completed del inventory-service (ventas POS)
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'payment.completed',
+    queue: 'payment-service-payment-completed',
+    queueOptions: { durable: true },
+  })
+  async handlePaymentCompleted(@Payload() data: any): Promise<void> {
+    this.logger.log(`🎯 PAYMENT-SERVICE: Evento payment.completed recibido: ${JSON.stringify(data)}`);
+    
+    // SIEMPRE procesar para debug
+    this.logger.log(`🔍 Debug - source: ${data.source}, saleId: ${data.saleId}`);
+    
+    // Solo procesar si viene del POS (inventory-service)
+    if (data.source === 'POS') {
+      this.logger.log(`✅ Procesando venta POS: ${data.saleId}`);
+      await this.appService.createPaymentFromPOSSale(data);
+      return;
+    }
+    
+    this.logger.log(`⚠️ Evento payment.completed ignorado (source: ${data.source})`);
+  }
+
+  // LISTENER DE DEBUG - TEMPORAL
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: '#',
+    queue: 'payment-debug-all-events',
+    queueOptions: { durable: false, autoDelete: true },
+  })
+  async debugAllEvents(@Payload() data: any, @Payload('routingKey') routingKey: string): Promise<void> {
+    if (routingKey === 'payment.completed') {
+      this.logger.log(`🐛 DEBUG: Capturé event payment.completed en listener genérico: ${JSON.stringify(data)}`);
+    }
   }
 
   // --- AÑADIR ESTE NUEVO MÉTODO PARA PROMETHEUS ---
