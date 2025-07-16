@@ -39,7 +39,7 @@ export default function ActivateMembershipModal({
       userId: memberId,
       startDate: new Date(),
       endDate: addMonths(new Date(), 1),
-      amount: 0,
+      amount: undefined, // Cambiado a undefined para campo vacío
       reason: 'Activación manual (pago en efectivo)',
     },
   });
@@ -63,7 +63,7 @@ export default function ActivateMembershipModal({
         userId: memberId,
         startDate: startDate,
         endDate: addMonths(startDate, 1),
-        amount: 0,
+        amount: undefined, // Cambiado a undefined para campo vacío
         reason: isRenewal ? 'Renovación manual (pago en efectivo)' : 'Activación manual (pago en efectivo)',
       });
     }
@@ -230,8 +230,11 @@ export default function ActivateMembershipModal({
                       type="number"
                       step="0.01"
                       placeholder="0.00"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      value={field.value ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        field.onChange(value === '' ? undefined : parseFloat(value) || undefined);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
