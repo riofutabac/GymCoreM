@@ -2,10 +2,10 @@ import { IsUUID, IsDateString, IsOptional, IsString, IsNumber, IsPositive } from
 
 export class RenewMembershipDto {
   @IsUUID()
-  membershipId: string;
+  membershipId!: string;
 
   @IsDateString()
-  newEndDate: string;
+  newEndDate!: string;
 
   @IsOptional()
   @IsString()
