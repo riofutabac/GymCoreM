@@ -155,6 +155,18 @@ export const activateMembership = async (payload: ActivateMembershipPayload) => 
     });
 };
 
+export const renewMembership = async (payload: {
+    membershipId: string;
+    newEndDate: string;
+    amount?: number;
+    reason?: string;
+}) => {
+    return apiFetch('/memberships/renew', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+};
+
 export const banMembership = async (membershipId: string, reason?: string) =>
   apiFetch(`/memberships/${membershipId}/ban`, {
     method: 'POST',

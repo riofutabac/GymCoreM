@@ -49,8 +49,16 @@ export class AnalyticsService {
   /**
    * Procesa un pago completado, actualizando ingresos y membresías.
    * Incluye protección de idempotencia para evitar procesamientos duplicados.
+   * ⚠️ IMPORTANTE: No procesa pagos de membresías que ya fueron procesados.
    */
   async processCompletedPayment(amount: number, eventId?: string, isMembership: boolean = false): Promise<void> {
+    // 🚫 EVITAR DUPLICACIÓN: No procesar pagos de membresías
+    // que ya fueron procesados via membership.activated.manually
+    if (isMembership) {
+      this.logger.log(`⚠️ Ignorando payment.completed con isMembership=true (eventId: ${eventId}) - ya procesado via membership event`);
+      return;
+    }
+
     // --- PROTECCIÓN DE IDEMPOTENCIA ---
     if (eventId) {
       const alreadyProcessed = await this.redis.get(`processed:${eventId}`);
@@ -421,6 +429,70 @@ export class AnalyticsService {
   }
 
   /**
-   * Maneja la activación de membresía
+   * Procesa la activación manual de una membresía
    */
+  async processMembershipActivation(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    activatedBy: string;
+    gymId?: string;
+  }): Promise<void> {
+    this.logger.log(`Procesando activación de membresía ${payload.membershipId} por $${payload.amount}`);
+    
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Actualizar resumen diario con el ingreso y membresía vendida
+    await this.prisma.dailyAnalyticsSummary.upsert({
+      where: { date: today },
+      update: { 
+        revenue: { increment: payload.amount },
+        membershipsSold: { increment: 1 }
+      },
+      create: { 
+        date: today, 
+        newUsers: 0, 
+        revenue: payload.amount, 
+        membershipsSold: 1
+      },
+    });
+    
+    this.logger.log(`✅ Resumen diario actualizado: +$${payload.amount} ingresos, +1 membresía`);
+    await this.invalidateKpiCache();
+  }
+
+  /**
+   * Procesa la renovación manual de una membresía
+   */
+  async processMembershipRenewal(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    renewedBy: string;
+    gymId?: string;
+  }): Promise<void> {
+    this.logger.log(`Procesando renovación de membresía ${payload.membershipId} por $${payload.amount}`);
+    
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Actualizar resumen diario con el ingreso (renovaciones cuentan como ingresos)
+    await this.prisma.dailyAnalyticsSummary.upsert({
+      where: { date: today },
+      update: { 
+        revenue: { increment: payload.amount },
+        // Las renovaciones no cuentan como nuevas membresías vendidas
+      },
+      create: { 
+        date: today, 
+        newUsers: 0, 
+        revenue: payload.amount, 
+        membershipsSold: 0
+      },
+    });
+    
+    this.logger.log(`✅ Resumen diario actualizado: +$${payload.amount} ingresos por renovación`);
+    await this.invalidateKpiCache();
+  }
 }

@@ -86,6 +86,7 @@ export class MembershipService {
         method: 'CASH', // Método para activación manual
         reason: dto.reason ?? 'Activación manual (pago en efectivo)',
         activatedBy: managerId,
+        gymId: manager.gymId, // ← Incluir gymId para Analytics
       };
 
       await this.amqpConnection.publish(
@@ -133,16 +134,38 @@ export class MembershipService {
     if (!membership) throw new NotFoundException('Membership not found');
 
     const newEnd = new Date(dto.newEndDate);
-    if (newEnd <= membership.endDate) {
-      throw new BadRequestException('newEndDate must be after current endDate');
+    const today = new Date();
+    
+    // Validación mejorada: permitir renovar membresías expiradas
+    // Solo validar que la nueva fecha de fin sea posterior a hoy
+    if (newEnd <= today) {
+      throw new BadRequestException('La nueva fecha de finalización debe ser posterior a hoy');
     }
 
     await this.validatePermissions(managerId, membership.userId, membership.gymId);
 
+    this.logger.log(`🔄 Iniciando renovación de membresía ${dto.membershipId}`);
+    this.logger.log(`📅 Nueva fecha de finalización: ${newEnd.toISOString()}`);
+
     return this.prisma.$transaction(async (tx) => {
+      // Determinar la fecha de inicio para la renovación
+      let startDate: Date;
+      if (membership.endDate && membership.endDate > today) {
+        // Si la membresía aún está activa, extender desde la fecha actual de fin
+        startDate = membership.endDate;
+      } else {
+        // Si la membresía está expirada, comenzar desde hoy
+        startDate = today;
+      }
+
       const updated = await tx.membership.update({
         where: { id: membership.id },
-        data: { endDate: newEnd, status: 'ACTIVE' },
+        data: { 
+          endDate: newEnd, 
+          startDate: startDate,
+          status: 'ACTIVE',
+          activatedById: managerId 
+        },
       });
 
       await tx.membershipLog.create({
@@ -150,10 +173,44 @@ export class MembershipService {
           membershipId: membership.id,
           action: 'RENEWED',
           performedById: managerId,
-          reason: dto.reason ?? 'Manual renewal',
-          details: { oldEndDate: membership.endDate, newEndDate: newEnd },
+          reason: dto.reason ?? 'Renovación manual (pago en efectivo)',
+          details: { 
+            oldEndDate: membership.endDate, 
+            newEndDate: newEnd,
+            newStartDate: startDate,
+            wasExpired: membership.endDate <= today,
+            amount: dto.amount
+          },
         },
       });
+
+      // Si se especifica un monto, emitir evento para crear registro de pago
+      if (dto.amount) {
+        const eventPayload = {
+          userId: membership.userId,
+          membershipId: membership.id,
+          amount: dto.amount,
+          method: 'CASH',
+          reason: dto.reason ?? 'Renovación manual (pago en efectivo)',
+          renewedBy: managerId,
+          gymId: membership.gymId, // ← Incluir gymId para Analytics
+        };
+
+        await this.amqpConnection.publish(
+          'gymcore-exchange',
+          'membership.renewed.manually',
+          eventPayload,
+          { persistent: true }
+        );
+        
+        this.logger.log(`Evento 'membership.renewed.manually' emitido para membresía ${membership.id}`);
+      }
+
+      this.logger.log(`✅ MEMBRESÍA RENOVADA EXITOSAMENTE:`);
+      this.logger.log(`   • ID Membresía: ${updated.id}`);
+      this.logger.log(`   • Nueva fecha de inicio: ${startDate.toLocaleDateString('es-ES')}`);
+      this.logger.log(`   • Nueva fecha de fin: ${newEnd.toLocaleDateString('es-ES')}`);
+      this.logger.log(`   • Renovado por Manager: ${managerId}`);
 
       return updated;
     });

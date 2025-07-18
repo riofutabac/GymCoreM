@@ -147,6 +147,7 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
           memberId={member.id}
           membershipStatus={member.membershipStatus}
           membershipEndDate={member.membershipEndDate}
+          activeMembershipId={member.activeMembershipId}
         />
       )}
     </>

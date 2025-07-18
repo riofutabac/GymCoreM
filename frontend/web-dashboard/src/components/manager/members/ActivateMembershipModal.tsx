@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { activateMembershipSchema, type ActivateMembershipFormData } from '@/lib/validations/manager-validations';
-import { activateMembership } from '@/lib/api/manager';
+import { activateMembership, renewMembership } from '@/lib/api/manager';
 import { useToast } from '@/hooks/use-toast';
 import { addMonths, addDays } from 'date-fns';
 import { Member } from '@/lib/api/types';
@@ -20,6 +20,7 @@ interface ActivateMembershipModalProps {
   readonly memberId: string;
   readonly membershipStatus: Member['membershipStatus'];
   readonly membershipEndDate: string | null;
+  readonly activeMembershipId?: string;
 }
 
 export default function ActivateMembershipModal({
@@ -28,10 +29,11 @@ export default function ActivateMembershipModal({
   memberId,
   membershipStatus,
   membershipEndDate,
+  activeMembershipId,
 }: ActivateMembershipModalProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isRenewal = membershipStatus === 'ACTIVE';
+  const isRenewal = membershipStatus === 'ACTIVE' || membershipStatus === 'EXPIRED';
 
   const form = useForm<ActivateMembershipFormData>({
     resolver: zodResolver(activateMembershipSchema),
@@ -79,7 +81,7 @@ export default function ActivateMembershipModal({
     setIsSubmitting(true);
     
     // 🐛 LOGS DE DEPURACIÓN - Fechas de membresía
-    console.log('🔄 ACTIVANDO MEMBRESÍA - Datos del formulario:');
+    console.log(`🔄 ${isRenewal ? 'RENOVANDO' : 'ACTIVANDO'} MEMBRESÍA - Datos del formulario:`);
     console.log('   • Usuario ID:', data.userId);
     console.log('   • Fecha de Inicio (raw):', data.startDate);
     console.log('   • Fecha de Inicio (ISO):', data.startDate.toISOString());
@@ -88,22 +90,35 @@ export default function ActivateMembershipModal({
     console.log('   • Duración:', Math.round((data.endDate.getTime() - data.startDate.getTime()) / (1000 * 60 * 60 * 24)), 'días');
     console.log('   • Monto:', data.amount);
     console.log('   • Razón:', data.reason);
+    console.log('   • Membership ID:', activeMembershipId);
+    console.log('   • Es renovación:', isRenewal);
     
     try {
-      await activateMembership({
-        memberId: data.userId,
-        startsAt: data.startDate.toISOString(),
-        endsAt: data.endDate.toISOString(),
-        amount: data.amount,
-        paymentType: 'CASH', // ← Campo requerido para activación manual
-        reason: data.reason,
-      });
-
-      console.log('✅ Membresía enviada exitosamente al backend');
+      if (isRenewal && activeMembershipId) {
+        // Usar API de renovación para membresías activas o expiradas
+        await renewMembership({
+          membershipId: activeMembershipId,
+          newEndDate: data.endDate.toISOString(),
+          amount: data.amount,
+          reason: data.reason,
+        });
+        console.log('✅ Membresía renovada exitosamente');
+      } else {
+        // Usar API de activación para membresías pendientes
+        await activateMembership({
+          memberId: data.userId,
+          startsAt: data.startDate.toISOString(),
+          endsAt: data.endDate.toISOString(),
+          amount: data.amount,
+          paymentType: 'CASH', // ← Campo requerido para activación manual
+          reason: data.reason,
+        });
+        console.log('✅ Membresía activada exitosamente');
+      }
 
       toast({
         title: 'Éxito',
-        description: 'Membresía activada correctamente',
+        description: isRenewal ? 'Membresía renovada correctamente' : 'Membresía activada correctamente',
       });
 
       onClose();
@@ -124,7 +139,7 @@ export default function ActivateMembershipModal({
         // --- Manejo de otros errores ---
         toast({
           title: 'Error',
-          description: `Error al activar la membresía: ${errorMessage}`,
+          description: `Error al ${isRenewal ? 'renovar' : 'activar'} la membresía: ${errorMessage}`,
           variant: 'destructive',
         });
       }
@@ -139,7 +154,9 @@ export default function ActivateMembershipModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Activar/Renovar Membresía (Efectivo)</DialogTitle>
+          <DialogTitle>
+            {isRenewal ? 'Renovar Membresía (Efectivo)' : 'Activar Membresía (Efectivo)'}
+          </DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -247,7 +264,10 @@ export default function ActivateMembershipModal({
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Activando...' : 'Activar Membresía'}
+                {isSubmitting 
+                  ? (isRenewal ? 'Renovando...' : 'Activando...') 
+                  : (isRenewal ? 'Renovar Membresía' : 'Activar Membresía')
+                }
               </Button>
             </DialogFooter>
           </form>

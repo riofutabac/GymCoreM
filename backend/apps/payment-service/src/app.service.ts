@@ -404,34 +404,17 @@ export class AppService {
           membershipId: payload.membershipId,
           amount: payload.amount,
           currency: 'USD',
-          method: 'CASH', // Usamos directamente 'CASH' que está en el enum
+          method: 'CASH',
           status: 'COMPLETED',
           completedAt: new Date(),
-          transactionId: transactionId, // ✨ Usamos el nuevo ID, más limpio
+          transactionId: transactionId,
         },
       });
 
-      // 🚀 PUBLICAR EVENTO PARA QUE OTROS SERVICIOS PROCESEN EL PAGO MANUAL
-      await this.amqpConnection.publish(
-        'gymcore-exchange',
-        'payment.completed',
-        {
-          userId: payment.userId,
-          membershipId: payment.membershipId, // ¡CLAVE! Esto marca que es una membresía
-          paymentId: payment.id,
-          paidAt: new Date().toISOString(),
-          amount: payment.amount,
-          currency: payment.currency,
-          paymentMethod: 'CASH',
-          status: 'COMPLETED',
-          timestamp: new Date().toISOString(),
-          source: 'MANUAL_PAYMENT',
-        },
-        { persistent: true },
-      );
+      this.logger.log(`Pago manual registrado: ${payment.id} por $${payment.amount}`);
       
-      this.logger.log(`✅ Pago manual para membresía ${payload.membershipId} registrado exitosamente con ID: ${transactionId}`);
-      this.logger.log(`✅ Evento 'payment.completed' publicado para pago manual (CASH) por $${payment.amount}`);
+      // NO publicar payment.completed para membresías manuales
+      // Analytics Service ya procesa estos pagos via membership.activated.manually
     } catch (error) {
       this.logger.error(`❌ Error creando pago manual para membresía ${payload.membershipId}`, error);
       // Re-lanzar el error para que RabbitMQ pueda manejarlo (e.g., Dead Letter Queue)
