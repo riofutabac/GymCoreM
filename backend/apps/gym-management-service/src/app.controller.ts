@@ -94,7 +94,6 @@ export class AppController {
 
   @MessagePattern({ cmd: 'get_membership_stats' })
   async getMembershipStats(@Payload() payload: { gymId: string; today: string; startOfMonth: string }) {
-    this.logger.log(`Obteniendo estadísticas de membresías para gym ${payload.gymId}`);
     return this.appService.getMembershipStats(payload.gymId, payload.today, payload.startOfMonth);
   }
 
@@ -105,13 +104,11 @@ export class AppController {
 
   @MessagePattern({ cmd: 'get_membership_gym' })
   async getMembershipGym(@Payload() payload: { membershipId: string }) {
-    this.logger.log(`Obteniendo información de gimnasio para membresía ${payload.membershipId}`);
     return this.appService.getMembershipGym(payload.membershipId);
   }
 
   @MessagePattern({ cmd: 'get_user_gym' })
   async getUserGym(@Payload() payload: { userId: string }) {
-    this.logger.log(`Obteniendo información de gimnasio para usuario ${payload.userId}`);
     return this.appService.getUserGym(payload.userId);
   }
 }

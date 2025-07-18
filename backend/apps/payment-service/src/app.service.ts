@@ -453,6 +453,9 @@ export class AppService {
 
       // Filtrar pagos que pertenecen al gimnasio específico
       let totalCashRevenue = 0;
+      let membershipPaymentsCount = 0;
+      let posPaymentsCount = 0;
+      let userPaymentsCount = 0;
       
       for (const payment of cashPayments) {
         try {
@@ -464,7 +467,7 @@ export class AppService {
             
             if (membershipInfo?.gymId === gymId) {
               totalCashRevenue += payment.amount;
-              this.logger.log(`Pago de membresía $${payment.amount} incluido para gym ${gymId}`);
+              membershipPaymentsCount++;
             }
           }
           // Si tiene userId pero no membershipId, podría ser venta POS (userId = gymId) o usuario normal
@@ -472,7 +475,7 @@ export class AppService {
             // Si el userId coincide con el gymId, es una venta POS
             if (payment.userId === gymId) {
               totalCashRevenue += payment.amount;
-              this.logger.log(`Pago POS en efectivo $${payment.amount} incluido para gym ${gymId}`);
+              posPaymentsCount++;
             } else {
               // Es un usuario normal, verificar que pertenece al gimnasio
               const userInfo = await firstValueFrom(
@@ -481,7 +484,7 @@ export class AppService {
               
               if (userInfo?.gymId === gymId) {
                 totalCashRevenue += payment.amount;
-                this.logger.log(`Pago de usuario $${payment.amount} incluido para gym ${gymId}`);
+                userPaymentsCount++;
               }
             }
           }
@@ -489,6 +492,11 @@ export class AppService {
           this.logger.warn(`Error verificando pago ${payment.id}:`, error);
           // Continuar con el siguiente pago
         }
+      }
+
+      // Log agregado con resumen de pagos procesados
+      if (membershipPaymentsCount > 0 || posPaymentsCount > 0 || userPaymentsCount > 0) {
+        this.logger.log(`Procesados para gym ${gymId}: ${membershipPaymentsCount} pagos de membresía, ${posPaymentsCount} pagos POS, ${userPaymentsCount} pagos de usuario`);
       }
 
       this.logger.log(`Total ingresos en efectivo calculados para gym ${gymId}: $${totalCashRevenue} (membresías + POS)`);

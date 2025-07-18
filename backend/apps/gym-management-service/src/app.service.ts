@@ -366,8 +366,6 @@ export class AppService {
   }
 
   async getMembershipStats(gymId: string, todayString: string, startOfMonthString: string) {
-    this.logger.log(`Calculando estadísticas de membresías para gym ${gymId}`);
-    
     try {
       const today = new Date(todayString);
       const startOfMonth = new Date(startOfMonthString);
@@ -415,7 +413,6 @@ export class AppService {
         membershipsExpiringNext7Days
       };
 
-      this.logger.log(`Estadísticas calculadas para gym ${gymId}: ${JSON.stringify(stats)}`);
       return stats;
     } catch (error) {
       this.logger.error(`Error calculando estadísticas para gym ${gymId}:`, error);

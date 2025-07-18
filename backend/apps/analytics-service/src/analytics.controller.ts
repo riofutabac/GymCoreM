@@ -57,7 +57,6 @@ export class AnalyticsController {
 
   @MessagePattern({ cmd: 'get_kpis_for_gym' })
   public async getKPIsForGym(@Payload() data: { managerId: string }) {
-    this.logger.log(`Solicitud de KPIs para manager ${data.managerId}`);
     return this.analyticsService.getKpisForGym(data.managerId);
   }
 

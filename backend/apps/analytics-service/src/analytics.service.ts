@@ -156,8 +156,6 @@ export class AnalyticsService {
    * Obtiene KPIs específicos para el gimnasio de un manager
    */
   async getKpisForGym(managerId: string) {
-    this.logger.log(`Calculando KPIs para manager ${managerId}`);
-    
     try {
       // Obtener información del manager desde auth-service
       const managerData = await firstValueFrom(
@@ -176,7 +174,6 @@ export class AnalyticsService {
       }
 
       const gymId = managerData.gymId;
-      this.logger.log(`Manager pertenece al gimnasio ${gymId}`);
 
       // Calcular fechas para las consultas
       const today = new Date();
@@ -204,7 +201,6 @@ export class AnalyticsService {
           })
         );
         cashRevenueThisMonth = paymentStats?.totalCashRevenue || 0;
-        this.logger.log(`Ingresos totales en efectivo calculados para gym ${gymId}: $${cashRevenueThisMonth} (membresías + POS)`);
       } catch (error) {
         this.logger.warn(`No se pudieron obtener ingresos en efectivo para gym ${gymId}:`, error);
         cashRevenueThisMonth = 0;
@@ -218,7 +214,7 @@ export class AnalyticsService {
         lastUpdatedAt: new Date().toISOString(),
       };
 
-      this.logger.log(`KPIs reales para gym ${gymId} calculados: ${JSON.stringify(gymKpis)}`);
+      this.logger.log(`KPIs calculados para gym ${gymId}: ${gymKpis.activeMembers} activos, $${gymKpis.cashRevenueThisMonth} ingresos`);
       return gymKpis;
     } catch (error) {
       this.logger.error('Error calculando KPIs del gimnasio:', error);
