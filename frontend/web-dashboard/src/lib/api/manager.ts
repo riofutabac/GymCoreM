@@ -96,6 +96,8 @@ export const getMembersForManager = async (): Promise<Member[]> => {
           break;
         case 'PENDING_PAYMENT':
           membershipStatus = 'PENDING_PAYMENT';
+          // No asignar fecha para usuarios pendientes de pago
+          membershipEndDate = '';
           break;
         case 'EXPIRED':
           membershipStatus = 'EXPIRED';
@@ -113,7 +115,11 @@ export const getMembersForManager = async (): Promise<Member[]> => {
           membershipStatus = 'INACTIVE';
       }
       
-      membershipEndDate = activeMembership.endDate;
+      // Asignar la fecha para todos los estados excepto PENDING_PAYMENT
+      if (membershipStatus !== 'PENDING_PAYMENT') {
+        membershipEndDate = activeMembership.endDate;
+      }
+      
       activeMembershipId = activeMembership.id;
     }
     
