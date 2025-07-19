@@ -34,4 +34,9 @@ export class AppController {
   enrollBiometric(@Payload() data: { userId: string; template: string }) {
     return this.appService.enrollBiometric(data.userId, data.template);
   }
+
+  @MessagePattern({ cmd: 'get_user_by_id' })
+  getUserById(@Payload() data: { userId: string }) {
+    return this.appService.getUserById(data.userId);
+  }
 }

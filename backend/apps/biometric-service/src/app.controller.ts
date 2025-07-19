@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, HttpException, HttpStatus, Delete, Param } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
+import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
   constructor(private readonly appService: AppService) {}
 
   @Get()
@@ -10,83 +12,99 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  @Get('health')
-  async getHealth(): Promise<{ status: string; service: string; arduino: { connected: boolean; port: string | null; error: string | null; sensor?: { healthy: boolean; response?: string; error?: string } } }> {
-    return await this.appService.getHealth();
-  }
-
-  @Get('ping')
-  async pingArduino(): Promise<{ success: boolean; message: string; response?: string; error?: string }> {
-    return await this.appService.pingArduino();
-  }
-
-  @Post('enroll')
-  async startEnrollment(@Body() body: { userId: string }) {
+  @MessagePattern({ cmd: 'get_health' })
+  async getHealth() {
+    this.logger.log(`RECIBIDO: { cmd: 'get_health' }`);
     try {
-      const result = await this.appService.startEnrollment(body.userId);
-      return { success: true, message: 'Huella registrada exitosamente.', data: result };
+      // La lógica ya existe en tu servicio, solo la llamamos.
+      const result = await this.appService.getHealth();
+      return result;
     } catch (error) {
-      throw new HttpException(
-        error instanceof Error ? error.message : 'Error desconocido',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      this.logger.error(`Error en getHealth: ${error.message}`);
+      throw new RpcException(error.message || 'Error desconocido al obtener el estado de salud');
     }
   }
 
-  @Post('reset')
+  @MessagePattern({ cmd: 'ping_arduino' })
+  async pingArduino() {
+    this.logger.log(`RECIBIDO: { cmd: 'ping_arduino' }`);
+    try {
+      // Esta función ya existe en tu AppService
+      const result = await this.appService.pingArduino();
+      return result;
+    } catch (error) {
+      this.logger.error(`Error en pingArduino: ${error.message}`);
+      throw new RpcException(error.message || 'Error desconocido durante el ping');
+    }
+  }
+
+  /**
+   * Inicia el proceso de enrolamiento de una huella para un usuario.
+   * Este es el único punto de entrada para el enrolamiento.
+   */
+  @MessagePattern({ cmd: 'enroll_fingerprint' })
+  async startEnrollment(@Payload() data: { userId: string }) {
+    this.logger.log(`RECIBIDO: { cmd: 'enroll_fingerprint' } para userId: ${data.userId}`);
+    try {
+      const result = await this.appService.startEnrollment(data.userId);
+      // El servicio ahora puede devolver un objeto más informativo.
+      return { success: true, message: 'Proceso de enrolamiento iniciado.', data: result };
+    } catch (error) {
+      // Propagar el error como una RpcException para que el api-gateway lo maneje.
+      this.logger.error(`Error en startEnrollment: ${error.message}`);
+      throw new RpcException(error.message || 'Error desconocido al iniciar el enrolamiento');
+    }
+  }
+
+  /**
+   * Reinicia (borra todas) las huellas del dispositivo Arduino.
+   */
+  @MessagePattern({ cmd: 'reset_fingerprints' })
   async resetFingerprints() {
+    this.logger.log("RECIBIDO: { cmd: 'reset_fingerprints' }");
     try {
       const result = await this.appService.resetFingerprints();
       return { success: true, message: 'Huellas reseteadas exitosamente.', data: result };
     } catch (error) {
-      throw new HttpException(
-        error instanceof Error ? error.message : 'Error desconocido',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      this.logger.error(`Error en resetFingerprints: ${error.message}`);
+      throw new RpcException(error.message || 'Error desconocido al resetear huellas');
     }
   }
 
-  @Get('count')
+  /**
+   * Cuenta las huellas almacenadas en el dispositivo.
+   */
+  @MessagePattern({ cmd: 'count_fingerprints' })
   async countFingerprints() {
+    this.logger.log("RECIBIDO: { cmd: 'count_fingerprints' }");
     try {
       const result = await this.appService.countFingerprints();
       return { success: true, message: 'Conteo de huellas exitoso.', data: result };
     } catch (error) {
-      throw new HttpException(
-        error instanceof Error ? error.message : 'Error desconocido',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      this.logger.error(`Error en countFingerprints: ${error.message}`);
+      throw new RpcException(error.message || 'Error desconocido al contar huellas');
     }
   }
 
-  @Delete('fingerprint/:id')
-  async deleteFingerprint(@Param('id') id: string) {
+  /**
+   * Elimina una huella específica del dispositivo por su ID.
+   */
+  @MessagePattern({ cmd: 'delete_fingerprint' })
+  async deleteFingerprint(@Payload() data: { fingerprintId: number }) {
+    this.logger.log(`RECIBIDO: { cmd: 'delete_fingerprint' } para fingerprintId: ${data.fingerprintId}`);
     try {
-      const fingerprintId = parseInt(id);
+      const { fingerprintId } = data;
+
+      // La validación se mantiene aquí como una capa extra de seguridad.
       if (isNaN(fingerprintId) || fingerprintId < 1 || fingerprintId > 127) {
-        throw new HttpException('ID de huella inválido. Debe estar entre 1 y 127.', HttpStatus.BAD_REQUEST);
+        throw new RpcException('ID de huella inválido. Debe estar entre 1 y 127.');
       }
       
       const result = await this.appService.deleteFingerprint(fingerprintId);
       return { success: true, message: `Huella ID ${fingerprintId} eliminada exitosamente.`, data: result };
     } catch (error) {
-      throw new HttpException(
-        error instanceof Error ? error.message : 'Error desconocido',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  @Post('test-rollback')
-  async testRollback(@Body() body: { fingerprintId: number }) {
-    try {
-      const result = await this.appService.testRollback(body.fingerprintId);
-      return result;
-    } catch (error) {
-      throw new HttpException(
-        error instanceof Error ? error.message : 'Error desconocido',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      this.logger.error(`Error en deleteFingerprint: ${error.message}`);
+      throw new RpcException(error.message || 'Error desconocido al eliminar la huella');
     }
   }
 }

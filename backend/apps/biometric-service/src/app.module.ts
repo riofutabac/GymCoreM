@@ -9,7 +9,7 @@ import { SerialModule } from './serial/serial.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: './.env',
     }),
     ClientsModule.register([
       {

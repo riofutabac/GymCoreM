@@ -294,5 +294,33 @@ export class AppService {
       throw error;
     }
   }
-}
 
+  async getUserById(userId: string) {
+    this.logger.log(`🔍 Buscando usuario por ID: ${userId}`);
+
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          gymId: true,
+        },
+      });
+
+      if (!user) {
+        this.logger.warn(`⚠️ Usuario no encontrado con ID: ${userId}`);
+        throw new RpcException({ message: 'Usuario no encontrado', status: 404 });
+      }
+
+      this.logger.log(`✅ Usuario encontrado: ${JSON.stringify(user)}`);
+      return user;
+    } catch (error) {
+      this.logger.error(`❌ Error buscando usuario por ID: ${error instanceof Error ? error.message : String(error)}`);
+      throw new RpcException({ message: 'Error interno al buscar el usuario', status: 500 });
+    }
+  }
+}

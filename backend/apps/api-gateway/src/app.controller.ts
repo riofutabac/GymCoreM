@@ -787,38 +787,65 @@ export class AppController {
   // --- BIOMETRIC ENDPOINTS ---
   // Solo MANAGER, RECEPTIONIST pueden registrar huellas (de ellos mismos y de MEMBERs del mismo gimnasio)
   
+
+  @Get('biometric/ping')
+  @HttpCode(HttpStatus.OK)
+  async pingBiometricService() {
+    try {
+      this.logger.log('Enviando PING al Biometric Service...');
+      return await firstValueFrom(
+        this.biometricClient.send({ cmd: 'ping_arduino' }, {}),
+      );
+    } catch (error) {
+      this.logger.error('Error durante el ping al Biometric Service', error);
+      throw new HttpException(
+        'No se pudo comunicar con el servicio biométrico.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  @Get('biometric/health')
+  @HttpCode(HttpStatus.OK)
+  async getBiometricServiceHealth() {
+    try {
+      this.logger.log('Consultando estado de salud del Biometric Service...');
+      return await firstValueFrom(
+        this.biometricClient.send({ cmd: 'get_health' }, {}),
+      );
+    } catch (error) {
+      this.logger.error('Error consultando estado de salud del Biometric Service', error);
+      throw new HttpException(
+        'No se pudo obtener el estado del servicio biométrico.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'RECEPTIONIST')
   @Post('biometric/enroll')
   @HttpCode(HttpStatus.CREATED)
-  async enrollFingerprint(@Body() body: { userId: string; fingerprintId: number }, @Req() req) {
+  async enrollFingerprint(@Body() body: { userId: string }, @Req() req) {
     try {
       const currentUser = req.user;
-      
-      // Validar que el usuario puede registrar huellas
-      // Solo pueden registrar su propia huella o la de un MEMBER del mismo gym
+      // Valida que un MANAGER/RECEPTIONIST solo pueda enrolar a miembros de su propio gimnasio.
       if (body.userId !== currentUser.sub) {
-        // Si no es su propia huella, verificar que el usuario objetivo sea un MEMBER del mismo gym
         const targetUser = await firstValueFrom(
           this.authClient.send({ cmd: 'get_user_by_id' }, { userId: body.userId }),
         );
-        
         if (!targetUser) {
-          throw new HttpException(
-            'Usuario no encontrado',
-            HttpStatus.NOT_FOUND,
-          );
+          throw new HttpException('Usuario no encontrado', HttpStatus.NOT_FOUND);
         }
-        
         if (targetUser.role !== 'MEMBER') {
           throw new HttpException(
             'Solo puedes registrar huellas de usuarios con rol MEMBER',
             HttpStatus.FORBIDDEN,
           );
         }
-        
-        // Verificar que pertenecen al mismo gimnasio
-        if (targetUser.gymId !== currentUser.gymId) {
+        // Asumiendo que el JWT del manager/receptionist contiene su gymId en app_metadata
+        if (targetUser.gymId !== currentUser.app_metadata?.gymId) {
           throw new HttpException(
             'Solo puedes registrar huellas de MEMBERs de tu mismo gimnasio',
             HttpStatus.FORBIDDEN,
@@ -826,12 +853,13 @@ export class AppController {
         }
       }
 
+      // Se envía únicamente el userId al biometric-service.
+      this.logger.log(`Iniciando enrolamiento biométrico para el usuario: ${body.userId}`);
       const response = await firstValueFrom(
-        this.biometricClient.send({ cmd: 'enroll_fingerprint' }, {
-          userId: body.userId,
-          fingerprintId: body.fingerprintId,
-          enrolledBy: currentUser.sub,
-        }),
+        this.biometricClient.send(
+          { cmd: 'enroll_fingerprint' },
+          { userId: body.userId } // Solo enviamos el User ID
+        ),
       );
       
       return response;
@@ -969,5 +997,5 @@ export class AppController {
       const message = error.message || 'Error al verificar la huella dactilar';
       throw new HttpException(message, status);
     }
-  }
+  }  
 }
