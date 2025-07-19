@@ -323,4 +323,23 @@ export class AppService {
       throw new RpcException({ message: 'Error interno al buscar el usuario', status: 500 });
     }
   }
+
+  async getUserByTemplate(template: string) {
+      this.logger.log(`Buscando usuario por template...`);
+
+      const biometricRecord = await this.prisma.biometricTemplate.findUnique({
+        where: { template: template },
+      });
+
+      if (!biometricRecord) {
+        this.logger.warn(`No se encontró registro para el template recibido.`);
+        return null;
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: biometricRecord.userId },
+      });
+
+      return user;
+  }
 }

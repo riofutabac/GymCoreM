@@ -39,4 +39,9 @@ export class AppController {
   getUserById(@Payload() data: { userId: string }) {
     return this.appService.getUserById(data.userId);
   }
+
+  @MessagePattern({ cmd: 'get_user_by_template' })
+  getUserByTemplate(@Payload() data: { template: string }) {
+    return this.appService.getUserByTemplate(data.template);
+  }
 }

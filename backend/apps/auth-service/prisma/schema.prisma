@@ -32,7 +32,7 @@ model User {
 
 model BiometricTemplate {
   id        String   @id @default(uuid())
-  template  String
+  template  String   @unique
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
