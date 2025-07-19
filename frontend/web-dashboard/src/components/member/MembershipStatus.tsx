@@ -48,7 +48,7 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
   };
   
   // Verificamos si el usuario tiene una membresía activa
-  const hasMembership = membership?.status === 'ACTIVE' || membership?.status === 'PENDING_PAYMENT' || membership?.status === 'EXPIRED';
+  const hasMembership = membership?.membershipStatus === 'ACTIVE' || membership?.membershipStatus === 'PENDING_PAYMENT' || membership?.membershipStatus === 'EXPIRED';
   
   if (!membership || !hasMembership) {
     return (
@@ -85,7 +85,7 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
   let statusDisplay = '';
   let statusColor = '';
   
-  switch (membership.status) {
+  switch (membership.membershipStatus) {
     case 'ACTIVE':
       statusDisplay = 'Activa';
       statusColor = 'bg-green-100 text-green-800 hover:bg-green-200';
@@ -119,8 +119,8 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
   };
 
   // Verificar si necesita renovación
-  const needsRenewal = membership.status === 'EXPIRED' || 
-    (membership.status === 'ACTIVE' && new Date(membership.endDate) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+  const needsRenewal = membership.membershipStatus === 'EXPIRED' || 
+    (membership.membershipStatus === 'ACTIVE' && new Date(membership.membershipEndDate) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
   return (
     <div className="space-y-4">
@@ -128,7 +128,7 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
         <div className="flex items-center">
           <Badge className={statusColor}>{statusDisplay}</Badge>
         </div>
-        {membership.status === 'PENDING_PAYMENT' && (
+        {membership.membershipStatus === 'PENDING_PAYMENT' && (
           <Button 
             size="sm"
             onClick={handlePaymentClick}
@@ -144,14 +144,14 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
           <p className="text-sm text-muted-foreground">Fecha de inicio</p>
           <p className="font-medium flex items-center">
             <CalendarIcon className="mr-1 h-4 w-4 text-muted-foreground" />
-            {formatDate(membership.startDate)}
+            {formatDate(membership.membershipStartDate)}
           </p>
         </div>
         <div>
           <p className="text-sm text-muted-foreground">Fecha de vencimiento</p>
           <p className="font-medium flex items-center">
             <CalendarIcon className="mr-1 h-4 w-4 text-muted-foreground" />
-            {formatDate(membership.endDate)}
+            {formatDate(membership.membershipEndDate)}
           </p>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
         </Alert>
       )}
       
-      {membership.status === 'BANNED' && (
+      {membership.membershipStatus === 'BANNED' && (
         <Alert variant="destructive" className="mt-4">
           <AlertDescription>
             Tu membresía ha sido suspendida. Por favor, contacta con el personal del gimnasio para más información.

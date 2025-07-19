@@ -268,6 +268,76 @@ export class AppController {
     }
   }
 
+  // ─── MEMBER OPERATIONS ─────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @Post('members/join-gym')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async joinGym(@Body() body: JoinGymDto, @Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Usuario ${userId} intentando unirse a gimnasio con código ${body.gymCode}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'join_gym' }, { userId, gymCode: body.gymCode }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error desde gym-service al unirse a gimnasio: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al unirse al gimnasio';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('members/profile')
+  @HttpCode(HttpStatus.OK)
+  async getMemberProfile(@Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Obteniendo perfil completo para usuario ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_get_profile' }, { userId }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error desde gym-service al obtener perfil para ${userId}: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al obtener el perfil del miembro';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('members/profile')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateMemberProfile(@Req() req: any, @Body() body: UpdateProfileDto) {
+    const userId = req.user.sub;
+    this.logger.log(`Actualizando perfil de miembro para usuario ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_update_profile' }, { userId, ...body }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error desde gym-service al actualizar perfil: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al actualizar el perfil del miembro';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
   // ─── GYM MANAGEMENT (OWNER) ───────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard)

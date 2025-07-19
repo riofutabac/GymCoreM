@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { requestPasswordReset } from '@/lib/api/profile';
+import { requestPasswordReset } from '@/lib/api/member';
 
 
 export default function PasswordResetForm() {

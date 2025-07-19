@@ -35,6 +35,9 @@ export default function MemberDashboardPage() {
     try {
       const data = await getMyMembership();
       console.log('Membership data:', data); // For debugging
+      
+      // La función getMyMembership ya normaliza los datos
+      // No necesitamos procesamiento adicional aquí
       setMembership(data);
     } catch (error) {
       console.error('Error crítico al obtener membresía:', error);
@@ -130,21 +133,27 @@ export default function MemberDashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Estado de Membresía</CardTitle>
-            <Badge variant={membership?.status === 'ACTIVE' ? 'default' : 'secondary'} className="text-xs">
-              {membership?.status === 'ACTIVE' ? 'Activa' : 
-                membership?.status === 'PENDING_PAYMENT' ? 'Pendiente' : 
-                membership?.status === 'EXPIRED' ? 'Expirada' : 'Inactiva'}
+            {/* Usamos los campos procesados para mayor claridad */}
+            <Badge 
+              variant={membership?.membershipStatus === 'ACTIVE' ? 'default' : 'secondary'} 
+              className="text-xs"
+            >
+              {membership?.membershipStatus === 'ACTIVE' ? 'Activa' : 
+                membership?.membershipStatus === 'PENDING_PAYMENT' ? 'Pendiente' : 
+                membership?.membershipStatus === 'EXPIRED' ? 'Expirada' : 'Inactiva'}
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className={`text-xl font-bold ${membership?.status === 'ACTIVE' ? 'text-green-600' : 'text-amber-600'}`}>
-              {membership?.status === 'ACTIVE' ? 'Activa' : 
-                membership?.status === 'PENDING_PAYMENT' ? 'Pendiente de pago' : 
-                membership?.status === 'EXPIRED' ? 'Expirada' : 'Inactiva'}
+            <div 
+              className={`text-xl font-bold ${membership?.membershipStatus === 'ACTIVE' ? 'text-green-600' : 'text-amber-600'}`}
+            >
+              {membership?.membershipStatus === 'ACTIVE' ? 'Activa' : 
+                membership?.membershipStatus === 'PENDING_PAYMENT' ? 'Pendiente de pago' : 
+                membership?.membershipStatus === 'EXPIRED' ? 'Expirada' : 'Inactiva'}
             </div>
-            {membership?.endDate && (
+            {membership?.membershipEndDate && (
               <p className="text-xs text-muted-foreground">
-                Vence: {new Date(membership.endDate).toLocaleDateString('es-ES')}
+                Vence: {new Date(membership.membershipEndDate).toLocaleDateString('es-ES')}
               </p>
             )}
           </CardContent>
@@ -156,7 +165,7 @@ export default function MemberDashboardPage() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="pt-2">
-            {membership?.status === 'PENDING_PAYMENT' ? (
+            {membership?.membershipStatus === 'PENDING_PAYMENT' ? (
               <Button 
                 size="sm" 
                 className="w-full"
@@ -164,7 +173,7 @@ export default function MemberDashboardPage() {
               >
                 Completar Pago
               </Button>
-            ) : membership?.status === 'EXPIRED' ? (
+            ) : membership?.membershipStatus === 'EXPIRED' ? (
               <Button 
                 size="sm" 
                 className="w-full"

@@ -4,26 +4,26 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { getCurrentUser } from '@/lib/api/auth';
+import { getMyMembership } from '@/lib/api/member';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { User, Mail, Phone, MapPin, Calendar } from 'lucide-react';
+import { User, Mail, Edit3 } from 'lucide-react';
+import EditProfileForm from '@/components/member/EditProfileForm';
+import PasswordResetForm from '@/components/member/PasswordResetForm';
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<any>(null);
+  const [memberData, setMemberData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const fetchMemberData = async () => {
       try {
         setIsLoading(true);
-        const userData = await getCurrentUser();
-        setUser(userData);
+        const data = await getMyMembership();
+        setMemberData(data);
         setError(null);
       } catch (err) {
         setError('Error al cargar la información del perfil');
@@ -33,26 +33,23 @@ export default function ProfilePage() {
       }
     };
 
-    fetchUserData();
+    fetchMemberData();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    setSuccessMessage(null);
-    
+  const handleEditSuccess = async () => {
+    setIsEditing(false);
+    setSuccessMessage('Perfil actualizado correctamente');
+    // Recargar datos del miembro
     try {
-      // Aquí iría la llamada a la API para actualizar el perfil
-      // Por ahora simulamos un delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setSuccessMessage('Perfil actualizado correctamente');
+      const data = await getMyMembership();
+      setMemberData(data);
     } catch (err) {
-      setError('Error al actualizar el perfil');
-      console.error(err);
-    } finally {
-      setIsSaving(false);
+      console.error('Error recargando datos:', err);
     }
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
   };
 
   return (
@@ -60,7 +57,7 @@ export default function ProfilePage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Mi Perfil</h1>
         <p className="text-muted-foreground">
-          Gestiona tu información personal y preferencias
+          Gestiona tu información personal y configuración
         </p>
       </div>
 
@@ -84,153 +81,94 @@ export default function ProfilePage() {
           <Tabs defaultValue="personal" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="personal">Información Personal</TabsTrigger>
-              <TabsTrigger value="preferences">Preferencias</TabsTrigger>
+              <TabsTrigger value="security">Seguridad</TabsTrigger>
             </TabsList>
             
             {/* Tab: Información Personal */}
             <TabsContent value="personal" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Datos Personales</CardTitle>
-                  <CardDescription>
-                    Actualiza tu información de contacto y datos personales
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {successMessage && (
-                    <Alert className="mb-4 bg-green-50 border-green-200">
-                      <AlertDescription className="text-green-800">
-                        {successMessage}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  
-                  <form onSubmit={handleSubmit} className="space-y-4">
+              {successMessage && (
+                <Alert className="bg-green-50 border-green-200">
+                  <AlertDescription className="text-green-800">
+                    {successMessage}
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {!isEditing ? (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Datos Personales</CardTitle>
+                      <CardDescription>
+                        Tu información personal y de contacto
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      Editar
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="firstName">Nombre</Label>
-                        <div className="relative">
-                          <User className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            id="firstName"
-                            className="pl-8" 
-                            defaultValue={user?.firstName || ''}
-                            placeholder="Tu nombre"
-                          />
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <User className="h-4 w-4" />
+                          <span>Nombre completo</span>
                         </div>
+                        <p className="font-medium">
+                          {memberData?.firstName} {memberData?.lastName}
+                        </p>
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="lastName">Apellidos</Label>
-                        <div className="relative">
-                          <User className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            id="lastName"
-                            className="pl-8" 
-                            defaultValue={user?.lastName || ''}
-                            placeholder="Tus apellidos"
-                          />
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Mail className="h-4 w-4" />
+                          <span>Email</span>
                         </div>
+                        <p className="font-medium">{memberData?.email}</p>
                       </div>
                       
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Correo Electrónico</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            id="email"
-                            type="email"
-                            className="pl-8" 
-                            defaultValue={user?.email || ''}
-                            placeholder="tu@email.com"
-                            disabled
-                          />
+                      {memberData?.hasGym && (
+                        <div className="space-y-2 md:col-span-2">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <span>Gimnasio</span>
+                          </div>
+                          <p className="font-medium">{memberData?.gym?.name}</p>
+                          <p className="text-sm text-gray-500">{memberData?.gym?.address}</p>
                         </div>
-                        <p className="text-xs text-muted-foreground">El correo electrónico no se puede modificar</p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Teléfono</Label>
-                        <div className="relative">
-                          <Phone className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            id="phone"
-                            className="pl-8" 
-                            defaultValue={user?.phone || ''}
-                            placeholder="Tu número de teléfono"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="address">Dirección</Label>
-                        <div className="relative">
-                          <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            id="address"
-                            className="pl-8" 
-                            defaultValue={user?.address || ''}
-                            placeholder="Tu dirección"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="birthdate">Fecha de Nacimiento</Label>
-                        <div className="relative">
-                          <Calendar className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            id="birthdate"
-                            type="date"
-                            className="pl-8" 
-                            defaultValue={user?.birthdate || ''}
-                          />
-                        </div>
-                      </div>
+                      )}
                     </div>
-                    
-                    <Button type="submit" className="w-full" disabled={isSaving}>
-                      {isSaving ? 'Guardando...' : 'Guardar Cambios'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              ) : (
+                <EditProfileForm
+                  initialData={{
+                    firstName: memberData?.firstName || '',
+                    lastName: memberData?.lastName || '',
+                    email: memberData?.email || '',
+                  }}
+                  onSuccess={handleEditSuccess}
+                  onCancel={handleEditCancel}
+                />
+              )}
             </TabsContent>
             
-            {/* Tab: Preferencias */}
-            <TabsContent value="preferences" className="space-y-4 mt-4">
+            {/* Tab: Seguridad */}
+            <TabsContent value="security" className="space-y-4 mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Preferencias de Notificaciones</CardTitle>
+                  <CardTitle>Recuperación de Contraseña</CardTitle>
                   <CardDescription>
-                    Configura cómo quieres recibir notificaciones
+                    Solicita un correo para restablecer tu contraseña
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form className="space-y-4">
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="emailNotifications" className="h-4 w-4" defaultChecked />
-                        <Label htmlFor="emailNotifications">Notificaciones por correo electrónico</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="smsNotifications" className="h-4 w-4" />
-                        <Label htmlFor="smsNotifications">Notificaciones por SMS</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="marketingEmails" className="h-4 w-4" />
-                        <Label htmlFor="marketingEmails">Recibir ofertas y promociones</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="classReminders" className="h-4 w-4" defaultChecked />
-                        <Label htmlFor="classReminders">Recordatorios de clases</Label>
-                      </div>
-                    </div>
-                    
-                    <Button type="submit" className="w-full">
-                      Guardar Preferencias
-                    </Button>
-                  </form>
+                  <PasswordResetForm />
                 </CardContent>
               </Card>
             </TabsContent>

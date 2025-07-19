@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 import { getMyMembership } from '@/lib/api/member';
 import MembershipStatus from '@/components/member/MembershipStatus';
 import { CalendarIcon, Clock, CreditCard } from 'lucide-react';
@@ -18,6 +21,8 @@ export default function MembershipPage() {
       try {
         setIsLoading(true);
         const data = await getMyMembership();
+        // La función getMyMembership ya normaliza los datos
+        // No necesitamos procesamiento adicional aquí
         setMembership(data);
         setError(null);
       } catch (err) {
@@ -81,18 +86,55 @@ export default function MembershipPage() {
           {/* Estado de Membresía */}
           <Card>
             <CardHeader>
-              <CardTitle>Estado de Membresía</CardTitle>
+              <CardTitle>Tu Membresía</CardTitle>
               <CardDescription>
-                Información detallada sobre tu membresía actual
+                Consulta el estado y los detalles de tu membresía actual.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <MembershipStatus membership={membership} />
+            <CardContent className="space-y-4">
+              {membership ? (
+                <div>
+                  {/* Esta parte muestra el estado de la membresía */}
+                  <div className="flex items-center space-x-4 mb-4">
+                    <p className="font-medium text-lg">Estado:</p>
+                    <Badge variant={membership.membershipStatus === 'ACTIVE' ? 'default' : 'destructive'} className="text-md">
+                      {membership.membershipStatus === 'ACTIVE' ? 'Activa' : 'Inactiva'}
+                    </Badge>
+                  </div>
+                  
+                  {/* ✅ CORRECCIÓN CLAVE: Mostrar detalles o botón según el estado */}
+                  {membership.membershipStatus === 'ACTIVE' ? (
+                    // Si la membresía está ACTIVA, muestra sus detalles
+                    <div className="mt-4 space-y-2 text-sm text-gray-800 border-t pt-4">
+                      <p><strong>Activada el:</strong> {formatDate(membership.membershipStartDate)}</p>
+                      <p><strong>Caduca el:</strong> {formatDate(membership.membershipEndDate)}</p>
+                    </div>
+                  ) : (
+                    // Si NO está activa, muestra el botón para activarla
+                    <div className="mt-6 border-t pt-6">
+                      <p className="text-muted-foreground mb-4">
+                        Tu membresía no se encuentra activa. Actívala para disfrutar de todos los beneficios.
+                      </p>
+                      <Button onClick={() => router.push('/member/payment')} size="lg">
+                        Activar Membresía
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Si no hay membresía, muestra un mensaje para unirse a un gym
+                <div>
+                  <p className="text-muted-foreground">No tienes una membresía asociada.</p>
+                  <Button onClick={() => router.push('/member')} className="mt-4">
+                    Únete a un Gimnasio
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Detalles de Membresía */}
-          {membership?.status === 'ACTIVE' && (
+          {membership?.membershipStatus === 'ACTIVE' && (
             <Card>
               <CardHeader>
                 <CardTitle>Detalles de Membresía</CardTitle>
