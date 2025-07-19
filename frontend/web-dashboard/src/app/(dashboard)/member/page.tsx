@@ -34,7 +34,7 @@ export default function MemberDashboardPage() {
     setIsLoading(true);
     try {
       const data = await getMyMembership();
-      console.log('Membership data:', data); // For debugging
+      // Datos de membresía obtenidos correctamente
       
       // La función getMyMembership ya normaliza los datos
       // No necesitamos procesamiento adicional aquí

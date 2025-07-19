@@ -52,7 +52,7 @@ export async function getMyMembership(): Promise<MemberProfileResponse> {
       if (response.status === 404) {
         // Si el usuario no existe en el servicio de gimnasio, devolvemos un objeto con hasGym: false
         // para que la UI pueda mostrar el formulario de unión
-        console.log('Usuario no encontrado en el servicio de gimnasio');
+        // Usuario no encontrado en el servicio de gimnasio
         return { hasGym: false } as MemberProfileResponse;
       }
       const errorData = await response.json().catch(() => ({}));
@@ -60,7 +60,7 @@ export async function getMyMembership(): Promise<MemberProfileResponse> {
     }
     
     const memberData = await response.json();
-    console.log('Datos del miembro:', memberData);
+    // Procesamos los datos del miembro
     
     // Normalización de datos para compatibilidad con componentes existentes
     // Esto maneja tanto el caso de que el backend devuelva membership (singular) o memberships (array)
@@ -124,7 +124,7 @@ export async function updateMemberProfile(profileData: {
     }
 
     const updatedProfile = await response.json();
-    console.log('Perfil actualizado:', updatedProfile);
+    // Perfil actualizado correctamente
     return updatedProfile;
     
   } catch (error) {
@@ -150,7 +150,7 @@ export async function requestPasswordReset(email: string) {
     }
 
     const result = await response.json();
-    console.log('Correo de recuperación enviado:', result);
+    // Correo de recuperación enviado correctamente
     return result;
     
   } catch (error) {
