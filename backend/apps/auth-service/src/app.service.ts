@@ -533,35 +533,49 @@ export class AppService {
     this.logger.log(`Iniciando reseteo de contraseña para ${email}`);
     
     try {
-      // Verificar que el usuario existe
+      // Verificar que el usuario existe en la base de datos local
       const user = await this.prisma.user.findUnique({
         where: { email }
       });
 
       if (!user) {
-        // Por seguridad, no revelamos si el email existe o no
-        this.logger.warn(`Intento de reset para email inexistente: ${email}`);
+        // Por seguridad, no revelamos si el email existe o no.
+        // Devolvemos una respuesta genérica para evitar la enumeración de usuarios.
+        this.logger.warn(`Intento de reseteo de contraseña para un email no registrado: ${email}`);
         return {
-          message: 'Si el email existe en nuestro sistema, recibirás un enlace de recuperación.'
+          message: 'Si tu correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.'
         };
       }
 
-      // Generar token de reset
-      const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      
-      // En un entorno real, enviarías un email aquí
-      this.logger.log(`Token de reset generado para ${email}: ${resetToken}`);
-      
-      return {
-        message: 'Si el email existe en nuestro sistema, recibirás un enlace de recuperación.',
-        // En desarrollo, devolvemos el token. En producción, esto no se haría.
-        ...(process.env.NODE_ENV === 'development' && { resetToken })
+      // Usar el método de Supabase para enviar el correo de reseteo.
+      const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL}/auth/reset-password`, // URL a la que será redirigido el usuario
+      });
+
+      if (error) {
+        this.logger.error(`Error de Supabase al enviar el correo de reseteo:`, error);
+        throw new RpcException({
+          status: 400,
+          message: `Error al enviar el correo de reseteo: ${error.message}`,
+        });
+      }
+
+      this.logger.log(`✅ Correo de reseteo enviado exitosamente a ${email}`);
+      return { 
+        success: true, 
+        message: 'Si tu correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.' 
       };
+
     } catch (error) {
-      this.logger.error('Error en password reset:', error);
+      this.logger.error(`Error en el proceso de reseteo de contraseña para ${email}:`, error);
+      
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
       throw new RpcException({
-        message: 'Error procesando la solicitud de reseteo',
         status: 500,
+        message: 'Error interno al procesar la solicitud de reseteo de contraseña.',
       });
     }
   }
@@ -780,7 +794,6 @@ export class AppService {
       });
     }
   }
-
   /**
    * Envía un correo de reseteo de contraseña
    */
@@ -820,4 +833,7 @@ export class AppService {
     }
   }
 }
+
+  
+
 

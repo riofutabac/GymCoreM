@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 
-import { loginUser } from '@/lib/api/auth';
+import { loginUser, forgotPassword as apiForgotPassword } from '@/lib/api/auth';
 import { loginFormSchema } from '@/lib/validations';
 
 export type FormState = {
@@ -126,4 +126,22 @@ export async function logoutAction() {
   cookieStore.delete('user_name');
   cookieStore.delete('user_email');
   redirect('/login');
+}
+
+/**
+ * Server Action para solicitar recuperación de contraseña
+ * @param email Email del usuario que solicita recuperación
+ * @returns Objeto con resultado de la operación
+ */
+export async function forgotPassword(email: string) {
+  try {
+    await apiForgotPassword(email);
+    return { success: true };
+  } catch (error) {
+    console.error('Error en forgotPassword:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error al solicitar recuperación de contraseña' 
+    };
+  }
 }

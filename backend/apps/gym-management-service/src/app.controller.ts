@@ -102,4 +102,23 @@ export class AppController {
   banMembership(@Payload() p: { membershipId: string; managerId: string; reason?: string }) {
     return this.membershipService.ban(p.membershipId, p.managerId, p.reason);
   }
+
+  @MessagePattern({ cmd: 'get_member_dashboard' })
+  getMemberDashboard(@Payload() data: { userId: string }) {
+    this.logger.log(`Recibida solicitud de dashboard para usuario ${data.userId}`);
+    return this.membershipService.getMemberDashboard(data.userId);
+  }
+
+  @MessagePattern({ cmd: 'get_my_membership' })
+  getMyMembership(@Payload() data: { userId: string }) {
+    this.logger.log(`Recibida solicitud de membresía para usuario ${data.userId}`);
+    return this.membershipService.getMyMembership(data.userId);
+  }
+  
+  @MessagePattern({ cmd: 'update_member_profile' })
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  updateMemberProfile(@Payload() data: { userId: string; data: { firstName?: string; lastName?: string } }) {
+    this.logger.log(`Actualizando perfil de miembro para usuario ${data.userId}`);
+    return this.membershipService.updateMemberProfile(data.userId, data.data);
+  }
 }

@@ -1,436 +1,263 @@
-# GymCoreM
+# GymCoreM - Sistema Integral de Gestión de Gimnasios
 
-[![CI](https://circleci.com/gh/riofutabac/GymCoreM.svg?style=shield)](https://circleci.com/gh/riofutabac/GymCoreM) [![Codecov](https://codecov.io/gh/riofutabac/GymCoreM/branch/main/graph/badge.svg?style=shield)](https://codecov.io/gh/riofutabac/GymCoreM) [![npm version](https://img.shields.io/npm/v/gymcorem?style=shield)](https://www.npmjs.com/package/gymcorem) [![License](https://img.shields.io/github/license/riofutabac/GymCoreM?style=shield)](LICENSE)
+[![CI](https://circleci.com/gh/riofutabac/GymCoreM.svg)](https://circleci.com/gh/riofutabac/GymCoreM)
+[![Codecov](https://codecov.io/gh/riofutabac/GymCoreM/branch/main/graph/badge.svg)](https://codecov.io/gh/riofutabac/GymCoreM)
+[![npm version](https://img.shields.io/npm/v/gymcorem)](https://www.npmjs.com/package/gymcorem)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-GymCoreM es un sistema integral de gestión de gimnasios basado en microservicios. Proporciona todo desde registro de usuarios y control de acceso hasta pagos, inventario, análisis y notificaciones en tiempo real, empaquetado en un backend escalable con NestJS y un frontend con Next.js.
-
----
-
-## 📋 Tabla de Contenidos
-
-- [Características Principales](#características-principales)  
-- [Descripción de la Arquitectura](#descripción-de-la-arquitectura)  
-- [Stack Tecnológico](#stack-tecnológico)  
-- [Primeros Pasos](#primeros-pasos)  
-  - [Prerrequisitos](#prerrequisitos)  
-  - [Instalación](#instalación)  
-  - [Configuración del Entorno](#configuración-del-entorno)  
-  - [Migraciones de Base de Datos](#migraciones-de-base-de-datos)  
-  - [Inicializar Usuario Propietario](#inicializar-usuario-propietario)  
-- [Uso](#uso)  
-  - [Ejecutar con Docker](#ejecutar-con-docker)  
-  - [Modo Desarrollo](#modo-desarrollo)  
-- [Endpoints de la API](#endpoints-de-la-api)  
-- [Estructura del Proyecto](#estructura-del-proyecto)  
-- [Contribuir](#contribuir)  
-- [Licencia](#licencia)  
-- [Contacto](#contacto)  
-- [Reconocimientos](#reconocimientos)  
+Sistema de gestión integral para gimnasios basado en **microservicios** con un frontend en Next.js. Incluye control de acceso, procesamiento de pagos, inventario, análisis y notificaciones en tiempo real.
 
 ---
 
-## ✨ Características Principales
+## 📌 Características Principales
 
-- **Control de Acceso Basado en Roles**: Propietario, Gerente, Recepcionista, Miembro  
-- **Soporte Multi-Gimnasio**: Administra múltiples ubicaciones desde un solo dashboard  
-- **Membresías y Control de Acceso**: Planes flexibles y entrada segura  
-- **Procesamiento de Pagos**: Transacciones integradas y facturación  
-- **Integración Biométrica**: Soporte para lectores de huellas dactilares/RFID  
-- **Gestión de Inventario**: Seguimiento de productos, ventas y niveles de stock  
-- **Análisis e Informes**: Insights del dashboard y métricas de uso  
-- **Notificaciones en Tiempo Real**: Alertas por email, in-app y push  
+| Módulo                  | Funcionalidades                                                                 |
+|-------------------------|---------------------------------------------------------------------------------|
+| **Autenticación**       | Registro, login, gestión de roles (Owner/Manager/Receptionist/Member)           |
+| **Gimnasios**           | CRUD multi-gimnasio, códigos de acceso únicos                                    |
+| **Membresías**          | Activación manual/online, renovaciones, estado de membresías                    |
+| **Pagos**               | Integración PayPal, ventas POS, tracking de transacciones                      |
+| **Inventario**          | Gestión de productos, control de stock, códigos de barras                      |
+| **Biométrico**          | Soporte para lectores de huellas/RFID (requiere hardware adicional)             |
+| **Análisis**            | Dashboards con KPIs, tendencias de crecimiento, informes exportables           |
+| **Notificaciones**      | Emails transaccionales (activación, pagos), sistema de alertas                |
+| **Logging Centralizado**| Monitoreo de eventos y errores en todos los microservicios                      |
 
 ---
 
-## 🏗️ Descripción de la Arquitectura
+## 🏗️ Arquitectura
 
-GymCoreM sigue una arquitectura de microservicios para garantizar modularidad y escalabilidad:
-
-```
-[ Dashboard Web (Next.js) ] ⇄ [ API Gateway ]
-                                     ⇅
-┌─────────┬─────────────┬─────────────┬─────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
-│  Auth   │   Gestión   │   Pagos     │ Inventario  │ Biométrico  │ Análisis    │Notificación │   Logging   │
-│Servicio │ Gimnasios   │  Servicio   │  Servicio   │  Servicio   │  Servicio   │  Servicio   │  Servicio   │
-└─────────┴─────────────┴─────────────┴─────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+```mermaid
+graph TD
+    A[Frontend Next.js] --> B[API Gateway]
+    B --> C[Auth Service]
+    B --> D[Gym Management]
+    B --> E[Payment Service]
+    B --> F[Inventory Service]
+    B --> G[Analytics Service]
+    B --> H[Notification Service]
+    B --> I[Biometric Service]
+    B --> J[Logging Service]
+    C & D & E & F & G & H & I & J --> K[(PostgreSQL)]
+    C & D & E & F & G & H & I & J --> L[(Redis)]
+    C & D & E & F & G & H & I & J --> M[(RabbitMQ)]
 ```
 
-### Responsabilidades de los Servicios
-
-- **API Gateway**: Enruta solicitudes, maneja autenticación y limitación de velocidad  
-- **Servicio de Autenticación**: Registro de usuarios, login, emisión de JWT  
-- **Servicio de Gestión de Gimnasios**: Crear/listar gimnasios, membresías  
-- **Servicio de Pagos**: Integración con Stripe y registros de transacciones  
-- **Servicio de Inventario**: Operaciones CRUD de productos, actualizaciones de stock  
-- **Servicio Biométrico**: Interfaces con hardware para acceso seguro  
-- **Servicio de Análisis**: Agrega datos de uso, financieros y de asistencia  
-- **Servicio de Notificaciones**: Envía emails y notificaciones push  
-- **Servicio de Logging**: Logs centralizados para todos los microservicios  
+### Componentes Clave:
+- **API Gateway**: Enrutamiento, autenticación JWT, rate limiting
+- **Base de Datos**: PostgreSQL con Prisma ORM
+- **Mensajería**: RabbitMQ para eventos entre microservicios
+- **Cache**: Redis para KPIs y tendencias
+- **Infraestructura**: Docker para contenedorización
 
 ---
 
-## 🛠️ Stack Tecnológico
+## 🛠️ Tech Stack
 
-### Backend
-- **NestJS** – Framework modular, TypeScript-first  
-- **Prisma ORM** – Cliente de base de datos type-safe para PostgreSQL  
-- **Supabase** – Características de autenticación y tiempo real  
-- **TCP** – Transporte inter-servicios de alto rendimiento  
-
-### Frontend
-- **Next.js** – Generación SSR y estática  
-- **Tailwind CSS** & **shadcn/ui** – Estilizado utility-first y componentes  
-- **React Hook Form** + **Zod** – Gestión de estado de formularios y validación  
-
-### DevOps
-- **pnpm** – Gestor de paquetes rápido y eficiente en espacio de disco  
-- **Docker** & **Docker Compose** – Contenedorización y orquestación  
-- **CircleCI** – Pipeline de integración continua  
+| Categoría       | Tecnologías                                                                 |
+|-----------------|-----------------------------------------------------------------------------|
+| **Backend**     | NestJS, TypeScript, Prisma, RabbitMQ, Redis                                 |
+| **Frontend**    | Next.js 14, React, Tailwind CSS, shadcn/ui                                 |
+| **DevOps**      | Docker, Docker Compose, CircleCI, Infisical (secrets)                      |
+| **Pagos**       | PayPal API, Stripe (opcional)                                              |
+| **Infra**       | PostgreSQL, Redis, SendGrid (notificaciones)                                |
 
 ---
 
-## 🚀 Primeros Pasos
+## 🚀 Getting Started
 
 ### Prerrequisitos
+```bash
+# Instalar dependencias globales
+npm install -g pnpm @infisical/cli
 
-- **Node.js** v18+  
-- **pnpm** v8+  
-- **Docker** & **Docker Compose**  
-- **PostgreSQL** instancia  
-- **Supabase** proyecto (para autenticación)
+# Verificar versiones
+node -v  # >=18
+pnpm -v  # >=8
+docker --version
+```
 
 ### Instalación
-
-1. **Clonar repositorio**
-   ```bash
-   git clone https://github.com/riofutabac/GymCoreM.git
-   cd GymCoreM
-   ```
-
-2. **Instalar dependencias**
-   ```bash
-   pnpm install
-   ```
-
-### Configuración del Entorno
-
-Copia el archivo `.env.example` de cada servicio a `.env` y completa:
-- URLs de bases de datos
-- Llaves de Supabase
-- Puertos de servicios
-
-### Migraciones de Base de Datos
-
-Ejecuta las migraciones para cada servicio que use Prisma:
-
+1. Clonar el repositorio:
 ```bash
-pnpm db:migrate:auth
-pnpm db:migrate:gym
-pnpm db:migrate:inventory
-pnpm db:migrate:payment
+git clone https://github.com/riofutabac/GymCoreM.git
+cd GymCoreM
 ```
 
-### Inicializar Usuario Propietario
-
-Crear la primera cuenta de "Propietario":
-
+2. Configurar variables de entorno:
 ```bash
-pnpm db:init:owner
+# Copiar templates de .env para cada servicio
+cp backend/apps/auth-service/.env.example backend/apps/auth-service/.env
+cp backend/apps/gym-management-service/.env.example backend/apps/gym-management-service/.env
+# Repetir para los demás servicios...
+```
+
+3. Inicializar base de datos y dependencias:
+```bash
+pnpm install
+pnpm db:generate:all  # Genera clientes Prisma
+pnpm db:migrate:all   # Ejecuta migraciones
+pnpm db:init:owner    # Crea el usuario owner inicial
 ```
 
 ---
 
-## 🎯 Uso
+## 🔧 Configuración Detallada
 
-### Ejecutar con Docker
+### Variables de Entorno Esenciales
 
-Construir e inicializar todos los contenedores:
+| Servicio | Variables Requeridas                                                                 |
+|---------|---------------------------------------------------------------------------------------|
+| Auth    | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MESSAGE_BUS_URL`       |
+| Gym     | `DATABASE_URL`, `MESSAGE_BUS_URL`                                                    |
+| Payment | `DATABASE_URL`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`      |
+| Inventory| `DATABASE_URL`, `MESSAGE_BUS_URL`                                                    |
+| Analytics| `DATABASE_URL`, `REDIS_URL`, `MESSAGE_BUS_URL`                                       |
+| Notifications| `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `MESSAGE_BUS_URL`                       |
+| API GW  | `AUTH_SERVICE_URL`, `GYM_SERVICE_URL`, `PAYMENT_SERVICE_URL`, `INVENTORY_SERVICE_URL`|
 
+### Configurar RabbitMQ
 ```bash
-docker-compose build
-docker-compose up -d
+# En docker-compose.yml (ya configurado)
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Admin UI: http://localhost:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
 ```
 
-Ver logs agregados:
+---
 
+## 🏃 Running the Project
+
+### Opción 1: Docker (Producción)
 ```bash
-docker-compose logs -f
+docker-compose up -d  # Levanta todos los servicios
+# Acceder a:
+# - Frontend: http://localhost:3030
+# - API Gateway: http://localhost:3000
+# - RabbitMQ Admin: http://localhost:15672
 ```
 
-### Modo Desarrollo
-
-Iniciar todos los servicios con hot-reload:
-
+### Opción 2: Desarrollo Local
 ```bash
+# Iniciar todos los servicios en modo dev
 pnpm dev:all
+
+# O iniciar servicios individuales
+pnpm dev:gateway   # API Gateway
+pnpm dev:auth      # Auth Service
+pnpm dev:gyms      # Gym Management
+pnpm dev:payments  # Payment Service
+pnpm dev:frontend  # Frontend
 ```
-
-O ejecutar servicios individuales:
-
-```bash
-pnpm dev:gateway
-pnpm dev:auth
-```
-
-**Puntos de Acceso:**
-- Frontend: [http://localhost:3030](http://localhost:3030)
-- API Gateway: [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 📚 Endpoints de la API
+## 📡 API Endpoints Principales
 
-Importa la colección de Thunder Client incluida (`thunder-collection.json`) para pruebas rápidas.
+### Autenticación (`/api/v1/auth/*`)
+| Método | Endpoint          | Descripción                     |
+|--------|-------------------|---------------------------------|
+| POST   | `/register`       | Registro de usuario            |
+| POST   | `/login`          | Login (devuelve JWT)           |
+| POST   | `/logout`         | Cerrar sesión                  |
 
-**URL Base:** `http://localhost:3000/api/v1`
+### Gimnasios (`/api/v1/gyms/*`)
+| Método | Endpoint          | Descripción                     |
+|--------|-------------------|---------------------------------|
+| POST   | `/`               | Crear gimnasio (Owner)         |
+| GET    | `/`               | Listar gimnasios               |
+| PUT    | `/:id`            | Actualizar gimnasio            |
+| DELETE | `/:id`            | Desactivar gimnasio            |
 
-### Autenticación
-- `POST /auth/register` – Registrar nuevo usuario
-- `POST /auth/login` – Login, devuelve JWT
+### Membresías (`/api/v1/memberships/*`)
+| Método | Endpoint          | Descripción                     |
+|--------|-------------------|---------------------------------|
+| POST   | `/activate`       | Activar membresía (efectivo)   |
+| POST   | `/renew`          | Renovar membresía              |
+| POST   | `/:id/ban`        | Banear socio                   |
 
-### Gimnasios
-- `POST /gyms` – Crear gimnasio (Solo propietario)
-- `GET /gyms` – Listar gimnasios (Solo propietario)
+### Pagos (`/api/v1/payments/*`)
+| Método | Endpoint          | Descripción                     |
+|--------|-------------------|---------------------------------|
+| POST   | `/create-checkout-session` | Crear checkout PayPal |
+| POST   | `/paypal/webhook` | Webhook para confirmación PayPal |
 
-*Ver la colección de Thunder Client para documentación completa de endpoints de todos los servicios.*
+### POS (`/api/v1/pos/*`)
+| Método | Endpoint          | Descripción                     |
+|--------|-------------------|---------------------------------|
+| GET    | `/products/:barcode` | Buscar producto por código |
+| POST   | `/sales`          | Crear venta (tarjeta/PayPal)   |
+| POST   | `/sales/cash`     | Crear venta en efectivo        |
 
 ---
 
-## 📁 Estructura del Proyecto
+## 📂 Estructura del Proyecto
 
 ```
 riofutabac-gymcorem/
-├── package.json
-├── pnpm-workspace.yaml
-├── thunder-collection.json
-├── thunder-environment.json
-├── backend/
-│   └── apps/
-│       ├── api-gateway/                    # Gateway API central
-│       │   ├── src/
-│       │   │   ├── auth/                   # Guards JWT y roles
-│       │   │   │   ├── jwt-auth.guard.ts
-│       │   │   │   ├── roles.decorator.ts
-│       │   │   │   └── roles.guard.ts
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   ├── main.ts
-│       │   │   └── rpc-exception.filter.ts
-│       │   └── test/
-│       │
-│       ├── auth-service/                   # Autenticación de usuarios
-│       │   ├── prisma/
-│       │   │   ├── schema.prisma
-│       │   │   └── migrations/
-│       │   ├── src/
-│       │   │   ├── dto/                    # Objetos de transferencia de datos
-│       │   │   │   ├── login-user.dto.ts
-│       │   │   │   └── register-user.dto.ts
-│       │   │   ├── prisma/                 # Servicio de base de datos
-│       │   │   │   ├── prisma.module.ts
-│       │   │   │   └── prisma.service.ts
-│       │   │   ├── supabase/               # Integración Supabase
-│       │   │   │   ├── supabase.module.ts
-│       │   │   │   └── supabase.service.ts
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   ├── inicializar-owner.ts
-│       │   │   └── main.ts
-│       │   └── test/
-│       │
-│       ├── gym-management-service/         # Operaciones CRUD de gimnasios
-│       │   ├── prisma/
-│       │   │   ├── schema.prisma
-│       │   │   └── migrations/
-│       │   ├── src/
-│       │   │   ├── dto/                    # DTOs de gimnasios
-│       │   │   │   ├── admin-gym.dto.ts
-│       │   │   │   ├── create-gym.dto.ts
-│       │   │   │   └── public-gym.dto.ts
-│       │   │   ├── prisma/
-│       │   │   │   ├── prisma.module.ts
-│       │   │   │   └── prisma.service.ts
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   └── main.ts
-│       │   └── test/
-│       │
-│       ├── payment-service/               # Procesamiento de pagos
-│       │   ├── prisma/
-│       │   │   ├── schema.prisma
-│       │   │   └── migrations/
-│       │   ├── src/
-│       │   │   ├── prisma/
-│       │   │   │   ├── prisma.module.ts
-│       │   │   │   └── prisma.service.ts
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   └── main.ts
-│       │   └── test/
-│       │
-│       ├── inventory-service/             # Gestión de productos y stock
-│       │   ├── prisma/
-│       │   │   ├── schema.prisma
-│       │   │   └── migrations/
-│       │   ├── src/
-│       │   │   ├── prisma/
-│       │   │   │   ├── prisma.module.ts
-│       │   │   │   └── prisma.service.ts
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   └── main.ts
-│       │   └── test/
-│       │
-│       ├── biometric-service/             # Integración con hardware
-│       │   ├── src/
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   └── main.ts
-│       │   └── test/
-│       │
-│       ├── analytics-service/             # Análisis de datos
-│       │   ├── src/
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   └── main.ts
-│       │   └── test/
-│       │
-│       ├── notification-service/          # Notificaciones email y push
-│       │   ├── src/
-│       │   │   ├── app.controller.ts
-│       │   │   ├── app.module.ts
-│       │   │   ├── app.service.ts
-│       │   │   └── main.ts
-│       │   └── test/
-│       │
-│       └── logging-service/               # Logging centralizado
-│           ├── src/
-│           │   ├── app.controller.ts
-│           │   ├── app.module.ts
-│           │   ├── app.service.ts
-│           │   └── main.ts
-│           └── test/
-│
-└── frontend/
-    └── web-dashboard/                     # Frontend Next.js
-        ├── src/
-        │   ├── actions/                   # Server actions
-        │   │   └── auth.actions.ts
-        │   ├── app/                       # App router
-        │   │   ├── globals.css
-        │   │   ├── layout.tsx
-        │   │   ├── page.tsx
-        │   │   ├── (auth)/                # Páginas de autenticación
-        │   │   │   ├── layout.tsx
-        │   │   │   ├── login/
-        │   │   │   │   └── page.tsx
-        │   │   │   └── register/
-        │   │   │       └── page.tsx
-        │   │   └── (dashboard)/           # Dashboards por rol
-        │   │       ├── layout.tsx
-        │   │       ├── manager/
-        │   │       │   └── page.tsx
-        │   │       ├── member/
-        │   │       │   └── page.tsx
-        │   │       ├── owner/
-        │   │       │   └── page.tsx
-        │   │       └── receptionist/
-        │   │           └── page.tsx
-        │   ├── components/                # Componentes React
-        │   │   ├── auth/                  # Formularios de autenticación
-        │   │   │   ├── LoginForm.tsx
-        │   │   │   └── RegisterForm.tsx
-        │   │   ├── layout/                # Componentes de layout
-        │   │   │   ├── AuthHeader.tsx
-        │   │   │   └── Sidebar.tsx
-        │   │   └── ui/                    # Componentes shadcn/ui
-        │   │       ├── alert.tsx
-        │   │       ├── avatar.tsx
-        │   │       ├── badge.tsx
-        │   │       ├── button.tsx
-        │   │       ├── card.tsx
-        │   │       ├── form.tsx
-        │   │       ├── input.tsx
-        │   │       ├── label.tsx
-        │   │       └── separator.tsx
-        │   └── lib/                       # Utilidades
-        │       ├── validations.ts
-        │       ├── api/
-        │       │   └── auth.ts
-        │       └── utils/
-        │           ├── auth.ts
-        │           └── cn.ts
-        ├── components.json
-        ├── next.config.ts
-        ├── package.json
-        ├── postcss.config.mjs
-        └── tsconfig.json
+├── backend/                   # Microservicios
+│   ├── apps/
+│   │   ├── auth-service/      # Autenticación
+│   │   ├── gym-management/   # Gestión de gyms
+│   │   ├── payment-service/  # Procesamiento de pagos
+│   │   └── ...               # (Ver estructura completa en el repo)
+├── frontend/
+│   └── web-dashboard/        # Dashboard Next.js
+├── docker-compose.yml        # Configuración Docker
+└── scripts/                  # Utilidades (migraciones, tests)
 ```
 
 ---
 
-## 🤝 Contribuir
+## 🤝 Contributing
 
-Por favor lee [CONTRIBUTING.md](./CONTRIBUTING.md) para pautas sobre:
+1. **Fork** el repositorio
+2. Crea una rama: `git checkout -b feature/nueva-funcionalidad`
+3. Desarrolla y prueba: `pnpm test`
+4. **Commit** con convención: `git commit -m 'feat: nueva funcionalidad'`
+5. **Push** y abre un **Pull Request**
 
-1. **Estilo de Código**: Configuración ESLint + Prettier
-2. **Convenciones de Commits**: Formato de commits convencionales
-3. **Estrategia de Ramas**: Ramas de características desde `main`
-4. **Testing**: Pruebas unitarias requeridas para nuevas características
-5. **Pull Requests**: Plantilla y proceso de revisión
-
-### Flujo de Desarrollo
-
-1. Haz fork del repositorio
-2. Crea una rama de característica: `git checkout -b feature/caracteristica-increible`
-3. Realiza tus cambios y agrega pruebas
-4. Ejecuta las pruebas: `pnpm test`
-5. Commit: `git commit -m 'feat: agregar característica increible'`
-6. Push: `git push origin feature/caracteristica-increible`
-7. Abre un Pull Request
+> 📝 Ver [CONTRIBUTING.md](CONTRIBUTING.md) para guidelines completas.
 
 ---
 
-## 📄 Licencia
+## 📜 License
 
-Distribuido bajo la **Licencia MIT**. Ver [LICENSE](./LICENSE) para más detalles.
-
----
-
-## 📧 Contacto
-
-- **Desarrollador Principal**: Alexis Lapo – [GitHub](https://github.com/riofutabac) – [riofutabac](alexislapo1@gmail.com)
-- **Repositorio del Proyecto**: [https://github.com/riofutabac/GymCoreM](https://github.com/riofutabac/GymCoreM)
-- **Issues**: [Reportar un bug o solicitar una característica](https://github.com/riofutabac/GymCoreM/issues)
+Distribuido bajo la licencia **MIT**. Ver [LICENSE](LICENSE) para detalles.
 
 ---
 
-## 🙏 Reconocimientos
+## 📬 Contacto
 
-- [NestJS](https://nestjs.com/) – Framework progresivo de Node.js
-- [Next.js](https://nextjs.org/) – Framework de React para producción
-- [Prisma](https://www.prisma.io/) – ORM de próxima generación
-- [Supabase](https://supabase.io/) – Alternativa open source a Firebase
-- [shadcn/ui](https://ui.shadcn.com/) – Componentes bellamente diseñados
-- [Tailwind CSS](https://tailwindcss.com/) – Framework CSS utility-first
-- [Docker](https://www.docker.com/) – Plataforma de contenedorización
-- [pnpm](https://pnpm.io/) – Gestor de paquetes rápido y eficiente
+- **Autor**: Alexis Lapo  
+- **Email**: alexislapo1@gmail.com  
+- **GitHub**: [@riofutabac](https://github.com/riofutabac)  
 
 ---
 
-## 📊 Estado del Proyecto
+## 🙏 Acknowledgments
 
-- **Versión Actual**: v1.0.0
-- **Estado de Desarrollo**: Desarrollo Activo
-- **Cobertura de Pruebas**: 85%+
-- **Documentación**: Completa
-- **Listo para Producción**: Sí
+- [NestJS](https://nestjs.com/) - Framework backend
+- [Next.js](https://nextjs.org/) - Framework frontend
+- [Prisma](https://www.prisma.io/) - ORM
+- [shadcn/ui](https://ui.shadcn.com/) - Componentes UI
+- [Docker](https://www.docker.com/) - Contenedorización
 
-Para las últimas actualizaciones y roadmap, revisa nuestra página de [GitHub Projects](https://github.com/riofutabac/GymCoreM/projects).
+---
+
+## 📈 Project Status
+
+- **Versión**: 1.0.0
+- **Estado**: Activo 🚀
+- **Cobertura**: 85%+
+- **Roadmap**: [Ver proyectos](https://github.com/riofutabac/GymCoreM/projects)
+
+---
+
+> 🛠️ **Nota**: Algunas funcionalidades (como biométrico) requieren hardware adicional.

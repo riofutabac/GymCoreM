@@ -338,4 +338,176 @@ export class MembershipService {
       return banned;
     });
   }
+
+  async getMemberDashboard(userId: string) {
+    this.logger.log(`Buscando información de dashboard para el usuario: ${userId}`);
+
+    const membership = await this.prisma.membership.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }, // Obtener la membresía más reciente
+      include: {
+        gym: true, // Incluir datos del gimnasio asociado
+      },
+    });
+
+    if (!membership) {
+      this.logger.warn(`No se encontró membresía para el usuario ${userId}`);
+      throw new RpcException({
+        status: 404,
+        message: 'No se encontró ninguna membresía para este usuario.',
+      });
+    }
+
+    this.logger.log(`Membresía encontrada ${membership.id} para el usuario ${userId}`);
+
+    // Devolver un objeto limpio y estructurado para el frontend
+    return {
+      membershipId: membership.id,
+      status: membership.status,
+      startDate: membership.startDate,
+      endDate: membership.endDate,
+      gym: {
+        id: membership.gym.id,
+        name: membership.gym.name,
+      },
+    };
+  }
+
+  async getMyMembership(userId: string) {
+    this.logger.log(`Buscando membresía actual para el usuario: ${userId}`);
+
+    // Primero verificamos si el usuario está asociado a un gimnasio
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { gymId: true }
+    });
+    
+    if (!user?.gymId) {
+      this.logger.warn(`El usuario ${userId} no está asociado a ningún gimnasio`);
+      return { hasGym: false };
+    }
+    
+    // Buscamos la membresía más reciente del usuario en su gimnasio
+    const membership = await this.prisma.membership.findFirst({
+      where: { 
+        userId,
+        gymId: user.gymId 
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        gym: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            uniqueCode: true
+          }
+        },
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!membership) {
+      this.logger.warn(`No se encontró membresía para el usuario ${userId} en el gimnasio ${user.gymId}`);
+      return { 
+        hasGym: true,
+        gymId: user.gymId,
+        hasMembership: false 
+      };
+    }
+
+    // Verificar si la membresía está activa (no expirada)
+    const now = new Date();
+    const isExpired = membership.status === 'ACTIVE' && membership.endDate < now;
+    
+    if (isExpired) {
+      this.logger.log(`La membresía ${membership.id} del usuario ${userId} está expirada`);
+    }
+
+    return {
+      hasGym: true,
+      hasMembership: true,
+      membershipId: membership.id,
+      status: isExpired ? 'EXPIRED' : membership.status,
+      startDate: membership.startDate,
+      endDate: membership.endDate,
+      isExpired,
+      gym: membership.gym,
+      user: membership.user
+    };
+  }
+  
+  async updateMemberProfile(userId: string, data: { firstName?: string; lastName?: string }) {
+    this.logger.log(`Actualizando perfil de miembro para el usuario: ${userId}`);
+    
+    // Verificar si el usuario existe y es un miembro
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, gymId: true }
+    });
+    
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+    
+    if (!user.gymId) {
+      throw new BadRequestException(`El usuario no está asociado a ningún gimnasio`);
+    }
+    
+    // Buscar la membresía actual del usuario
+    const membership = await this.prisma.membership.findFirst({
+      where: { 
+        userId,
+        gymId: user.gymId 
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    if (!membership) {
+      throw new NotFoundException(`No se encontró membresía para el usuario en el gimnasio`);
+    }
+    
+    // Actualizar los datos del miembro en la tabla de membresía
+    try {
+      const updatedMembership = await this.prisma.membership.update({
+        where: { id: membership.id },
+        data: {
+          user: {
+            update: {
+              firstName: data.firstName,
+              lastName: data.lastName
+            }
+          }
+        },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+      
+      this.logger.log(`Perfil de miembro actualizado exitosamente para el usuario ${userId}`);
+      
+      return {
+        success: true,
+        user: updatedMembership.user
+      };
+    } catch (error) {
+      this.logger.error(`Error al actualizar perfil de miembro: ${error.message}`);
+      throw new RpcException({
+        status: 500,
+        message: 'Error al actualizar el perfil del miembro'
+      });
+    }
+  }
 }

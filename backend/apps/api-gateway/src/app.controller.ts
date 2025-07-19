@@ -41,6 +41,8 @@ import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
 import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
 import { UpdateGymDto, AssignManagerDto } from './dto/gym.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 // --- Interfaces para tipar los objetos ---
 interface UserWithGymName {
@@ -70,6 +72,8 @@ export class AppController {
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
     @Inject('ANALYTICS_SERVICE') private readonly analyticsClient: ClientProxy,
   ) {}
+
+  // ─── AUTHENTICATION & PROFILE ───────────────────────────────────────────────────
 
   @Post('auth/register')
   @HttpCode(HttpStatus.CREATED)
@@ -149,6 +153,198 @@ export class AppController {
       throw new HttpException(message, status);
     }
   }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: any) {
+    const isProd = process.env.NODE_ENV === 'production';
+    
+    // Limpiar todas las cookies de autenticación
+    res.cookie('jwt_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0, // Expira inmediatamente
+    });
+
+    res.cookie('user_role', '', {
+      httpOnly: false, // Consistente con login
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_name', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_email', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  @Post('auth/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    this.logger.log(`Solicitando reseteo de contraseña para ${body.email}`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'request_password_reset' }, body),
+      );
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('auth/me')
+  @HttpCode(HttpStatus.OK)
+  async getMe(@Req() req: any) {
+    // El usuario ya está disponible gracias al JwtAuthGuard
+    const user = req.user;
+    
+    // Priorizar app_metadata.role (autorativo) y convertir a minúsculas para el frontend
+    const userRole = user.app_metadata?.role || user.user_metadata?.role || user.role;
+    const roleForFrontend = userRole ? userRole.toLowerCase() : 'member';
+    
+    return {
+      id: user.sub || user.id,
+      email: user.email,
+      role: roleForFrontend, // Usar el rol correctamente extraído y convertido
+      firstName: user.user_metadata?.firstName,
+      lastName: user.user_metadata?.lastName,
+      name: user.user_metadata?.firstName && user.user_metadata?.lastName 
+        ? `${user.user_metadata.firstName} ${user.user_metadata.lastName}`
+        : user.email?.split('@')[0],
+      gymId: user.app_metadata?.gymId, // Incluir gymId si está disponible
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile') // Cambiado a PUT para actualizar el recurso de perfil completo
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateCurrentUserProfile(@Req() req: any, @Body() body: UpdateProfileDto) {
+    const userId = req.user.sub;
+    this.logger.log(`Usuario ${userId} actualizando su perfil.`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'update_user_profile' }, { userId, data: body }),
+      );
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
+  }
+
+  // ─── MEMBER DASHBOARD ───────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @Get('member/dashboard')
+  @HttpCode(HttpStatus.OK)
+  async getMemberDashboard(@Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Solicitando dashboard para el miembro ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'get_member_dashboard' }, { userId }),
+      );
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al obtener los datos del dashboard';
+      throw new HttpException(message, status);
+    }
+  }
+
+  // ─── MEMBER OPERATIONS ─────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @Post('members/join-gym')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async joinGym(@Body() body: JoinGymDto, @Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Usuario ${userId} intentando unirse a gimnasio con código ${body.gymCode}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'join_gym' }, { userId, gymCode: body.gymCode }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error desde gym-service al unirse a gimnasio: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al unirse al gimnasio';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('members/profile')
+  @HttpCode(HttpStatus.OK)
+  async getMemberProfile(@Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Obteniendo perfil completo para usuario ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_get_profile' }, { userId }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error desde gym-service al obtener perfil para ${userId}: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al obtener el perfil del miembro';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('members/profile')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateMemberProfile(@Req() req: any, @Body() body: UpdateProfileDto) {
+    const userId = req.user.sub;
+    this.logger.log(`Actualizando perfil de miembro para usuario ${userId}`);
+    try {
+      // 1) Primero actualizamos en Auth Service (Prisma + Supabase)
+      await firstValueFrom(
+        this.authClient.send({ cmd: 'update_profile' }, { userId, data: body }),
+      );
+      
+      // 2) Luego actualizamos en Gym Management
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_update_profile' }, { userId, ...body }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error actualizando perfil: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al actualizar el perfil del miembro';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  // ─── GYM MANAGEMENT (OWNER) ───────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
@@ -295,7 +491,8 @@ export class AppController {
       );
       
       this.logger.log(`✅ Checkout creado exitosamente. PayPal URL: ${response.approvalUrl}`);
-      return response;
+      // Renombramos approvalUrl a url para mantener compatibilidad con el frontend
+      return { url: response.approvalUrl };
     } catch (error) {
       this.logger.error(`❌ Error creando checkout para membresía ${dto.membershipId}:`, error);
       const status = error?.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -1130,6 +1327,74 @@ async changeStaffRole(@Param('id') userId: string, @Body() body: { role: string 
       this.logger.error(`Error procesando reseteo de contraseña: ${errorMessage}`);
       throw new HttpException(
         'No se pudo procesar la solicitud de reseteo',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('members/me')
+  @HttpCode(HttpStatus.OK)
+  async getMyMembership(@Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Obteniendo membresía para el usuario ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'get_my_membership' }, { userId }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error obteniendo membresía: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo obtener la información de membresía',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateProfile(@Req() req: any, @Body() body: UpdateProfileDto) {
+    const userId = req.user.sub;
+    this.logger.log(`Actualizando perfil para el usuario ${userId}`);
+    try {
+      // 1) Await en la respuesta de Auth Service
+      const authResult = await firstValueFrom(
+        this.authClient.send({ cmd: 'update_profile' }, { userId, data: body }),
+      );
+      
+      // 2) Siempre sincronizamos en Gym Management, sin importar el rol
+      await firstValueFrom(
+        this.gymClient.send({ cmd: 'update_member_profile' }, { userId, data: body }),
+      );
+      
+      return authResult;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error actualizando perfil: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo actualizar el perfil',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+  
+  @Post('auth/request-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async requestPasswordReset(@Body() body: { email: string }) {
+    this.logger.log(`Solicitando restablecimiento de contraseña para ${body.email}`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'request_password_reset' }, { email: body.email }),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error solicitando restablecimiento de contraseña: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo procesar la solicitud de restablecimiento de contraseña',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

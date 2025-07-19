@@ -23,7 +23,7 @@ export function useAuth() {
         const userData = await getCurrentUser();
         setUser(userData);
       } catch (error) {
-        console.log('Usuario no autenticado:', error);
+        // Usuario no autenticado
         setUser(null);
       } finally {
         setIsLoading(false);

@@ -1,9 +1,33 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// Componente para manejar redirecciones de tokens de recuperación
+function RecoveryTokenHandler() {
+  const router = useRouter();
+  
+  useEffect(() => {
+    // Verificar si hay un token de recuperación en la URL
+    const hash = window.location.hash;
+    
+    if (hash && hash.includes('type=recovery')) {
+      console.log('Token de recuperación detectado, redirigiendo...');
+      // Preservar el hash completo para la página de restablecimiento
+      router.push(`/reset-password${window.location.hash}`);
+    }
+  }, [router]);
+  
+  return null; // Este componente no renderiza nada
+}
 
 export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 to-slate-100">
+      {/* Componente para detectar y redirigir tokens de recuperación */}
+      <RecoveryTokenHandler />
       <header className="container mx-auto flex justify-between items-center p-6">
         <div className="text-2xl font-bold text-slate-800">GymCore</div>
         <nav className="flex items-center space-x-4">

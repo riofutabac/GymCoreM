@@ -4,6 +4,7 @@ import { Controller, Logger } from '@nestjs/common';
 import { RabbitSubscribe, Nack, AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { AppService } from './app.service';
 import { MembershipService } from './membership.service';
+import { MembersService } from './members/members.service';
 import { Role } from '../prisma/generated/gym-client';
 
 @Controller()
@@ -14,6 +15,7 @@ export class GymEventsController {
   constructor(
     private readonly appService: AppService,
     private readonly membershipService: MembershipService,
+    private readonly membersService: MembersService,
     private readonly amqp: AmqpConnection,
   ) {
     this.logger.log('🚀 GymEventsController instanciado - debería registrar handlers');
@@ -156,11 +158,37 @@ export class GymEventsController {
   }) {
     this.logger.log(`🔄 user.profile.updated → ${payload.userId}`);
     try {
-      await this.appService.updateLocalUserProfile(payload);
+      await this.membersService.updateMemberProfile(payload.userId, {
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+      });
       this.logger.log(`✅ Perfil de usuario ${payload.userId} sincronizado`);
     } catch (err) {
       this.logger.error(`❌ Error sincronizando perfil ${payload.userId}:`, err);
       throw err;
     }
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.gym.assigned',
+    queue: 'gym-management.user.gym.assigned',
+    queueOptions: { 
+      durable: true, 
+      arguments: { 
+        'x-dead-letter-exchange': 'gymcore-dead-letter-exchange' 
+      } 
+    },
+  })
+  async handleUserGymAssigned(payload: { 
+    userId: string; 
+    gymId: string;
+    gymName: string;
+  }) {
+    this.logger.log(`🏢 user.gym.assigned → Usuario ${payload.userId} asignado a ${payload.gymName}`);
+    // Este evento se genera desde gym-management-service, por lo que no necesitamos procesarlo
+    // Solo lo registramos para auditoria
+    this.logger.log(`✅ Evento gym.assigned registrado para usuario ${payload.userId}`);
   }
 }
