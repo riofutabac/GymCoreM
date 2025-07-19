@@ -11,9 +11,15 @@ export function middleware(request: NextRequest) {
   const isValidRole = role && validRoles.includes(role);
 
   // Rutas públicas que cualquiera puede visitar
-  const publicRoutes = ['/login', '/register', '/'];
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const publicRoutes = ['/login', '/register', '/', '/forgot-password'];
+  // También permitir rutas de autenticación como confirmación y reset
+  const isPublicRoute = publicRoutes.includes(pathname) || 
+                       pathname.startsWith('/confirm') || 
+                       pathname.startsWith('/reset-password');
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register');
+  
+  // 1) Permitir siempre la ruta genérica de perfil para usuarios autenticados
+  const isProfileRoute = pathname === '/profile';
 
   // Si no hay token y el usuario intenta acceder a una ruta protegida
   if (!token && !isPublicRoute) {
@@ -33,6 +39,10 @@ export function middleware(request: NextRequest) {
 
   // Si hay token y rol válido...
   if (token && isValidRole) {
+    // Permitir acceso a la ruta /profile para todos los roles autenticados
+    if (isProfileRoute) {
+      return NextResponse.next();
+    }
     // Y el usuario intenta ir a /login o /register -> a su dashboard
     if (isAuthRoute) {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
@@ -58,30 +68,30 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
     
-    // OWNER: Solo puede acceder a rutas /owner
+    // OWNER: Solo puede acceder a rutas /owner y /profile
     if (role === 'owner') {
-      if (!pathname.startsWith('/owner') && pathname !== '/' && !isPublicRoute) {
+      if (!pathname.startsWith('/owner') && pathname !== '/' && !isPublicRoute && pathname !== '/profile') {
         return NextResponse.redirect(new URL('/owner', request.url));
       }
     }
     
-    // MANAGER: Solo puede acceder a rutas /manager y /pos
+    // MANAGER: Solo puede acceder a rutas /manager, /pos y /profile
     if (role === 'manager') {
-      if (!pathname.startsWith('/manager') && pathname !== '/pos' && pathname !== '/' && !isPublicRoute) {
+      if (!pathname.startsWith('/manager') && pathname !== '/pos' && pathname !== '/' && !isPublicRoute && pathname !== '/profile') {
         return NextResponse.redirect(new URL('/manager', request.url));
       }
     }
     
-    // RECEPTIONIST: Solo puede acceder a rutas /receptionist y /pos  
+    // RECEPTIONIST: Solo puede acceder a rutas /receptionist, /pos y /profile
     if (role === 'receptionist') {
-      if (!pathname.startsWith('/receptionist') && pathname !== '/pos' && pathname !== '/' && !isPublicRoute) {
+      if (!pathname.startsWith('/receptionist') && pathname !== '/pos' && pathname !== '/' && !isPublicRoute && pathname !== '/profile') {
         return NextResponse.redirect(new URL('/receptionist', request.url));
       }
     }
     
-    // MEMBER: Solo puede acceder a rutas /member
+    // MEMBER: Solo puede acceder a rutas /member y /profile
     if (role === 'member') {
-      if (!pathname.startsWith('/member') && pathname !== '/' && !isPublicRoute) {
+      if (!pathname.startsWith('/member') && pathname !== '/' && !isPublicRoute && pathname !== '/profile') {
         return NextResponse.redirect(new URL('/member', request.url));
       }
     }

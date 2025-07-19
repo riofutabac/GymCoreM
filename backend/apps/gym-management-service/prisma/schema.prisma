@@ -15,6 +15,7 @@ enum MembershipStatus {
   EXPIRED
   CANCELLED
   GRACE_PERIOD
+  BANNED // ← Añadido para banear miembros
 }
 
 enum AccessType {
@@ -36,6 +37,7 @@ enum MembershipAction {
   CANCELLED
   EXPIRED
   UPDATED
+  BANNED // Add this line
 }
 
 model User {
@@ -62,6 +64,7 @@ model Gym {
   name       String
   uniqueCode String       @unique @default(cuid())
   isActive   Boolean      @default(true)
+  deletedAt  DateTime?    // Para soft-delete
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   memberships Membership[]

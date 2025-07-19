@@ -46,17 +46,21 @@ const roleMenus: Record<string, MenuSection[]> = {
       title: "General",
       items: [
         { href: '/owner', label: 'Dashboard', icon: Home },
-        { href: '/owner/gyms', label: 'Gimnasios', icon: Building2 },
-        { href: '/owner/analytics', label: 'Análisis', icon: BarChart3 },
+        { href: '/owner/analytics', label: 'Análisis Global', icon: BarChart3 },
       ]
     },
     {
-      title: "Gestión",
+      title: "Plataforma",
       items: [
-        { href: '/owner/staff', label: 'Personal', icon: Users },
-        { href: '/owner/inventory', label: 'Inventario', icon: Package },
-        { href: '/owner/finances', label: 'Finanzas', icon: CreditCard },
-        { href: '/owner/settings', label: 'Configuración', icon: Settings },
+        { href: '/owner/gyms', label: 'Gimnasios', icon: Building2 },
+        { href: '/owner/staff', label: 'Personal', icon: UserCheck },
+        { href: '/owner/users', label: 'Gestión de Usuarios', icon: Users },
+      ]
+    },
+    {
+      title: "Soporte",
+      items: [
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
       ]
     }
   ],
@@ -65,18 +69,15 @@ const roleMenus: Record<string, MenuSection[]> = {
       title: "Operaciones",
       items: [
         { href: '/manager', label: 'Dashboard', icon: Home },
-        { href: '/manager/members', label: 'Miembros', icon: Users, badge: '287' },
+        { href: '/manager/members', label: 'Miembros', icon: Users },
         { href: '/manager/staff', label: 'Personal', icon: UserCheck },
-        { href: '/manager/schedule', label: 'Horarios', icon: Calendar },
         { href: '/manager/inventory', label: 'Inventario', icon: Package },
       ]
     },
     {
       title: "Herramientas",
       items: [
-        { href: '/manager/reports', label: 'Reportes', icon: BarChart3 },
-        { href: '/manager/notifications', label: 'Notificaciones', icon: Bell },
-        { href: '/manager/settings', label: 'Configuración', icon: Settings },
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
       ]
     }
   ],
@@ -95,24 +96,17 @@ const roleMenus: Record<string, MenuSection[]> = {
       items: [
         { href: '/receptionist/visitors', label: 'Visitantes', icon: Users },
         { href: '/receptionist/reports', label: 'Reportes', icon: BarChart3 },
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
       ]
     }
   ],
   member: [
     {
-      title: "Mi Cuenta",
+      title: "Mi Portal de Miembro",
       items: [
         { href: '/member', label: 'Dashboard', icon: Home },
-        { href: '/member/profile', label: 'Mi Perfil', icon: Users },
-        { href: '/member/membership', label: 'Membresía', icon: CreditCard },
-        { href: '/member/classes', label: 'Clases', icon: Calendar },
-      ]
-    },
-    {
-      title: "Servicios",
-      items: [
-        { href: '/member/history', label: 'Historial', icon: BarChart3 },
-        { href: '/member/notifications', label: 'Notificaciones', icon: Bell },
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
+        { href: '/member/membership', label: 'Membresía', icon: CreditCard }
       ]
     }
   ]

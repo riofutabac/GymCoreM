@@ -1,9 +1,6 @@
 // backend/apps/auth-service/src/app.service.ts
 import {
   Injectable,
-  BadRequestException,
-  InternalServerErrorException,
-  ConflictException,
   Inject,
   Logger,
 } from '@nestjs/common';
@@ -35,85 +32,63 @@ export class AppService {
     return 'Auth Service is running! 🚀';
   }
 
+  //
+  // ─── AUTH / REGISTER / LOGIN ───────────────────────────────────────────────
+  //
+
   async registerUser(registerUserDto: RegisterUserDto) {
     const { email, password, firstName, lastName, gymId } = registerUserDto;
-
     try {
-      // 1. Register user with Supabase Auth (this handles password hashing and email confirmation)
+      // 1. Registrar en Supabase Auth
       const { data: authData, error: authError } =
         await this.supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: {
-              firstName,
-              lastName,
-            },
-          },
+          options: { data: { firstName, lastName } },
         });
 
       if (authError) {
         if (authError.message.includes('already_registered')) {
-          throw new RpcException({
-            message: 'El email ya está registrado.',
-            status: 409,
-          });
+          throw new RpcException({ message: 'El email ya está registrado.', status: 409 });
         }
-        throw new RpcException({
-          message: `Error en el registro: ${authError.message}`,
-          status: 400,
-        });
+        throw new RpcException({ message: `Error en el registro: ${authError.message}`, status: 400 });
       }
-
       if (!authData.user) {
-        throw new RpcException({
-          message: 'No se pudo crear el usuario en el sistema de autenticación.',
-          status: 500,
-        });
+        throw new RpcException({ message: 'No se pudo crear el usuario en Auth.', status: 500 });
       }
 
-      // Asegurar que el rol esté disponible dentro del JWT
+      // 2. Actualizar metadata en Supabase Admin
       await this.supabaseAdmin.auth.admin.updateUserById(authData.user.id, {
-        app_metadata: { role: 'MEMBER', gymId: gymId },
-        user_metadata: { firstName, lastName, role: 'MEMBER', gymId: gymId },
+        app_metadata: { role: 'MEMBER', gymId },
+        user_metadata: { firstName, lastName, role: 'MEMBER', gymId },
       });
 
-      // 2. Create profile in User table only if auth user was created successfully
+      // 3. Crear perfil en Prisma
       try {
         await this.prisma.user.create({
           data: {
             id: authData.user.id,
-            email: email,
-            firstName: firstName,
-            lastName: lastName,
+            email,
+            firstName,
+            lastName,
             role: 'MEMBER',
             gymId: gymId || null,
           },
         });
       } catch (profileError) {
-        // Clean up Supabase user first in any case of profile creation failure
+        // Borrar user en Supabase si falla Prisma
         await this.supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-
-        // Handle Prisma unique constraint violation (duplicate email)
         if (
           profileError instanceof Prisma.PrismaClientKnownRequestError &&
           profileError.code === 'P2002'
         ) {
-          throw new RpcException({
-            message: 'El email ya está en uso en la base de datos.',
-            status: 409,
-          });
+          throw new RpcException({ message: 'El email ya está en uso en la BD.', status: 409 });
         }
-
-        // For any other profile creation error
         console.error('Error creando perfil:', profileError);
-        throw new RpcException({
-          message: 'Error interno creando el perfil del usuario.',
-          status: 500,
-        });
+        throw new RpcException({ message: 'Error interno creando el perfil.', status: 500 });
       }
 
-      // Emitir evento asíncrono via RabbitMQ
+      // 4. Emitir evento user.created
       const payload = {
         id: authData.user.id,
         email,
@@ -122,14 +97,13 @@ export class AppService {
         role: 'MEMBER',
         gymId: gymId || null,
       };
-
       await this.amqpConnection.publish(
         'gymcore-exchange',
         'user.created',
         payload,
-        { persistent: true }, // <-- Make message persistent
+        { persistent: true },
       );
-      this.logger.log(`📤 Evento user.created publicado: ${JSON.stringify(payload)}`);
+      this.logger.log(`📤 user.created: ${JSON.stringify(payload)}`);
 
       return {
         id: authData.user.id,
@@ -138,71 +112,41 @@ export class AppService {
         lastName,
         role: 'MEMBER',
         createdAt: authData.user.created_at,
-        message:
-          'Usuario registrado exitosamente. Por favor verifica tu email para activar tu cuenta.',
+        message: 'Usuario registrado. Verifica tu email para activar la cuenta.',
       };
     } catch (error) {
-      // If error is already RpcException, re-throw it
-      if (error instanceof RpcException) {
-        throw error;
-      }
-
-      // For any other unexpected error, convert to RpcException
-      console.error('Error inesperado en registro:', error);
-      throw new RpcException({
-        message: 'Error interno del servidor durante el registro.',
-        status: 500,
-      });
+      if (error instanceof RpcException) throw error;
+      console.error('Error inesperado en registerUser:', error);
+      throw new RpcException({ message: 'Error interno en registro.', status: 500 });
     }
   }
 
   async loginUser(loginUserDto: LoginUserDto) {
     const { email, password } = loginUserDto;
-
     try {
       const { data: authData, error } =
-        await this.supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        await this.supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        // Use RpcException for microservice communication
         if (error.code === 'invalid_credentials') {
-          throw new RpcException({
-            message: 'Credenciales inválidas.',
-            status: 401,
-          });
+          throw new RpcException({ message: 'Credenciales inválidas.', status: 401 });
         }
-
-        // For any other Supabase error
-        throw new RpcException({
-          message: error.message,
-          status: 500,
-        });
+        throw new RpcException({ message: error.message, status: 500 });
       }
-
       if (!authData.user || !authData.session) {
-        throw new RpcException({
-          message: 'No se pudo autenticar al usuario.',
-          status: 401,
-        });
+        throw new RpcException({ message: 'No se pudo autenticar.', status: 401 });
       }
 
       const profile = await this.prisma.user.findUnique({
         where: { id: authData.user.id },
         select: { role: true, firstName: true, lastName: true },
       });
-
       if (!profile) {
-        throw new RpcException({
-          message: 'No se pudo encontrar el perfil del usuario.',
-          status: 404,
-        });
+        throw new RpcException({ message: 'Perfil no encontrado.', status: 404 });
       }
 
       return {
-        message: 'Inicio de sesión exitoso.',
+        message: 'Login exitoso.',
         access_token: authData.session.access_token,
         refresh_token: authData.session.refresh_token,
         user: {
@@ -215,19 +159,15 @@ export class AppService {
         expiresAt: authData.session.expires_at,
       };
     } catch (error) {
-      // If error is already RpcException, re-throw it
-      if (error instanceof RpcException) {
-        throw error;
-      }
-
-      // For any other unexpected error
-      console.error('Error inesperado y no controlado en login:', error);
-      throw new RpcException({
-        message: 'Error interno crítico en el servicio de autenticación.',
-        status: 500,
-      });
+      if (error instanceof RpcException) throw error;
+      console.error('Error inesperado en loginUser:', error);
+      throw new RpcException({ message: 'Error interno en login.', status: 500 });
     }
   }
+
+  //
+  // ─── ROLE MANAGEMENT ────────────────────────────────────────────────────────
+  //
 
   async changeRole(userId: string, newRole: string, gymId?: string) {
     const validRoles = ['OWNER', 'MANAGER', 'RECEPTIONIST', 'MEMBER'];
@@ -235,67 +175,56 @@ export class AppService {
       throw new RpcException({ message: 'Rol inválido', status: 400 });
     }
 
-    console.log(
-      `🔄 Intentando cambiar el rol del usuario ${userId} a ${newRole} y asignar gym ${gymId}`,
-    );
-
+    this.logger.log(`🔄 changeRole: ${userId} → ${newRole}, gym ${gymId}`);
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
-      data: {
-        role: newRole as any,
-        gymId: gymId,
-      },
+      data: { role: newRole as any, gymId },
     });
 
     await this.supabaseAdmin.auth.admin.updateUserById(userId, {
-      app_metadata: { 
-        role: newRole,
-        gymId: gymId  // ← AÑADIR gymId aquí para que esté en el JWT
-      },
+      app_metadata: { role: newRole, gymId },
       user_metadata: {
         firstName: updatedUser.firstName,
         lastName: updatedUser.lastName,
         role: newRole,
-        gymId: gymId, // ← También en user_metadata para consistencia
+        gymId,
       },
     });
 
-    await this.amqpConnection.publish('gymcore-exchange', 'user.role.updated', {
-      userId: updatedUser.id,
-      newRole: updatedUser.role,
-      gymId: updatedUser.gymId,
-    }, { persistent: true }); // <-- Make message persistent
-
-    console.log(`📢 Evento 'user_role_updated' emitido con datos completos.`);
+    await this.amqpConnection.publish(
+      'gymcore-exchange',
+      'user.role.updated',
+      { userId: updatedUser.id, newRole: updatedUser.role, gymId: updatedUser.gymId },
+      { persistent: true },
+    );
+    this.logger.log(`📢 user.role.updated emitido.`);
 
     return updatedUser;
   }
 
-  async enrollBiometric(userId: string, fingerprintId: number) {
-    this.logger.log(`🔄 Registrando mapeo biométrico para usuario: ${userId} con fingerprintId: ${fingerprintId}`);
+  //
+  // ─── BIOMETRÍA ─────────────────────────────────────────────────────────────
+  //
 
+  async enrollBiometric(userId: string, fingerprintId: number) {
+    this.logger.log(`🔄 enrollBiometric: user=${userId}, fp=${fingerprintId}`);
     try {
       const result = await this.prisma.biometricTemplate.create({
-        data: {
-          userId: userId,
-          fingerprintId: fingerprintId,
-        },
+        data: { userId, fingerprintId },
       });
-      this.logger.log(`✅ Mapeo biométrico guardado exitosamente para usuario: ${userId}`);
+      this.logger.log(`✅ Biometric mapping saved for ${userId}`);
       return result;
     } catch (error) {
-      this.logger.error(`❌ Error guardando mapeo biométrico: ${error instanceof Error ? error.message : String(error)}`);
-      // Lanza una RpcException para que el biometric-service inicie el rollback
+      this.logger.error(`❌ Error enrollBiometric: ${error instanceof Error ? error.message : error}`);
       throw new RpcException({
         status: 500,
-        message: `Error al crear el mapeo biométrico: ${error.message}`,
+        message: `Error al crear el mapeo biométrico: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
   }
 
   async getUserById(userId: string) {
-    this.logger.log(`🔍 Buscando usuario por ID: ${userId}`);
-
+    this.logger.log(`🔍 getUserById: ${userId}`);
     try {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -308,45 +237,333 @@ export class AppService {
           gymId: true,
         },
       });
-
       if (!user) {
-        this.logger.warn(`⚠️ Usuario no encontrado con ID: ${userId}`);
+        this.logger.warn(`⚠️ Usuario no encontrado: ${userId}`);
         throw new RpcException({ message: 'Usuario no encontrado', status: 404 });
       }
-
-      this.logger.log(`✅ Usuario encontrado: ${JSON.stringify(user)}`);
+      this.logger.log(`✅ Found user: ${JSON.stringify(user)}`);
       return user;
     } catch (error) {
-      this.logger.error(`❌ Error buscando usuario por ID: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`❌ Error getUserById: ${error instanceof Error ? error.message : error}`);
       throw new RpcException({ message: 'Error interno al buscar el usuario', status: 500 });
     }
   }
 
   async getUserByFingerprintId(fingerprintId: number) {
-    this.logger.log(`🔍 Buscando mapeo para fingerprintId: ${fingerprintId}`);
-
-    // 1. Buscar en la tabla de mapeo (ej. BiometricFingerprint)
-    const fingerprintMap = await this.prisma.biometricTemplate.findUnique({
-      where: { fingerprintId: fingerprintId },
+    this.logger.log(`🔍 getUserByFingerprintId: ${fingerprintId}`);
+    // 1) Buscar mapping
+    const mapping = await this.prisma.biometricTemplate.findUnique({
+      where: { fingerprintId },
     });
-
-    if (!fingerprintMap) {
-      this.logger.warn(`⚠️ No se encontró mapeo para fingerprintId: ${fingerprintId}. Acceso denegado.`);
-      // Es importante devolver null para que el biometric-service sepa que no se encontró
+    if (!mapping) {
+      this.logger.warn(`⚠️ No mapping for fp=${fingerprintId}`);
       return null;
     }
+    this.logger.log(`✅ Mapping found: userId=${mapping.userId}`);
 
-    this.logger.log(`✅ Mapeo encontrado. El fingerprintId ${fingerprintId} pertenece al userId: ${fingerprintMap.userId}`);
-
-    // 2. Usar el userId encontrado para buscar los datos completos del usuario
-    // Reutilizamos el método que ya tienes para mantener la lógica centralizada.
+    // 2) Obtener el usuario
     try {
-      const user = await this.getUserById(fingerprintMap.userId);
-      return user;
-    } catch (error) {
-      // Esto podría pasar si el usuario fue eliminado pero el mapeo de la huella no.
-      this.logger.error(`❌ Inconsistencia de datos: Se encontró mapeo para el userId ${fingerprintMap.userId}, pero el usuario no existe.`);
+      return await this.getUserById(mapping.userId);
+    } catch {
+      this.logger.error(`❌ Inconsistencia: mapping.userId no existe`);
       return null;
+    }
+  }
+
+  //
+  // ─── USUARIOS / STAFF / PERFIL ──────────────────────────────────────────────
+  //
+
+  async findUserById(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true, lastName: true, gymId: true, role: true },
+    });
+    if (!user) {
+      throw new RpcException({ message: `Usuario ${userId} no encontrado.`, status: 404 });
+    }
+    return {
+      email: user.email,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      gymId: user.gymId,
+      role: user.role,
+    };
+  }
+
+  async getStaffUsers() {
+    this.logger.log('Obteniendo staff administrativo...');
+    try {
+      const staff = await this.prisma.user.findMany({
+        where: { NOT: { role: 'MEMBER' } },
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, gymId: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      return staff;
+    } catch (error) {
+      this.logger.error('Error getStaffUsers:', error);
+      throw new RpcException({ message: 'Error obteniendo staff', status: 500 });
+    }
+  }
+
+  async updateUserProfile(userId: string, data: { firstName?: string; lastName?: string }) {
+    this.logger.log(`Updating profile ${userId}`);
+    try {
+      const existing = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!existing) throw new RpcException({ message: `Usuario ${userId} no encontrado.`, status: 404 });
+
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data: { firstName: data.firstName, lastName: data.lastName },
+      });
+
+      await this.supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          role: updated.role,
+          gymId: updated.gymId,
+        },
+      });
+
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'user.profile.updated',
+        {
+          userId,
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          email: updated.email,
+          timestamp: new Date().toISOString(),
+        },
+        { persistent: true },
+      );
+
+      return {
+        id: updated.id,
+        email: updated.email,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        role: updated.role,
+        gymId: updated.gymId,
+      };
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      this.logger.error('Error updateUserProfile:', error);
+      throw new RpcException({ message: 'Error interno actualizando perfil', status: 500 });
+    }
+  }
+
+  async findUsersByRole(roles: string[]) {
+    this.logger.log(`findUsersByRole: ${roles.join(', ')}`);
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { role: { in: roles as any } },
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, gymId: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      return users;
+    } catch (error) {
+      this.logger.error('Error findUsersByRole:', error);
+      throw new RpcException({ message: 'Error obteniendo usuarios por rol', status: 500 });
+    }
+  }
+
+  async findAllUsers() {
+    this.logger.log('findAllUsers');
+    try {
+      const users = await this.prisma.user.findMany({
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, gymId: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      return users;
+    } catch (error) {
+      this.logger.error('Error findAllUsers:', error);
+      throw new RpcException({ message: 'Error obteniendo todos los usuarios', status: 500 });
+    }
+  }
+
+  async updateUser(
+    id: string,
+    data: { firstName?: string; lastName?: string; role?: string; gymId?: string },
+  ) {
+    this.logger.log(`updateUser ${id}`, data);
+    try {
+      const updateData: any = { ...data };
+      if (data.gymId === '') updateData.gymId = null;
+      if (data.role) updateData.role = data.role as any;
+
+      const existing = await this.prisma.user.findUnique({ where: { id } });
+      if (!existing) throw new RpcException({ message: `Usuario ${id} no encontrado`, status: 404 });
+
+      const updated = await this.prisma.user.update({ where: { id }, data: updateData });
+
+      await this.supabaseAdmin.auth.admin.updateUserById(id, {
+        app_metadata: { role: updated.role, gymId: updated.gymId },
+        user_metadata: {
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          role: updated.role,
+          gymId: updated.gymId,
+        },
+      });
+
+      return updated;
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      this.logger.error('Error updateUser:', error);
+      throw new RpcException({ message: 'Error interno actualizando usuario', status: 500 });
+    }
+  }
+
+  async requestPasswordReset(email: string) {
+    this.logger.log(`requestPasswordReset ${email}`);
+    try {
+      const user = await this.prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        // Respuesta genérica
+        return { message: 'Si tu email está registrado, recibirás un enlace de reseteo.' };
+      }
+
+      const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL}/auth/reset-password`,
+      });
+      if (error) {
+        throw new RpcException({ status: 400, message: `Error reset password: ${error.message}` });
+      }
+      return { success: true, message: 'Enlace de reseteo enviado.' };
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      this.logger.error('Error requestPasswordReset:', error);
+      throw new RpcException({ message: 'Error interno reseteo contraseña', status: 500 });
+    }
+  }
+
+  async getStaffByGym(managerId: string) {
+    this.logger.log(`getStaffByGym manager=${managerId}`);
+    try {
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true },
+      });
+      if (!manager?.gymId) {
+        throw new RpcException({ message: 'Manager no encontrado o sin gym', status: 404 });
+      }
+      if (!['MANAGER', 'OWNER'].includes(manager.role)) {
+        throw new RpcException({ message: 'No autorizado', status: 403 });
+      }
+
+      const staff = await this.prisma.user.findMany({
+        where: {
+          gymId: manager.gymId,
+          role: { in: ['MANAGER', 'RECEPTIONIST', 'OWNER'] },
+        },
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      return staff;
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      this.logger.error('Error getStaffByGym:', error);
+      throw new RpcException({ message: 'Error obteniendo staff', status: 500 });
+    }
+  }
+
+  async assignRoleInGym(managerId: string, targetUserId: string, role: string) {
+    this.logger.log(`assignRoleInGym: mgr=${managerId} → ${role} on ${targetUserId}`);
+    try {
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true },
+      });
+      if (!manager?.gymId) {
+        throw new RpcException({ message: 'Manager inválido', status: 404 });
+      }
+      if (!['MANAGER', 'OWNER'].includes(manager.role)) {
+        throw new RpcException({ message: 'No autorizado', status: 403 });
+      }
+
+      const target = await this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { gymId: true, role: true, email: true },
+      });
+      if (!target) {
+        throw new RpcException({ message: 'Usuario objetivo no encontrado', status: 404 });
+      }
+      if (target.gymId !== manager.gymId) {
+        throw new RpcException({ message: 'Diferente gimnasio', status: 403 });
+      }
+
+      const valid = ['RECEPTIONIST', 'MEMBER'];
+      if (!valid.includes(role)) {
+        throw new RpcException({ message: 'Managers sólo asignan RECEPTIONIST', status: 400 });
+      }
+
+      const updated = await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { role: role as any },
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, gymId: true },
+      });
+
+      await this.supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+        app_metadata: { role, gymId: manager.gymId },
+        user_metadata: {
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          role,
+          gymId: manager.gymId,
+        },
+      });
+
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'user.role.updated',
+        {
+          userId: updated.id,
+          newRole: updated.role,
+          oldRole: target.role,
+          gymId: updated.gymId,
+          assignedBy: managerId,
+        },
+        { persistent: true },
+      );
+      return updated;
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      this.logger.error('Error assignRoleInGym:', error);
+      throw new RpcException({ message: 'Error interno asignando rol', status: 500 });
+    }
+  }
+
+  async updateUserAuthEmail(userId: string, newEmail: string) {
+    this.logger.log(`updateUserAuthEmail: ${userId} → ${newEmail}`);
+    try {
+      const { data, error } = await this.supabaseAdmin.auth.admin.updateUserById(userId, { email: newEmail });
+      if (error) {
+        throw new RpcException({ status: 500, message: `Error auth email: ${error.message}` });
+      }
+      await this.prisma.user.update({ where: { id: userId }, data: { email: newEmail, updatedAt: new Date() } });
+      return { success: true, message: 'Email actualizado.' };
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      this.logger.error('Error updateUserAuthEmail:', error);
+      throw new RpcException({ message: 'Error interno actualizando email', status: 500 });
+    }
+  }
+
+  async sendPasswordReset(email: string) {
+    this.logger.log(`sendPasswordReset: ${email}`);
+    try {
+      const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
+      });
+      if (error) {
+        throw new RpcException({ status: 400, message: `Error reset: ${error.message}` });
+      }
+      return { success: true, message: 'Correo de reseteo enviado.' };
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      this.logger.error('Error sendPasswordReset:', error);
+      throw new RpcException({ message: 'Error interno enviando reseteo', status: 500 });
     }
   }
 }

@@ -84,3 +84,26 @@ export async function getCurrentUser() {
 
   return response.json();
 }
+
+
+export async function updateProfile(data: { firstName?: string; lastName?: string }) {
+  const response = await fetch(`${API_BASE_URL}/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) throw new Error('Error al actualizar perfil');
+  return response.json();
+};
+
+export async function forgotPassword(email: string) {
+  const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email: email })
+  });
+  if (!response.ok) throw new Error('Error al solicitar recuperación de contraseña');
+  return response.json();
+};
