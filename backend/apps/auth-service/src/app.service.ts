@@ -271,27 +271,25 @@ export class AppService {
     return updatedUser;
   }
 
-  async enrollBiometric(userId: string, template: string) {
-    this.logger.log(`🔄 Registrando plantilla biométrica para el usuario: ${userId}`);
-    this.logger.log(`📋 Template recibido: ${template.substring(0, 50)}...`);
+  async enrollBiometric(userId: string, fingerprintId: number) {
+    this.logger.log(`🔄 Registrando mapeo biométrico para usuario: ${userId} con fingerprintId: ${fingerprintId}`);
 
     try {
-      const result = await this.prisma.biometricTemplate.upsert({
-        where: { userId: userId },
-        update: { template: template },
-        create: {
+      const result = await this.prisma.biometricTemplate.create({
+        data: {
           userId: userId,
-          template: template,
+          fingerprintId: fingerprintId,
         },
       });
-
-      this.logger.log(`✅ Plantilla biométrica guardada exitosamente para usuario: ${userId}`);
-      this.logger.log(`📊 Resultado: ${JSON.stringify(result)}`);
-      
+      this.logger.log(`✅ Mapeo biométrico guardado exitosamente para usuario: ${userId}`);
       return result;
     } catch (error) {
-      this.logger.error(`❌ Error guardando plantilla biométrica: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      this.logger.error(`❌ Error guardando mapeo biométrico: ${error instanceof Error ? error.message : String(error)}`);
+      // Lanza una RpcException para que el biometric-service inicie el rollback
+      throw new RpcException({
+        status: 500,
+        message: `Error al crear el mapeo biométrico: ${error.message}`,
+      });
     }
   }
 
@@ -324,22 +322,31 @@ export class AppService {
     }
   }
 
-  async getUserByTemplate(template: string) {
-      this.logger.log(`Buscando usuario por template...`);
+  async getUserByFingerprintId(fingerprintId: number) {
+    this.logger.log(`🔍 Buscando mapeo para fingerprintId: ${fingerprintId}`);
 
-      const biometricRecord = await this.prisma.biometricTemplate.findUnique({
-        where: { template: template },
-      });
+    // 1. Buscar en la tabla de mapeo (ej. BiometricFingerprint)
+    const fingerprintMap = await this.prisma.biometricTemplate.findUnique({
+      where: { fingerprintId: fingerprintId },
+    });
 
-      if (!biometricRecord) {
-        this.logger.warn(`No se encontró registro para el template recibido.`);
-        return null;
-      }
+    if (!fingerprintMap) {
+      this.logger.warn(`⚠️ No se encontró mapeo para fingerprintId: ${fingerprintId}. Acceso denegado.`);
+      // Es importante devolver null para que el biometric-service sepa que no se encontró
+      return null;
+    }
 
-      const user = await this.prisma.user.findUnique({
-        where: { id: biometricRecord.userId },
-      });
+    this.logger.log(`✅ Mapeo encontrado. El fingerprintId ${fingerprintId} pertenece al userId: ${fingerprintMap.userId}`);
 
+    // 2. Usar el userId encontrado para buscar los datos completos del usuario
+    // Reutilizamos el método que ya tienes para mantener la lógica centralizada.
+    try {
+      const user = await this.getUserById(fingerprintMap.userId);
       return user;
+    } catch (error) {
+      // Esto podría pasar si el usuario fue eliminado pero el mapeo de la huella no.
+      this.logger.error(`❌ Inconsistencia de datos: Se encontró mapeo para el userId ${fingerprintMap.userId}, pero el usuario no existe.`);
+      return null;
+    }
   }
 }

@@ -7,6 +7,7 @@ import { firstValueFrom } from 'rxjs';
 export class AppService implements OnModuleInit {
   private readonly logger = new Logger(AppService.name);
   private currentEnrollmentUserId: string | null = null;
+  private isVerifying: boolean = false;
 
   constructor(
     private readonly serialService: SerialService,
@@ -359,29 +360,5 @@ export class AppService implements OnModuleInit {
         reject(error);
       }
     });
-  }
-
-  /**
-   * Método para probar el rollback manualmente (útil para debugging)
-   * @param fingerprintId ID de la huella a eliminar
-   */
-  async testRollback(fingerprintId: number): Promise<any> {
-    this.logger.log(`🧪 Probando rollback para huella ID: ${fingerprintId}`);
-    
-    try {
-      await this.performRollback(fingerprintId);
-      return {
-        success: true,
-        message: `Rollback de prueba exitoso para huella ID ${fingerprintId}`,
-        fingerprintId: fingerprintId
-      };
-    } catch (error) {
-      this.logger.error(`❌ Error en rollback de prueba: ${error instanceof Error ? error.message : String(error)}`);
-      return {
-        success: false,
-        message: `Error en rollback de prueba: ${error instanceof Error ? error.message : String(error)}`,
-        fingerprintId: fingerprintId
-      };
-    }
   }
 }

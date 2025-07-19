@@ -31,8 +31,8 @@ export class AppController {
   }
 
   @MessagePattern({ cmd: 'enroll_biometric' })
-  enrollBiometric(@Payload() data: { userId: string; template: string }) {
-    return this.appService.enrollBiometric(data.userId, data.template);
+  enrollBiometric(@Payload() data: { userId: string; fingerprintId: number }) {
+    return this.appService.enrollBiometric(data.userId, data.fingerprintId);
   }
 
   @MessagePattern({ cmd: 'get_user_by_id' })
@@ -40,8 +40,8 @@ export class AppController {
     return this.appService.getUserById(data.userId);
   }
 
-  @MessagePattern({ cmd: 'get_user_by_template' })
-  getUserByTemplate(@Payload() data: { template: string }) {
-    return this.appService.getUserByTemplate(data.template);
+  @MessagePattern({ cmd: 'get_user_by_fingerprint_id' })
+  getUserByFingerprintId(@Payload() data: { fingerprintId: number }) {
+    return this.appService.getUserByFingerprintId(data.fingerprintId);
   }
 }

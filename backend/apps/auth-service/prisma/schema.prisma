@@ -31,11 +31,11 @@ model User {
 }
 
 model BiometricTemplate {
-  id        String   @id @default(uuid())
-  template  String   @unique
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid())
+  fingerprintId  Int      @unique
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
 }
 
 model AuditLog {
