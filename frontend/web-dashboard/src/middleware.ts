@@ -11,8 +11,11 @@ export function middleware(request: NextRequest) {
   const isValidRole = role && validRoles.includes(role);
 
   // Rutas públicas que cualquiera puede visitar
-  const publicRoutes = ['/login', '/register', '/'];
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const publicRoutes = ['/login', '/register', '/', '/forgot-password'];
+  // También permitir rutas de autenticación como confirmación y reset
+  const isPublicRoute = publicRoutes.includes(pathname) || 
+                       pathname.startsWith('/confirm') || 
+                       pathname.startsWith('/reset-password');
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register');
   
   // 1) Permitir siempre la ruta genérica de perfil para usuarios autenticados

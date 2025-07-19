@@ -15,6 +15,11 @@ export default function LoginPage() {
           Regístrate aquí
         </Link>
       </div>
+      <div className="mt-2 text-center text-sm text-muted-foreground">
+        <Link href="/forgot-password" className="font-semibold text-foreground underline-offset-4 hover:underline">
+          ¿Olvidaste tu contraseña?
+        </Link>
+      </div>
     </AuthCard>
   );
 }
