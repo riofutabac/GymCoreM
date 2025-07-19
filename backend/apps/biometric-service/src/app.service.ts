@@ -234,38 +234,6 @@ export class AppService implements OnModuleInit {
     }
   }
 
-  async resetFingerprints(): Promise<any> {
-    try {
-      this.logger.log(`🔄 Reseteando todas las huellas del Arduino...`);
-      
-      if (!this.serialService.isArduinoConnected()) {
-        throw new Error('Arduino no está conectado');
-      }
-
-      const response = await this.serialService.sendCommand('RESET');
-      
-      this.logger.log(`📡 Respuesta del Arduino: ${response}`);
-      
-      if (response === 'RESET_SUCCESS') {
-        return {
-          message: 'Todas las huellas han sido eliminadas del Arduino',
-          status: 'success'
-        };
-      } else if (response === 'RESET_ERROR') {
-        throw new Error('Error al resetear las huellas en el Arduino');
-      } else {
-        return {
-          message: 'Proceso de reset en progreso',
-          status: 'in_progress',
-          response: response
-        };
-      }
-    } catch (error) {
-      this.logger.error(`❌ Error al resetear huellas: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-    }
-  }
-
   async countFingerprints(): Promise<any> {
     try {
       this.logger.log(`🔄 Contando huellas almacenadas en el Arduino...`);

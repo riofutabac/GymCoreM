@@ -57,21 +57,6 @@ export class AppController {
   }
 
   /**
-   * Reinicia (borra todas) las huellas del dispositivo Arduino.
-   */
-  @MessagePattern({ cmd: 'reset_fingerprints' })
-  async resetFingerprints() {
-    this.logger.log("RECIBIDO: { cmd: 'reset_fingerprints' }");
-    try {
-      const result = await this.appService.resetFingerprints();
-      return { success: true, message: 'Huellas reseteadas exitosamente.', data: result };
-    } catch (error) {
-      this.logger.error(`Error en resetFingerprints: ${error.message}`);
-      throw new RpcException(error.message || 'Error desconocido al resetear huellas');
-    }
-  }
-
-  /**
    * Cuenta las huellas almacenadas en el dispositivo.
    */
   @MessagePattern({ cmd: 'count_fingerprints' })
