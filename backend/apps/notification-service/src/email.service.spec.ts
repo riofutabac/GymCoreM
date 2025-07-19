@@ -1,110 +1,90 @@
+// backend/apps/notification-service/src/email.service.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
-import { EmailService } from './email.service';
 import { ConfigService } from '@nestjs/config';
-import * as SendGrid from '@sendgrid/mail';
+import { EmailService, MembershipActivatedData, PaymentFailedData } from './email.service';
+import { Resend } from 'resend';
 
-jest.mock('@sendgrid/mail', () => ({
-  setApiKey: jest.fn(),
-  send: jest.fn(),
-}));
+jest.mock('resend', () => {
+  return {
+    Resend: jest.fn().mockImplementation(() => ({
+      emails: {
+        send: jest.fn().mockResolvedValue({ id: 'test-email-id' }),
+      },
+    })),
+  };
+});
 
-describe('EmailService', () => {
+describe('EmailService (Resend)', () => {
   let service: EmailService;
-  let configService: ConfigService;
+  let config: ConfigService;
+  let mockedSend: jest.Mock;
 
   beforeEach(async () => {
+    const resendInstance = new Resend('fake-key');
+    mockedSend = resendInstance.emails.send as jest.Mock;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailService,
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string) => {
-              if (key === 'SENDGRID_API_KEY') return 'SG.test-key';
-              if (key === 'SENDGRID_FROM_EMAIL') return 'no-reply@test.com';
+            get: (key: string) => {
+              if (key === 'RESEND_API_KEY') return 're_test_key';
+              if (key === 'RESEND_FROM_EMAIL') return 'no-reply@test.com';
               return null;
-            }),
+            },
           },
         },
       ],
     }).compile();
 
     service = module.get<EmailService>(EmailService);
-    configService = module.get<ConfigService>(ConfigService);
-    (SendGrid.send as jest.Mock).mockClear();
   });
 
-  it('should be defined and set API key on construction', () => {
-    expect(service).toBeDefined();
-    expect(SendGrid.setApiKey).toHaveBeenCalledWith('SG.test-key');
+  it('debería inicializar Resend con API Key y from', () => {
+    expect(Resend).toHaveBeenCalledWith('re_test_key');
   });
 
-  describe('sendMembershipActivated', () => {
-    it('should call SendGrid.send with correct parameters', async () => {
-      (SendGrid.send as jest.Mock).mockResolvedValue([{} as any, {}]);
-      const to = 'member@test.com';
-      const data = { name: 'Test Member', membershipId: 'mem_123' };
-
-      await service.sendMembershipActivated(to, data);
-
-      expect(SendGrid.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to,
-          from: 'no-reply@test.com',
-          templateId: expect.any(String),
-          dynamicTemplateData: expect.objectContaining(data),
-        }),
-      );
-    });
-
-    it('should throw an error if SendGrid sending fails', async () => {
-      const error = new Error('SendGrid error');
-      (SendGrid.send as jest.Mock).mockRejectedValue(error);
-      await expect(
-        service.sendMembershipActivated('member@test.com', {} as any),
-      ).rejects.toThrow(error);
-    });
+  it('sendTestEmail: llama a resend.emails.send con parámetros correctos', async () => {
+    await service.sendTestEmail('user@test.com');
+    expect(mockedSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'user@test.com',
+        from: 'no-reply@test.com',
+        subject: expect.any(String),
+        html: expect.stringContaining('Servicio de Notificaciones Activo'),
+      }),
+    );
   });
 
-  describe('sendWelcomeEmail', () => {
-    it('should send welcome email with correct template', async () => {
-      (SendGrid.send as jest.Mock).mockResolvedValue([{} as any, {}]);
-      const to = 'new@test.com';
-      const data = { firstName: 'John', gymName: 'Test Gym' };
-
-      await service.sendWelcomeEmail(to, data);
-
-      expect(SendGrid.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to,
-          from: 'no-reply@test.com',
-          templateId: expect.any(String),
-          dynamicTemplateData: expect.objectContaining(data),
-        }),
-      );
-    });
+  it('sendMembershipActivated: llama a resend.emails.send con datos de membresía', async () => {
+    const data: MembershipActivatedData = {
+      name: 'Juan',
+      membershipId: 'mem_001',
+    };
+    await service.sendMembershipActivated('juan@test.com', data);
+    expect(mockedSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'juan@test.com',
+        html: expect.stringContaining('mem_001'),
+      }),
+    );
   });
 
-  describe('sendPaymentConfirmation', () => {
-    it('should send payment confirmation with transaction details', async () => {
-      (SendGrid.send as jest.Mock).mockResolvedValue([{} as any, {}]);
-      const to = 'member@test.com';
-      const data = {
-        amount: 29.99,
-        transactionId: 'txn_123',
-        date: new Date().toISOString(),
-      };
-
-      await service.sendPaymentConfirmation(to, data);
-
-      expect(SendGrid.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to,
-          from: 'no-reply@test.com',
-          templateId: expect.any(String),
-          dynamicTemplateData: expect.objectContaining(data),
-        }),
-      );
-    });
+  it('sendPaymentFailed: llama a resend.emails.send con datos de pago fallido', async () => {
+    const data: PaymentFailedData = {
+      name: 'María',
+      membershipId: 'mem_002',
+      amount: '$29.99',
+      failureReason: 'Fondos insuficientes',
+    };
+    await service.sendPaymentFailed('maria@test.com', data);
+    expect(mockedSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'maria@test.com',
+        html: expect.stringContaining('Fondos insuficientes'),
+      }),
+    );
   });
 });

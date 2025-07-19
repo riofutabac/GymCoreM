@@ -39,9 +39,32 @@ export class MembersController {
     return this.membersService.remove(payload.id, payload.gymId);
   }
 
+
   @MessagePattern({ cmd: 'members_bulk_create' })
   async bulkCreate(@Payload() payload: { gymId: string; members: CreateMemberDto[] }) {
     this.logger.log(`Importación masiva de ${payload.members.length} socios para gym ${payload.gymId}`);
     return this.membersService.bulkCreate(payload.gymId, payload.members);
+  }
+
+  @MessagePattern({ cmd: 'members_join_gym' })
+  async joinGym(@Payload() payload: { userId: string; uniqueCode: string }) {
+    this.logger.log(`Usuario ${payload.userId} intentando unirse con código ${payload.uniqueCode}`);
+    return this.membersService.joinGym(payload.userId, payload.uniqueCode);
+  }
+
+  @MessagePattern({ cmd: 'members_get_profile' })
+  async getMemberProfile(@Payload() data: { userId: string }) {
+    return this.membersService.findMemberById(data.userId);
+  }
+
+  @MessagePattern({ cmd: 'members_update_profile' })
+  async updateMemberProfile(@Payload() data: { 
+    userId: string; 
+    firstName?: string; 
+    lastName?: string; 
+    email?: string; 
+  }) {
+    const { userId, ...updateData } = data;
+    return this.membersService.updateMemberProfile(userId, updateData);
   }
 }

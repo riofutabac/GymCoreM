@@ -107,7 +107,27 @@ export class SalesService {
       this.logger.log(`Instant ${paymentType} sale completed: ${sale.id}`);
       return sale;
     }).then(async (sale) => {
-      // 3. Publicar evento para analytics
+      // 3. Publicar evento para analytics (evento estándar payment.completed)
+      const paymentCompletedPayload = {
+        saleId: sale.id,
+        gymId: sale.gymId, // Agregar gymId para facilitar filtrado
+        amount: sale.totalAmount,
+        paymentMethod: paymentType,
+        status: 'COMPLETED',
+        timestamp: new Date().toISOString(),
+        source: 'POS',
+      };
+
+      await this.amqpConnection.publish(
+        'gymcore-exchange', 
+        'payment.completed', // Evento estándar que escucha analytics-service
+        paymentCompletedPayload,
+        { persistent: true }
+      );
+
+      this.logger.log(`✅ Evento 'payment.completed' emitido por venta POS #${sale.id} por $${sale.totalAmount} (${paymentType})`);
+
+      // También mantener el evento específico para otros consumidores
       await this.amqpConnection.publish('gymcore-exchange', 'sale.completed', {
         saleId: sale.id,
         amount: sale.totalAmount,

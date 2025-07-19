@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/analytics-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DailyAnalyticsSummary {
+  id              String   @id @default(cuid())
+  date            DateTime @unique @db.Date
+  newUsers        Int      @default(0)
+  revenue         Float    @default(0)
+  membershipsSold Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@map("daily_analytics_summary")
+}

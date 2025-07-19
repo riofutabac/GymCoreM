@@ -1,4 +1,4 @@
-import { IsUUID, IsDateString, IsOptional, IsString, IsNumber, IsPositive } from 'class-validator';
+import { IsUUID, IsDateString, IsOptional, IsString, IsNumber, IsPositive, IsEnum } from 'class-validator';
 
 export class ActivateMembershipDto {
   @IsUUID()
@@ -13,6 +13,10 @@ export class ActivateMembershipDto {
 
   @IsDateString()
   endDate: string;
+
+  @IsEnum(['CASH', 'ONLINE'])
+  @IsOptional()
+  paymentType?: 'CASH' | 'ONLINE' = 'CASH'; // Default a CASH para managers
 
   @IsOptional()
   @IsString()

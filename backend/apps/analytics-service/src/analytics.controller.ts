@@ -1,6 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AnalyticsService } from './analytics.service';
 
 @Controller()
@@ -24,17 +24,128 @@ export class AnalyticsController {
     routingKey: 'payment.completed',
     queue: 'analytics.payment.completed',
   })
-  public async handlePaymentCompleted(payload: { amount: number }) {
+  public async handlePaymentCompleted(payload: { 
+    amount: number; 
+    paymentId?: string; 
+    membershipId?: string; 
+    saleId?: string;
+    timestamp?: string;
+  }) {
+    // Crear un eventId único basado en los datos disponibles
+    const eventId = payload.paymentId || 
+                   payload.membershipId || 
+                   payload.saleId || 
+                   `${payload.amount}_${payload.timestamp || Date.now()}`;
+    
     this.logger.log(
-      `Evento 'payment.completed' recibido por $${payload.amount}`,
+      `Evento 'payment.completed' recibido por $${payload.amount} (eventId: ${eventId})`,
     );
+    
     if (typeof payload.amount === 'number') {
-      await this.analyticsService.processCompletedPayment(payload.amount);
+      // CORRECCIÓN: Pasamos si es una membresía basado en si tiene membershipId
+      const isMembership = !!payload.membershipId;
+      await this.analyticsService.processCompletedPayment(payload.amount, eventId, isMembership);
     }
   }
 
   @MessagePattern({ cmd: 'get_kpis' })
   public async getKPIs() {
-    return this.analyticsService.getKPIs();
+    this.logger.log('Solicitud de KPIs recibida');
+    // LA CORRECCIÓN ESTÁ AQUÍ: getKpis con 'i' minúscula
+    return this.analyticsService.getKpis(); 
+  }
+
+  @MessagePattern({ cmd: 'get_kpis_for_gym' })
+  public async getKPIsForGym(@Payload() data: { managerId: string }) {
+    return this.analyticsService.getKpisForGym(data.managerId);
+  }
+
+  @MessagePattern({ cmd: 'get_global_trends' })
+  public async getGlobalTrends() {
+    this.logger.log('Solicitud de tendencias globales recibida');
+    return this.analyticsService.getGlobalTrends();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'gym.updated',
+    queue: 'analytics.gym.updated',
+  })
+  public async handleGymUpdated(payload: { gymId: string; updatedFields?: string[] }) {
+    this.logger.log(`Evento 'gym.updated' recibido para gimnasio ${payload.gymId}`);
+    await this.analyticsService.handleGymUpdate();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'gym.deactivated',
+    queue: 'analytics.gym.deactivated',
+  })
+  public async handleGymDeactivated(payload: { gymId: string; gymName: string; deactivatedAt: string }) {
+    this.logger.log(`Evento 'gym.deactivated' recibido para gimnasio ${payload.gymName} (ID: ${payload.gymId})`);
+    await this.analyticsService.handleGymDeactivation(payload.gymId);
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.profile.updated',
+    queue: 'analytics.user.profile.updated',
+  })
+  public async handleUserProfileUpdated(payload: { userId: string; updatedFields?: string[] }) {
+    this.logger.log(`Evento 'user.profile.updated' recibido para usuario ${payload.userId}`);
+    await this.analyticsService.handleUserProfileUpdate();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'user.role.updated',
+    queue: 'analytics.user.role.updated',
+  })
+  public async handleUserRoleUpdated(payload: { userId: string; newRole: string; oldRole?: string }) {
+    this.logger.log(`Evento 'user.role.updated' recibido para usuario ${payload.userId}: ${payload.oldRole || 'unknown'} → ${payload.newRole}`);
+    await this.analyticsService.handleUserRoleUpdate();
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'gym.created',
+    queue: 'analytics.gym.created',
+  })
+  public async handleGymCreated(payload: { gymId: string; name: string }) {
+    this.logger.log(`Evento 'gym.created' recibido para gimnasio ${payload.name} (ID: ${payload.gymId})`);
+    await this.analyticsService.handleGymUpdate(); // Reutilizamos la función que invalida la caché
+  }
+
+  // --- NUEVOS LISTENERS PARA MEMBRESÍAS ---
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'membership.activated.manually',
+    queue: 'analytics.membership.activated.manually',
+  })
+  public async handleMembershipActivatedManually(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    activatedBy: string;
+    gymId?: string;
+  }) {
+    this.logger.log(`Evento 'membership.activated.manually' recibido para membresía ${payload.membershipId} por $${payload.amount}`);
+    await this.analyticsService.processMembershipActivation(payload);
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'membership.renewed.manually',
+    queue: 'analytics.membership.renewed.manually',
+  })
+  public async handleMembershipRenewedManually(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    renewedBy: string;
+    gymId?: string;
+  }) {
+    this.logger.log(`Evento 'membership.renewed.manually' recibido para membresía ${payload.membershipId} por $${payload.amount}`);
+    await this.analyticsService.processMembershipRenewal(payload);
   }
 }
