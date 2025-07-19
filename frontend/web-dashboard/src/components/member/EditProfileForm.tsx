@@ -36,9 +36,10 @@ export default function EditProfileForm({ initialData, onSuccess, onCancel }: Ed
       if (formData.lastName !== initialData.lastName) {
         changedFields.lastName = formData.lastName;
       }
-      if (formData.email !== initialData.email) {
-        changedFields.email = formData.email;
-      }
+      // El email ya no se puede modificar
+      // if (formData.email !== initialData.email) {
+      //   changedFields.email = formData.email;
+      // }
 
       if (Object.keys(changedFields).length === 0) {
         setError('No se han realizado cambios');
@@ -108,11 +109,12 @@ export default function EditProfileForm({ initialData, onSuccess, onCancel }: Ed
             id="email"
             name="email"
             value={formData.email}
-            onChange={handleChange}
+            disabled={true}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-500"
             placeholder="Ingresa tu email"
           />
+          <p className="text-xs text-gray-500 mt-1">El email no se puede modificar por razones de seguridad.</p>
         </div>
 
         {error && (
@@ -125,7 +127,7 @@ export default function EditProfileForm({ initialData, onSuccess, onCancel }: Ed
           <button
             type="submit"
             disabled={isLoading}
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Guardando...' : 'Guardar Cambios'}
           </button>

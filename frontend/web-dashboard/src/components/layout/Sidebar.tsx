@@ -60,7 +60,7 @@ const roleMenus: Record<string, MenuSection[]> = {
     {
       title: "Soporte",
       items: [
-        { href: '/owner/settings', label: 'Configuración', icon: Settings },
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
       ]
     }
   ],
@@ -77,8 +77,7 @@ const roleMenus: Record<string, MenuSection[]> = {
     {
       title: "Herramientas",
       items: [
-        { href: '/manager/notifications', label: 'Notificaciones', icon: Bell },
-        { href: '/manager/settings', label: 'Configuración', icon: Settings },
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
       ]
     }
   ],
@@ -97,6 +96,7 @@ const roleMenus: Record<string, MenuSection[]> = {
       items: [
         { href: '/receptionist/visitors', label: 'Visitantes', icon: Users },
         { href: '/receptionist/reports', label: 'Reportes', icon: BarChart3 },
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
       ]
     }
   ],
@@ -105,7 +105,7 @@ const roleMenus: Record<string, MenuSection[]> = {
       title: "Mi Portal de Miembro",
       items: [
         { href: '/member', label: 'Dashboard', icon: Home },
-        { href: '/member/profile', label: 'Perfil', icon: Users },
+        { href: '/profile', label: 'Mi Perfil', icon: Users },
         { href: '/member/membership', label: 'Membresía', icon: CreditCard }
       ]
     }

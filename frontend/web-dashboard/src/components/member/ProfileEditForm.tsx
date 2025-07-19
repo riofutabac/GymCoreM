@@ -106,7 +106,7 @@ export default function ProfileEditForm({ user }: ProfileEditFormProps) {
       <Button
         type="submit"
         disabled={isLoading}
-        className="w-full"
+        className="w-full bg-black text-white hover:bg-gray-800"
       >
         {isLoading ? (
           <>
