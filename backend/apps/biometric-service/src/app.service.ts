@@ -8,6 +8,8 @@ export class AppService implements OnModuleInit {
   private readonly logger = new Logger(AppService.name);
   private currentEnrollmentUserId: string | null = null;
   private isVerifying: boolean = false;
+  // NUEVO: Flag para el periodo de enfriamiento
+  private isCoolingDown: boolean = false;
 
   constructor(
     private readonly serialService: SerialService,
@@ -21,31 +23,38 @@ export class AppService implements OnModuleInit {
     });
   }
 
+  // -- INICIA BLOQUE DE LÓGICA DE COOLDOWN --
+  private startCooldown(): void {
+    this.isCoolingDown = true;
+    this.logger.log('🧊 Iniciando cooldown de 2 segundos...');
+    setTimeout(() => {
+      this.isCoolingDown = false;
+      this.logger.log('✅ Cooldown finalizado. Aceptando nuevas lecturas.');
+    }, 2000);
+  }
+  
   private async handleArduinoResponse(data: string) {
     // Procesar respuesta de enrollment exitoso
     if (data.startsWith('ENROLL_SUCCESS:ID=') && this.currentEnrollmentUserId) {
       const enrollmentId = parseInt(data.split('=')[1]);
       this.logger.log(`✅ Inscripción exitosa en Arduino con ID: ${enrollmentId}`);
-      
-      // Generar plantilla simulada (en el futuro, obtendremos la plantilla real del Arduino)
-      const mockTemplate = `template_${this.currentEnrollmentUserId}_${enrollmentId}_${Date.now()}`;
-      
-      // Enviar la plantilla al auth-service
+            
+        // Enviar la plantilla al auth-service
       try {
-        this.logger.log(`💾 Guardando plantilla en auth-service...`);
-        this.logger.log(`📋 Datos a enviar: userId=${this.currentEnrollmentUserId}, template=${mockTemplate}`);
+        this.logger.log(`💾 Guardando mapeo de huella en auth-service...`);
+        this.logger.log(`📋 Datos a enviar: userId=${this.currentEnrollmentUserId}, fingerprintId=${enrollmentId}`);
         
         const authResult = await firstValueFrom(
           this.authClient.send(
             { cmd: 'enroll_biometric' },
-            { userId: this.currentEnrollmentUserId, template: mockTemplate }
+            { userId: this.currentEnrollmentUserId, fingerprintId: enrollmentId }
           )
         );
         
-        this.logger.log(`✅ Plantilla guardada en auth-service: ${JSON.stringify(authResult)}`);
+        this.logger.log(`✅ Mapeo de huella guardado en auth-service: ${JSON.stringify(authResult)}`);
         
         // Resetear el usuario actual
-        this.currentEnrollmentUserId = null;
+        // this.currentEnrollmentUserId = null;
         
       } catch (authError) {
         this.logger.error(`❌ Error guardando en auth-service: ${authError instanceof Error ? authError.message : String(authError)}`);
@@ -62,8 +71,52 @@ export class AppService implements OnModuleInit {
         }
         
         // Resetear el usuario actual en caso de error
-        this.currentEnrollmentUserId = null;
+        // this.currentEnrollmentUserId = null;
+      } finally {
+            this.currentEnrollmentUserId = null;
+            this.startCooldown(); // <--- SOLUCIÓN AL DELAY
       }
+      return;
+    }
+
+    if (data.startsWith('VERIFY_FOUND:ID=')) {
+        if (this.isVerifying || this.isCoolingDown) { // <-- Se añade chequeo de cooldown
+            if(this.isCoolingDown) this.logger.log("🧊 Lectura ignorada por cooldown.");
+            else this.logger.warn('⚠️ Verificación ya en progreso. Ignorando nueva solicitud.');
+            return;
+        }
+        
+        this.isVerifying = true;
+        
+        try {
+            const parts = data.split(':');
+            const fingerprintId = parseInt(parts[1].split('=')[1]);
+            const confidence = parseInt(parts[2].split('=')[1]);
+
+            this.logger.log(`🔍 Huella encontrada por sensor. ID: ${fingerprintId}, Confianza: ${confidence}`);
+            this.logger.log(`🗣️  Consultando a auth-service por el dueño del fingerprintId: ${fingerprintId}`);
+
+            const user = await firstValueFrom(
+                this.authClient.send({ cmd: 'get_user_by_fingerprint_id' }, { fingerprintId })
+            );
+
+            if (user && user.id) {
+                this.logger.log(`✅ ACCESO CONCEDIDO. Usuario: ${user.email}. Notificando al Arduino.`);
+                // SOLUCIÓN AL CRASH: Usamos el método que no espera respuesta
+                this.serialService.sendFireAndForgetCommand('VERIFY_SUCCESS');
+            } else {
+                this.logger.warn(`❌ ACCESO DENEGADO. Huella ID ${fingerprintId} no está registrada en la BD. Notificando al Arduino.`);
+                // SOLUCIÓN AL CRASH: Usamos el método que no espera respuesta
+                this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+            }
+        } catch (error) {
+            this.logger.error(`❌ Error durante el proceso de verificación con auth-service: ${error.message}`);
+            // SOLUCIÓN AL CRASH: Usamos el método que no espera respuesta
+            this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+        } finally {
+            this.isVerifying = false;
+            this.startCooldown(); // <--- SOLUCIÓN AL DELAY
+        }
     }
   }
 

@@ -68,6 +68,19 @@ export class SerialService implements OnModuleInit {
     }
   }
 
+  sendFireAndForgetCommand(command: string): void {
+    if (!this.port || !this.port.isOpen) {
+      this.logger.error(`Puerto serial no abierto. No se pudo enviar el comando (fire-and-forget): ${command}`);
+      return;
+    }
+    this.logger.log(`🔥 Enviando comando a Arduino (sin esperar respuesta): ${command}`);
+    this.port.write(`${command}\n`, (err) => {
+      if (err) {
+        this.logger.error(`Error al escribir en el puerto serial (fire-and-forget): ${err.message}`);
+      }
+    });
+  }
+
   sendCommand(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.port || !this.port.isOpen) {
@@ -82,6 +95,7 @@ export class SerialService implements OnModuleInit {
       
       // Timeout para la respuesta
       const timeout = setTimeout(() => {
+        this.parser?.removeListener('data', responseHandler);
         reject(new Error('Timeout: Arduino no respondió en 3 segundos'));
       }, 3000);
 
@@ -93,7 +107,13 @@ export class SerialService implements OnModuleInit {
       };
 
       this.parser?.on('data', responseHandler);
-      this.port.write(`${command}\n`);
+      this.port.write(`${command}\n`, (err) => {
+        if (err) {
+          clearTimeout(timeout);
+          this.parser?.removeListener('data', responseHandler);
+          return reject(new Error(`Error al escribir en el puerto: ${err.message}`));
+        }
+      });
     });
   }
 
