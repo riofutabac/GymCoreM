@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, IsOptional, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, IsOptional, MinLength, IsEnum } from 'class-validator';
 
 export class CreateMemberDto {
   @IsEmail({}, { message: 'Debe ser un email válido' })
@@ -13,6 +13,10 @@ export class CreateMemberDto {
   @IsNotEmpty({ message: 'El apellido es requerido' })
   @MinLength(2, { message: 'El apellido debe tener al menos 2 caracteres' })
   lastName: string;
+
+  @IsOptional()
+  @IsEnum(['OWNER', 'MANAGER', 'RECEPTIONIST', 'MEMBER'])
+  role?: string;
 
   @IsOptional()
   @IsString()

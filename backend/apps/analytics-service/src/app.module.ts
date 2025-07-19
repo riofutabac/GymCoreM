@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AnalyticsController } from './analytics.controller';
@@ -19,6 +20,33 @@ import { PrismaModule } from './prisma/prisma.module';
     RedisModule,
     // Módulo de Prisma para base de datos
     PrismaModule,
+    // Clientes para comunicación con otros microservicios
+    ClientsModule.register([
+      {
+        name: 'AUTH_SERVICE',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3001,
+        },
+      },
+      {
+        name: 'GYM_SERVICE',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3002,
+        },
+      },
+      {
+        name: 'PAYMENT_SERVICE',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3003,
+        },
+      },
+    ]),
     // Módulo de RabbitMQ para recibir eventos
     RabbitMQModule.forRootAsync({
       imports: [ConfigModule],

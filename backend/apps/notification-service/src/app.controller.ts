@@ -48,7 +48,6 @@ export class AppController {
   @Post('test-email')
   async sendTestEmail(@Body() payload: TestEmailPayload): Promise<object> {
     this.logger.log(`Test email requested for: ${payload.email}`);
-
     try {
       await this.emailService.sendTestEmail(payload.email);
       return {
@@ -56,14 +55,23 @@ export class AppController {
         message: `Test email sent to ${payload.email}`,
         timestamp: new Date().toISOString(),
       };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error('Failed to send test email', errorMessage);
+    } catch (error: any) {
+      // Log completo del error
+      this.logger.error('Failed to send test email', {
+        name: error?.name,
+        message: error?.message,
+        statusCode: error?.statusCode,
+        data: error?.response?.data,
+      });
       return {
         success: false,
         message: 'Failed to send test email',
-        error: errorMessage,
+        error: {
+          name: error?.name,
+          message: error?.message,
+          statusCode: error?.statusCode,
+          data: error?.response?.data,
+        },
         timestamp: new Date().toISOString(),
       };
     }

@@ -278,6 +278,8 @@ export class AppService {
         email: true,
         firstName: true,
         lastName: true,
+        gymId: true,
+        role: true,
       },
     });
 
@@ -291,6 +293,8 @@ export class AppService {
     return {
       email: user.email,
       name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      gymId: user.gymId,
+      role: user.role,
     };
   }
 
@@ -529,48 +533,307 @@ export class AppService {
     this.logger.log(`Iniciando reseteo de contraseña para ${email}`);
     
     try {
-      // Verificar si el usuario existe en nuestra base de datos
+      // Verificar que el usuario existe en la base de datos local
       const user = await this.prisma.user.findUnique({
-        where: { email },
-        select: { id: true, email: true, role: true }
+        where: { email }
       });
 
       if (!user) {
-        // Por seguridad, no revelamos si el email existe o no
-        this.logger.warn(`Intento de reset para email no registrado: ${email}`);
+        // Por seguridad, no revelamos si el email existe o no.
+        // Devolvemos una respuesta genérica para evitar la enumeración de usuarios.
+        this.logger.warn(`Intento de reseteo de contraseña para un email no registrado: ${email}`);
+        return {
+          message: 'Si tu correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.'
+        };
       }
 
-      // Siempre intentamos enviar el email de reset (Supabase maneja si existe o no)
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${frontendUrl}/update-password`,
+      // Usar el método de Supabase para enviar el correo de reseteo.
+      const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL}/auth/reset-password`, // URL a la que será redirigido el usuario
       });
 
       if (error) {
-        this.logger.error(`Error de Supabase al enviar email de reseteo: ${error.message}`);
+        this.logger.error(`Error de Supabase al enviar el correo de reseteo:`, error);
         throw new RpcException({
-          message: 'No se pudo procesar la solicitud de reseteo',
-          status: 500,
+          status: 400,
+          message: `Error al enviar el correo de reseteo: ${error.message}`,
         });
       }
 
-      this.logger.log(`✅ Email de reseteo enviado para ${email}`);
-      
-      // Por seguridad, siempre devolvemos el mismo mensaje
+      this.logger.log(`✅ Correo de reseteo enviado exitosamente a ${email}`);
       return { 
-        message: 'Si el email existe en nuestro sistema, se ha enviado un enlace de recuperación.',
-        timestamp: new Date().toISOString(),
+        success: true, 
+        message: 'Si tu correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.' 
       };
+
+    } catch (error) {
+      this.logger.error(`Error en el proceso de reseteo de contraseña para ${email}:`, error);
+      
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno al procesar la solicitud de reseteo de contraseña.',
+      });
+    }
+  }
+
+  /**
+   * Obtiene el personal (staff) de un gimnasio específico basado en el managerId
+   */
+  async getStaffByGym(managerId: string) {
+    this.logger.log(`Obteniendo staff para manager ${managerId}`);
+    
+    try {
+      // Primero obtenemos el gymId del manager
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true }
+      });
+
+      if (!manager || !manager.gymId) {
+        throw new RpcException({
+          message: 'Manager no encontrado o no asignado a un gimnasio',
+          status: 404,
+        });
+      }
+
+      if (manager.role !== 'MANAGER' && manager.role !== 'OWNER') {
+        throw new RpcException({
+          message: 'Usuario no autorizado para ver el staff',
+          status: 403,
+        });
+      }
+
+      // Obtener todo el staff del mismo gimnasio
+      const staff = await this.prisma.user.findMany({
+        where: {
+          gymId: manager.gymId,
+          role: {
+            in: ['MANAGER', 'RECEPTIONIST', 'OWNER']
+          }
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      this.logger.log(`Se encontraron ${staff.length} miembros del staff`);
+      return staff;
     } catch (error) {
       if (error instanceof RpcException) {
         throw error;
       }
-      this.logger.error('Error procesando reseteo de contraseña:', error);
+      this.logger.error('Error obteniendo staff del gimnasio:', error);
       throw new RpcException({
-        message: 'Error interno procesando la solicitud',
+        message: 'Error obteniendo el staff del gimnasio',
         status: 500,
       });
     }
   }
+
+  /**
+   * Asigna un rol a un usuario dentro del mismo gimnasio
+   */
+  async assignRoleInGym(managerId: string, targetUserId: string, role: string) {
+    this.logger.log(`Manager ${managerId} asignando rol ${role} a usuario ${targetUserId}`);
+    
+    try {
+      // Verificar que el manager existe y obtener su gymId
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true }
+      });
+
+      if (!manager || !manager.gymId) {
+        throw new RpcException({
+          message: 'Manager no encontrado o no asignado a un gimnasio',
+          status: 404,
+        });
+      }
+
+      if (manager.role !== 'MANAGER' && manager.role !== 'OWNER') {
+        throw new RpcException({
+          message: 'Usuario no autorizado para asignar roles',
+          status: 403,
+        });
+      }
+
+      // Verificar que el usuario objetivo existe y pertenece al mismo gimnasio
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { gymId: true, role: true, email: true }
+      });
+
+      if (!targetUser) {
+        throw new RpcException({
+          message: 'Usuario objetivo no encontrado',
+          status: 404,
+        });
+      }
+
+      if (targetUser.gymId !== manager.gymId) {
+        throw new RpcException({
+          message: 'El usuario no pertenece al mismo gimnasio',
+          status: 403,
+        });
+      }
+
+      // Validar el rol que se quiere asignar
+      const validRoles = ['RECEPTIONIST','MEMBER'];
+      if (!validRoles.includes(role)) {
+        throw new RpcException({
+          message: 'Los managers solo pueden asignar el rol RECEPTIONIST',
+          status: 400,
+        });
+      }
+
+      // Actualizar el rol del usuario
+      const updatedUser = await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { role: role as any },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          gymId: true,
+        }
+      });
+
+      // Actualizar metadatos en Supabase
+      await this.supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+        app_metadata: { 
+          role: role,
+          gymId: manager.gymId
+        },
+        user_metadata: {
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          role: role,
+          gymId: manager.gymId,
+        },
+      });
+
+      // Publicar evento
+      await this.amqpConnection.publish('gymcore-exchange', 'user.role.updated', {
+        userId: updatedUser.id,
+        newRole: updatedUser.role,
+        oldRole: targetUser.role,
+        gymId: updatedUser.gymId,
+        assignedBy: managerId,
+      }, { persistent: true });
+
+      this.logger.log(`✅ Rol ${role} asignado exitosamente a ${targetUser.email}`);
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      this.logger.error('Error asignando rol:', error);
+      throw new RpcException({
+        message: 'Error interno asignando el rol',
+        status: 500,
+      });
+    }
+  }
+
+  /**
+   * Actualiza el email de un usuario en Supabase Auth
+   */
+  async updateUserAuthEmail(userId: string, newEmail: string) {
+    this.logger.log(`Actualizando email en Supabase para usuario ${userId}`);
+    
+    try {
+      // Actualizar el email en Supabase Auth
+      const { data, error } = await this.supabaseAdmin.auth.admin.updateUserById(userId, {
+        email: newEmail,
+      });
+
+      if (error) {
+        this.logger.error(`Error actualizando email en Supabase:`, error);
+        throw new RpcException({
+          status: 500,
+          message: `Error actualizando email en el sistema de autenticación: ${error.message}`,
+        });
+      }
+
+      // También actualizar en la base de datos local
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { 
+          email: newEmail,
+          updatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`✅ Email actualizado exitosamente para usuario ${userId}`);
+      return { success: true, message: 'Email actualizado exitosamente' };
+
+    } catch (error) {
+      this.logger.error(`Error actualizando email para usuario ${userId}:`, error);
+      
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno actualizando email',
+      });
+    }
+  }
+  /**
+   * Envía un correo de reseteo de contraseña
+   */
+  async sendPasswordReset(email: string) {
+    this.logger.log(`Enviando reseteo de contraseña para email: ${email}`);
+    
+    try {
+      const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
+      });
+
+      if (error) {
+        this.logger.error(`Error enviando reseteo de contraseña:`, error);
+        throw new RpcException({
+          status: 400,
+          message: `Error enviando correo de reseteo: ${error.message}`,
+        });
+      }
+
+      this.logger.log(`✅ Correo de reseteo enviado exitosamente a ${email}`);
+      return { 
+        success: true, 
+        message: 'Correo de reseteo de contraseña enviado exitosamente' 
+      };
+
+    } catch (error) {
+      this.logger.error(`Error enviando reseteo de contraseña para ${email}:`, error);
+      
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
+      throw new RpcException({
+        status: 500,
+        message: 'Error interno enviando reseteo de contraseña',
+      });
+    }
+  }
 }
+
+  
+
 

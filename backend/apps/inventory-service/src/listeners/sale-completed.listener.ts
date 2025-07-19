@@ -65,12 +65,13 @@ export class SaleCompletedListener {
       // --- EMITIR EVENTO payment.completed PARA ANALYTICS ---
       const completedSale = await this.prisma.sale.findUnique({
         where: { id: payload.saleId },
-        select: { totalAmount: true, paymentType: true }
+        select: { totalAmount: true, paymentType: true, gymId: true }
       });
 
       if (completedSale) {
         const paymentCompletedPayload = {
           saleId: payload.saleId,
+          gymId: completedSale.gymId, // ✅ Incluir gymId
           amount: completedSale.totalAmount,
           paymentMethod: completedSale.paymentType || 'PAYPAL',
           status: 'COMPLETED',

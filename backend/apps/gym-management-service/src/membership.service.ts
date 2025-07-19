@@ -53,16 +53,18 @@ export class MembershipService {
     }
 
     // 4. SI LA VALIDACIÓN PASA, PROCEDEMOS CON LA ACTIVACIÓN
+    this.logger.log(`🔄 Iniciando activación de membresía para usuario ${dto.userId}`);
+    this.logger.log(`📅 Fechas de membresía - Inicio: ${startDate.toISOString()}, Fin: ${endDate.toISOString()}`);
     return this.prisma.$transaction(async (tx) => {
       // Actualizar la membresía a ACTIVA (no crear una nueva)
       const activatedMembership = await tx.membership.update({
-        where: { id: pendingMembership.id },
-        data: {
-          status: 'ACTIVE',
-          startDate: startDate,
-          endDate: endDate,
-          activatedById: managerId,
-        },
+      where: { id: pendingMembership.id },
+      data: {
+        status: 'ACTIVE',
+        startDate: startDate,
+        endDate: endDate,
+        activatedById: managerId,
+      },
       });
 
       // Crear el log de auditoría
@@ -84,6 +86,7 @@ export class MembershipService {
         method: 'CASH', // Método para activación manual
         reason: dto.reason ?? 'Activación manual (pago en efectivo)',
         activatedBy: managerId,
+        gymId: manager.gymId, // ← Incluir gymId para Analytics
       };
 
       await this.amqpConnection.publish(
@@ -112,6 +115,16 @@ export class MembershipService {
 
       this.logger.log(`Evento de notificación emitido para membresía ${activatedMembership.id}`);
 
+      // Log final con resumen completo de la membresía activada
+      this.logger.log(`✅ MEMBRESÍA ACTIVADA EXITOSAMENTE:`);
+      this.logger.log(`   • ID Membresía: ${activatedMembership.id}`);
+      this.logger.log(`   • Usuario ID: ${dto.userId}`);
+      this.logger.log(`   • Fecha de Inicio: ${startDate.toLocaleDateString('es-ES')} (${startDate.toISOString()})`);
+      this.logger.log(`   • Fecha de Fin: ${endDate.toLocaleDateString('es-ES')} (${endDate.toISOString()})`);
+      this.logger.log(`   • Duración: ${Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} días`);
+      this.logger.log(`   • Monto: $${dto.amount || 0} USD`);
+      this.logger.log(`   • Activado por Manager: ${managerId}`);
+
       return activatedMembership;
     });
   }
@@ -121,16 +134,38 @@ export class MembershipService {
     if (!membership) throw new NotFoundException('Membership not found');
 
     const newEnd = new Date(dto.newEndDate);
-    if (newEnd <= membership.endDate) {
-      throw new BadRequestException('newEndDate must be after current endDate');
+    const today = new Date();
+    
+    // Validación mejorada: permitir renovar membresías expiradas
+    // Solo validar que la nueva fecha de fin sea posterior a hoy
+    if (newEnd <= today) {
+      throw new BadRequestException('La nueva fecha de finalización debe ser posterior a hoy');
     }
 
     await this.validatePermissions(managerId, membership.userId, membership.gymId);
 
+    this.logger.log(`🔄 Iniciando renovación de membresía ${dto.membershipId}`);
+    this.logger.log(`📅 Nueva fecha de finalización: ${newEnd.toISOString()}`);
+
     return this.prisma.$transaction(async (tx) => {
+      // Determinar la fecha de inicio para la renovación
+      let startDate: Date;
+      if (membership.endDate && membership.endDate > today) {
+        // Si la membresía aún está activa, extender desde la fecha actual de fin
+        startDate = membership.endDate;
+      } else {
+        // Si la membresía está expirada, comenzar desde hoy
+        startDate = today;
+      }
+
       const updated = await tx.membership.update({
         where: { id: membership.id },
-        data: { endDate: newEnd, status: 'ACTIVE' },
+        data: { 
+          endDate: newEnd, 
+          startDate: startDate,
+          status: 'ACTIVE',
+          activatedById: managerId 
+        },
       });
 
       await tx.membershipLog.create({
@@ -138,10 +173,44 @@ export class MembershipService {
           membershipId: membership.id,
           action: 'RENEWED',
           performedById: managerId,
-          reason: dto.reason ?? 'Manual renewal',
-          details: { oldEndDate: membership.endDate, newEndDate: newEnd },
+          reason: dto.reason ?? 'Renovación manual (pago en efectivo)',
+          details: { 
+            oldEndDate: membership.endDate, 
+            newEndDate: newEnd,
+            newStartDate: startDate,
+            wasExpired: membership.endDate <= today,
+            amount: dto.amount
+          },
         },
       });
+
+      // Si se especifica un monto, emitir evento para crear registro de pago
+      if (dto.amount) {
+        const eventPayload = {
+          userId: membership.userId,
+          membershipId: membership.id,
+          amount: dto.amount,
+          method: 'CASH',
+          reason: dto.reason ?? 'Renovación manual (pago en efectivo)',
+          renewedBy: managerId,
+          gymId: membership.gymId, // ← Incluir gymId para Analytics
+        };
+
+        await this.amqpConnection.publish(
+          'gymcore-exchange',
+          'membership.renewed.manually',
+          eventPayload,
+          { persistent: true }
+        );
+        
+        this.logger.log(`Evento 'membership.renewed.manually' emitido para membresía ${membership.id}`);
+      }
+
+      this.logger.log(`✅ MEMBRESÍA RENOVADA EXITOSAMENTE:`);
+      this.logger.log(`   • ID Membresía: ${updated.id}`);
+      this.logger.log(`   • Nueva fecha de inicio: ${startDate.toLocaleDateString('es-ES')}`);
+      this.logger.log(`   • Nueva fecha de fin: ${newEnd.toLocaleDateString('es-ES')}`);
+      this.logger.log(`   • Renovado por Manager: ${managerId}`);
 
       return updated;
     });
@@ -176,6 +245,12 @@ export class MembershipService {
     if (!membership) {
       this.logger.error(`[Error] Membresía con ID ${payload.membershipId} no fue encontrada en la base de datos.`);
       throw new NotFoundException(`Membresía ${payload.membershipId} no encontrada.`);
+    }
+
+    // 🛠️ CORRECCIÓN: Evitar procesar membresías ya activadas manualmente
+    if (membership.status === 'ACTIVE' && membership.activatedById) {
+      this.logger.warn(`⚠️ Membresía ${payload.membershipId} ya fue activada manualmente por manager ${membership.activatedById}. Ignorando evento de pago automático.`);
+      return; // Salir sin hacer nada
     }
 
     // --- CORRECCIÓN DE LÓGICA DE FECHAS ---
@@ -299,5 +374,215 @@ export class MembershipService {
         gymId: gym.id, // ← Incluir gymId en la respuesta para usar en el API Gateway
       };
     });
+  }
+
+  async ban(membershipId: string, managerId: string, reason?: string) {
+    const membership = await this.prisma.membership.findUnique({ where: { id: membershipId }});
+    if (!membership) throw new NotFoundException('Membresía no encontrada');
+
+    // ⛔ solo el manager/owner del mismo gym
+    await this.validatePermissions(managerId, membership.userId, membership.gymId);
+
+    if (membership.status === 'BANNED') {
+      throw new ConflictException('La membresía ya está baneada');
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const banned = await tx.membership.update({
+        where: { id: membershipId },
+        data : { status: 'BANNED' },
+      });
+
+      await tx.membershipLog.create({
+        data: {
+          membershipId,
+          action: 'BANNED',
+          performedById: managerId,
+          reason: reason ?? 'Baneo manual del socio',
+        },
+      });
+
+      // 🚪 Notificar a biometric-service para invalidar huella / QR
+      await this.amqpConnection.publish(
+        'gymcore-exchange',
+        'membership.banned',
+        { membershipId, userId: membership.userId, gymId: membership.gymId },
+        { persistent: true },
+      );
+
+      return banned;
+    });
+  }
+
+  async getMemberDashboard(userId: string) {
+    this.logger.log(`Buscando información de dashboard para el usuario: ${userId}`);
+
+    const membership = await this.prisma.membership.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }, // Obtener la membresía más reciente
+      include: {
+        gym: true, // Incluir datos del gimnasio asociado
+      },
+    });
+
+    if (!membership) {
+      this.logger.warn(`No se encontró membresía para el usuario ${userId}`);
+      throw new RpcException({
+        status: 404,
+        message: 'No se encontró ninguna membresía para este usuario.',
+      });
+    }
+
+    this.logger.log(`Membresía encontrada ${membership.id} para el usuario ${userId}`);
+
+    // Devolver un objeto limpio y estructurado para el frontend
+    return {
+      membershipId: membership.id,
+      status: membership.status,
+      startDate: membership.startDate,
+      endDate: membership.endDate,
+      gym: {
+        id: membership.gym.id,
+        name: membership.gym.name,
+      },
+    };
+  }
+
+  async getMyMembership(userId: string) {
+    this.logger.log(`Buscando membresía actual para el usuario: ${userId}`);
+
+    // Primero verificamos si el usuario está asociado a un gimnasio
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { gymId: true }
+    });
+    
+    if (!user?.gymId) {
+      this.logger.warn(`El usuario ${userId} no está asociado a ningún gimnasio`);
+      return { hasGym: false };
+    }
+    
+    // Buscamos la membresía más reciente del usuario en su gimnasio
+    const membership = await this.prisma.membership.findFirst({
+      where: { 
+        userId,
+        gymId: user.gymId 
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        gym: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            uniqueCode: true
+          }
+        },
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!membership) {
+      this.logger.warn(`No se encontró membresía para el usuario ${userId} en el gimnasio ${user.gymId}`);
+      return { 
+        hasGym: true,
+        gymId: user.gymId,
+        hasMembership: false 
+      };
+    }
+
+    // Verificar si la membresía está activa (no expirada)
+    const now = new Date();
+    const isExpired = membership.status === 'ACTIVE' && membership.endDate < now;
+    
+    if (isExpired) {
+      this.logger.log(`La membresía ${membership.id} del usuario ${userId} está expirada`);
+    }
+
+    return {
+      hasGym: true,
+      hasMembership: true,
+      membershipId: membership.id,
+      status: isExpired ? 'EXPIRED' : membership.status,
+      startDate: membership.startDate,
+      endDate: membership.endDate,
+      isExpired,
+      gym: membership.gym,
+      user: membership.user
+    };
+  }
+  
+  async updateMemberProfile(userId: string, data: { firstName?: string; lastName?: string }) {
+    this.logger.log(`Actualizando perfil de miembro para el usuario: ${userId}`);
+    
+    // Verificar si el usuario existe y es un miembro
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, gymId: true }
+    });
+    
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+    }
+    
+    if (!user.gymId) {
+      throw new BadRequestException(`El usuario no está asociado a ningún gimnasio`);
+    }
+    
+    // Buscar la membresía actual del usuario
+    const membership = await this.prisma.membership.findFirst({
+      where: { 
+        userId,
+        gymId: user.gymId 
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    if (!membership) {
+      throw new NotFoundException(`No se encontró membresía para el usuario en el gimnasio`);
+    }
+    
+    // Actualizar los datos del miembro en la tabla de membresía
+    try {
+      const updatedMembership = await this.prisma.membership.update({
+        where: { id: membership.id },
+        data: {
+          user: {
+            update: {
+              firstName: data.firstName,
+              lastName: data.lastName
+            }
+          }
+        },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+      
+      this.logger.log(`Perfil de miembro actualizado exitosamente para el usuario ${userId}`);
+      
+      return {
+        success: true,
+        user: updatedMembership.user
+      };
+    } catch (error) {
+      this.logger.error(`Error al actualizar perfil de miembro: ${error.message}`);
+      throw new RpcException({
+        status: 500,
+        message: 'Error al actualizar el perfil del miembro'
+      });
+    }
   }
 }

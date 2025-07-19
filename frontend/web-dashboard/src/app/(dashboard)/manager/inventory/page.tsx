@@ -1,130 +1,92 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { ProductTable } from '@/components/inventory/ProductTable';
-import { ProductFormModal } from '@/components/inventory/ProductFormModal';
-import { inventoryApi } from '@/lib/api/inventory';
-import { ProductDto } from '@/lib/api/types';
-import { toast } from 'sonner';
-import { Plus, Package } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { PlusCircle } from 'lucide-react';
+import { Product } from '@/lib/api/types';
+import { DataTable } from '@/components/shared/DataTable';
+import { DataTableSkeleton } from '@/components/shared/DataTableSkeleton';
+import { columns as inventoryColumns } from '@/components/manager/inventory/columns';
+import ProductFormModal from '@/components/manager/inventory/ProductFormModal';
+import { getProducts, deleteProduct as apiDeleteProduct } from '@/lib/api/manager';
 
-export default function InventoryPage() {
-  const [products, setProducts] = useState<ProductDto[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductDto | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFormLoading, setIsFormLoading] = useState(false);
+export default function ManagerInventoryPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  const loadProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
-      setIsLoading(true);
-      const data = await inventoryApi.list();
+      const data = await getProducts();
       setProducts(data);
     } catch (error) {
-      toast.error('Error al cargar productos');
-      console.error('Error loading products:', error);
+      console.error("Failed to fetch products", error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadProducts();
   }, []);
 
-  const handleSave = async (data: any) => {
-    try {
-      setIsFormLoading(true);
-      if (selectedProduct) {
-        // Update existing product
-        await inventoryApi.update(selectedProduct.id, data);
-        toast.success('Producto actualizado correctamente');
-      } else {
-        // Create new product
-        await inventoryApi.create(data);
-        toast.success('Producto creado correctamente');
-      }
-      setModalOpen(false);
-      setSelectedProduct(null);
-      loadProducts();
-    } catch (error: any) {
-      toast.error(error.message || 'Error al guardar el producto');
-      console.error('Error saving product:', error);
-    } finally {
-      setIsFormLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
-  const handleDelete = async (product: ProductDto) => {
-    if (!confirm(`¿Estás seguro de eliminar el producto "${product.name}"?`)) {
-      return;
-    }
-
-    try {
-      await inventoryApi.remove(product.id);
-      toast.success('Producto eliminado correctamente');
-      loadProducts();
-    } catch (error: any) {
-      toast.error(error.message || 'Error al eliminar el producto');
-      console.error('Error deleting product:', error);
-    }
-  };
-
-  const handleEdit = (product: ProductDto) => {
+  const handleOpenModal = (product: Product | null = null) => {
     setSelectedProduct(product);
-    setModalOpen(true);
-  };
-
-  const handleNew = () => {
-    setSelectedProduct(null);
-    setModalOpen(true);
+    setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
-    setModalOpen(false);
+    setIsModalOpen(false);
     setSelectedProduct(null);
+    setLoading(true);
+    fetchProducts();
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
+      try {
+        await apiDeleteProduct(productId);
+        fetchProducts();
+      } catch (error) {
+        console.error("Failed to delete product", error);
+        alert('Error al eliminar el producto.');
+      }
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Package className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Inventario</h1>
-            <p className="text-muted-foreground">
-              Gestiona los productos de tu gimnasio
-            </p>
-          </div>
-        </div>
-        <Button onClick={handleNew} disabled={isLoading}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Producto
-        </Button>
-      </div>
-
-      <div className="bg-background rounded-lg">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : (
-          <ProductTable
-            products={products}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        )}
-      </div>
-
-      <ProductFormModal
-        open={modalOpen}
-        onClose={handleCloseModal}
-        onSave={handleSave}
-        product={selectedProduct}
-        isLoading={isFormLoading}
-      />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Gestión de Inventario</CardTitle>
+          <Button onClick={() => handleOpenModal()}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Añadir Producto
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <DataTableSkeleton columnCount={5} />
+          ) : (
+            <DataTable 
+              columns={inventoryColumns({ onEdit: handleOpenModal, onDelete: handleDeleteProduct })} 
+              data={products} 
+              filterColumn="name" 
+              filterPlaceholder="Filtrar por nombre..."
+            />
+          )}
+        </CardContent>
+      </Card>
+      
+      {isModalOpen && (
+        <ProductFormModal 
+          isOpen={isModalOpen} 
+          onClose={handleCloseModal} 
+          product={selectedProduct}
+        />
+      )}
     </div>
   );
 }

@@ -24,7 +24,7 @@ async function bootstrap() {
     const amqpConnection = app.get(AmqpConnection);
     const appController = app.get(AppController);
     
-    logger.log('🔧 Registrando el handler de RabbitMQ para el Payment Service...');
+    logger.log('🔧 Registrando handlers de RabbitMQ para el Payment Service...');
     
     // Registrar el handler para la activación manual de membresías
     await amqpConnection.createSubscriber(
@@ -40,7 +40,31 @@ async function bootstrap() {
       'handleManualMembershipActivation' // Nombre del handler para un mejor logging
     );
     
-    logger.log('✅ Handler de RabbitMQ para pagos manuales registrado exitosamente.');
+    // Registrar el handler para payment.completed (ventas POS)
+    await amqpConnection.createSubscriber(
+      (payload: any) => appController.handlePaymentCompleted(payload),
+      {
+        exchange: 'gymcore-exchange',
+        routingKey: 'payment.completed',
+        queue: 'payment-service-payment-completed',
+        queueOptions: { durable: true },
+      },
+      'handlePaymentCompleted'
+    );
+    
+    // Registrar el handler de debug para todos los eventos
+    await amqpConnection.createSubscriber(
+      (payload: any, amqpMsg: any) => appController.debugAllEvents(payload, amqpMsg?.fields?.routingKey || 'unknown'),
+      {
+        exchange: 'gymcore-exchange',
+        routingKey: '#',
+        queue: 'payment-debug-all-events',
+        queueOptions: { durable: false, autoDelete: true },
+      },
+      'debugAllEvents'
+    );
+    
+    logger.log('✅ Todos los handlers de RabbitMQ registrados exitosamente.');
 
   } catch (error) {
     logger.error('❌ Error registrando el handler de RabbitMQ', error);

@@ -42,48 +42,58 @@ export function RegisterForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {error && (
-          <div className="text-red-500 text-sm text-center p-2 bg-red-50 rounded">
+          <div className="text-red-600 text-sm text-center p-3 bg-red-50 border border-red-200 rounded-md">
             {error}
           </div>
         )}
         {success && (
-          <div className="text-green-500 text-sm text-center p-2 bg-green-50 rounded">
+          <div className="text-green-600 text-sm text-center p-3 bg-green-50 border border-green-200 rounded-md">
             {success}
           </div>
         )}
-        <div className="grid grid-cols-2 gap-4">
-          <FormField control={form.control} name="firstName" render={({ field }) => (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField control={form.control} name="firstName" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-medium">Nombre</FormLabel>
+                <FormControl>
+                  <Input placeholder="Santiago" {...field} className="h-11" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="lastName" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-medium">Apellido</FormLabel>
+                <FormControl>
+                  <Input placeholder="Bejarano" {...field} className="h-11" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          </div>
+          <FormField control={form.control} name="email" render={({ field }) => (
             <FormItem>
-              <FormLabel>Nombre</FormLabel>
-              <FormControl><Input placeholder="Santiago" {...field} /></FormControl>
+              <FormLabel className="text-sm font-medium">Email</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="tu@email.com" {...field} className="h-11" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
-          <FormField control={form.control} name="lastName" render={({ field }) => (
+          <FormField control={form.control} name="password" render={({ field }) => (
             <FormItem>
-              <FormLabel>Apellido</FormLabel>
-              <FormControl><Input placeholder="Bejarano" {...field} /></FormControl>
+              <FormLabel className="text-sm font-medium">Contraseña</FormLabel>
+              <FormControl>
+                <Input type="password" placeholder="••••••••" {...field} className="h-11" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
         </div>
-        <FormField control={form.control} name="email" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Email</FormLabel>
-            <FormControl><Input type="email" placeholder="tu@email.com" {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-        <FormField control={form.control} name="password" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Contraseña</FormLabel>
-            <FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full h-11 font-medium" disabled={isLoading}>
           {isLoading ? "Creando cuenta..." : "Crear cuenta"}
         </Button>
       </form>

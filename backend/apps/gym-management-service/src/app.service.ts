@@ -304,4 +304,167 @@ export class AppService {
       throw error;
     }
   }
+
+  /**
+   * Exporta un reporte CSV de miembros para un manager específico
+   */
+  async exportMembersReport(managerId: string) {
+    this.logger.log(`Generando reporte de miembros para manager ${managerId}`);
+    
+    try {
+      // Obtener el gymId del manager
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        select: { gymId: true, role: true }
+      });
+
+      if (!manager || !manager.gymId) {
+        throw new Error('Manager no encontrado o no asignado a un gimnasio');
+      }
+
+      if (manager.role !== 'MANAGER' && manager.role !== 'OWNER') {
+        throw new Error('Usuario no autorizado para generar reportes');
+      }
+
+      // Obtener todos los miembros del gimnasio
+      const members = await this.prisma.user.findMany({
+        where: {
+          gymId: manager.gymId,
+          role: 'MEMBER'
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      // Generar CSV
+      const csvHeaders = 'ID,Nombre,Apellido,Email,Fecha de Registro\n';
+      const csvRows = members.map(member => 
+        `${member.id},"${member.firstName}","${member.lastName}","${member.email}","${member.createdAt.toISOString()}"`
+      ).join('\n');
+      
+      const csvData = csvHeaders + csvRows;
+
+      this.logger.log(`Reporte generado con ${members.length} miembros`);
+      
+      return {
+        csvData,
+        filename: `reporte_miembros_${new Date().toISOString().split('T')[0]}.csv`,
+        totalMembers: members.length
+      };
+    } catch (error) {
+      this.logger.error('Error generando reporte de miembros:', error);
+      throw error;
+    }
+  }
+
+  async getMembershipStats(gymId: string, todayString: string, startOfMonthString: string) {
+    try {
+      const today = new Date(todayString);
+      const startOfMonth = new Date(startOfMonthString);
+      const last30Days = new Date();
+      last30Days.setDate(today.getDate() - 30);
+      const next7Days = new Date();
+      next7Days.setDate(today.getDate() + 7);
+
+      // Contar miembros activos del gimnasio
+      const activeMembers = await this.prisma.membership.count({
+        where: {
+          gymId: gymId,
+          endDate: {
+            gte: today
+          },
+          status: 'ACTIVE'
+        }
+      });
+
+      // Miembros nuevos en los últimos 30 días
+      const newMembersLast30Days = await this.prisma.membership.count({
+        where: {
+          gymId: gymId,
+          startDate: {
+            gte: last30Days
+          }
+        }
+      });
+
+      // Membresías que expiran en los próximos 7 días
+      const membershipsExpiringNext7Days = await this.prisma.membership.count({
+        where: {
+          gymId: gymId,
+          endDate: {
+            gte: today,
+            lte: next7Days
+          },
+          status: 'ACTIVE'
+        }
+      });
+
+      const stats = {
+        activeMembers,
+        newMembersLast30Days,
+        membershipsExpiringNext7Days
+      };
+
+      return stats;
+    } catch (error) {
+      this.logger.error(`Error calculando estadísticas para gym ${gymId}:`, error);
+      return {
+        activeMembers: 0,
+        newMembersLast30Days: 0,
+        membershipsExpiringNext7Days: 0
+      };
+    }
+  }
+
+  /**
+   * Obtiene la información del gimnasio al que pertenece una membresía
+   */
+  async getMembershipGym(membershipId: string) {
+    try {
+      const membership = await this.prisma.membership.findUnique({
+        where: { id: membershipId },
+        select: { gymId: true },
+      });
+
+      if (!membership) {
+        this.logger.warn(`Membresía ${membershipId} no encontrada`);
+        return null;
+      }
+
+      return { gymId: membership.gymId };
+    } catch (error) {
+      this.logger.error(`Error obteniendo gym de membresía ${membershipId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtiene la información del gimnasio al que pertenece un usuario
+   */
+  async getUserGym(userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { gymId: true },
+      });
+
+      if (!user) {
+        this.logger.warn(`Usuario ${userId} no encontrado`);
+        return null;
+      }
+
+      return { gymId: user.gymId };
+    } catch (error) {
+      this.logger.error(`Error obteniendo gym de usuario ${userId}:`, error);
+      return null;
+    }
+  }
 }

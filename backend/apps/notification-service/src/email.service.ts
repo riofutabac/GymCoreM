@@ -75,15 +75,25 @@ export class EmailService {
   }
 
   async sendTestEmail(to: string): Promise<void> {
-    this.logger.log(`Enviando test email a: ${to}`);
-    await this.resend.emails.send({
-      from: this.from,
-      to,
-      subject: 'GymCore Notification Service - Test Email',
-      html: `<h2>🎉 Servicio de Notificaciones Activo</h2>
-             <p>Timestamp: ${new Date().toISOString()}</p>
-             <p>🟢 Status: OK</p>`,
-    });
-    this.logger.log(`✅ Test email enviado a ${to}`);
+    try {
+      this.logger.log(`Enviando test email a: ${to}`);
+      const result = await this.resend.emails.send({
+        from: this.from,
+        to,
+        subject: 'GymCore Notification Service - Test Email',
+        html: `<h2>🎉 Servicio de Notificaciones Activo</h2>
+               <p>Timestamp: ${new Date().toISOString()}</p>
+               <p>🟢 Status: OK</p>`,
+      });
+      this.logger.log(`✅ Resend id: ${result.id}`);
+    } catch (err: any) {
+      this.logger.error('❌ Resend error', {
+        name: err.name,
+        message: err.message,
+        statusCode: err.statusCode,
+        data: err.response?.data,
+      });
+      throw err;
+    }
   }
 }

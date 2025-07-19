@@ -41,6 +41,8 @@ import { CreateCheckoutSessionDto } from './create-checkout-session.dto';
 import { JoinGymDto } from './dto/join-gym.dto';
 import { ListMembersDto, CreateMemberDto, UpdateMemberDto } from './dto';
 import { UpdateGymDto, AssignManagerDto } from './dto/gym.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 // --- Interfaces para tipar los objetos ---
 interface UserWithGymName {
@@ -70,6 +72,8 @@ export class AppController {
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
     @Inject('ANALYTICS_SERVICE') private readonly analyticsClient: ClientProxy,
   ) {}
+
+  // ─── AUTHENTICATION & PROFILE ───────────────────────────────────────────────────
 
   @Post('auth/register')
   @HttpCode(HttpStatus.CREATED)
@@ -149,6 +153,198 @@ export class AppController {
       throw new HttpException(message, status);
     }
   }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: any) {
+    const isProd = process.env.NODE_ENV === 'production';
+    
+    // Limpiar todas las cookies de autenticación
+    res.cookie('jwt_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0, // Expira inmediatamente
+    });
+
+    res.cookie('user_role', '', {
+      httpOnly: false, // Consistente con login
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_name', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    res.cookie('user_email', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 0,
+    });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  @Post('auth/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    this.logger.log(`Solicitando reseteo de contraseña para ${body.email}`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'request_password_reset' }, body),
+      );
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('auth/me')
+  @HttpCode(HttpStatus.OK)
+  async getMe(@Req() req: any) {
+    // El usuario ya está disponible gracias al JwtAuthGuard
+    const user = req.user;
+    
+    // Priorizar app_metadata.role (autorativo) y convertir a minúsculas para el frontend
+    const userRole = user.app_metadata?.role || user.user_metadata?.role || user.role;
+    const roleForFrontend = userRole ? userRole.toLowerCase() : 'member';
+    
+    return {
+      id: user.sub || user.id,
+      email: user.email,
+      role: roleForFrontend, // Usar el rol correctamente extraído y convertido
+      firstName: user.user_metadata?.firstName,
+      lastName: user.user_metadata?.lastName,
+      name: user.user_metadata?.firstName && user.user_metadata?.lastName 
+        ? `${user.user_metadata.firstName} ${user.user_metadata.lastName}`
+        : user.email?.split('@')[0],
+      gymId: user.app_metadata?.gymId, // Incluir gymId si está disponible
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile') // Cambiado a PUT para actualizar el recurso de perfil completo
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateCurrentUserProfile(@Req() req: any, @Body() body: UpdateProfileDto) {
+    const userId = req.user.sub;
+    this.logger.log(`Usuario ${userId} actualizando su perfil.`);
+    try {
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'update_user_profile' }, { userId, data: body }),
+      );
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Internal server error';
+      throw new HttpException(message, status);
+    }
+  }
+
+  // ─── MEMBER DASHBOARD ───────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @Get('member/dashboard')
+  @HttpCode(HttpStatus.OK)
+  async getMemberDashboard(@Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Solicitando dashboard para el miembro ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'get_member_dashboard' }, { userId }),
+      );
+    } catch (error) {
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al obtener los datos del dashboard';
+      throw new HttpException(message, status);
+    }
+  }
+
+  // ─── MEMBER OPERATIONS ─────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @Post('members/join-gym')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async joinGym(@Body() body: JoinGymDto, @Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Usuario ${userId} intentando unirse a gimnasio con código ${body.gymCode}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'join_gym' }, { userId, gymCode: body.gymCode }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error desde gym-service al unirse a gimnasio: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al unirse al gimnasio';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('members/profile')
+  @HttpCode(HttpStatus.OK)
+  async getMemberProfile(@Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Obteniendo perfil completo para usuario ${userId}`);
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_get_profile' }, { userId }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error desde gym-service al obtener perfil para ${userId}: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al obtener el perfil del miembro';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('members/profile')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateMemberProfile(@Req() req: any, @Body() body: UpdateProfileDto) {
+    const userId = req.user.sub;
+    this.logger.log(`Actualizando perfil de miembro para usuario ${userId}`);
+    try {
+      // 1) Primero actualizamos en Auth Service (Prisma + Supabase)
+      await firstValueFrom(
+        this.authClient.send({ cmd: 'update_profile' }, { userId, data: body }),
+      );
+      
+      // 2) Luego actualizamos en Gym Management
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'members_update_profile' }, { userId, ...body }),
+      );
+    } catch (error) {
+      // Propagar el error del microservicio correctamente
+      this.logger.error(`Error actualizando perfil: ${JSON.stringify(error)}`);
+      
+      // Extraer status y mensaje del error RPC
+      const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message || 'Error al actualizar el perfil del miembro';
+      
+      throw new HttpException(message, status);
+    }
+  }
+
+  // ─── GYM MANAGEMENT (OWNER) ───────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER')
@@ -259,10 +455,14 @@ export class AppController {
   @HttpCode(HttpStatus.CREATED)
   async activateMembership(@Body() dto: ActivateMembershipDto, @Req() req) {
     const managerId = req.user.sub;
-
-    // Ya no necesitamos manipular el gymId aquí
-    // El servicio se encargará de la validación de seguridad usando el managerId
-    return this.gymClient.send({ cmd: 'activate_membership' }, { dto, managerId });
+    try {
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'activate_membership' }, { dto, managerId }),
+      );
+    } catch (err: any) {
+      // el microservicio ya mete { status, message }
+      throw new HttpException(err.message || 'Error activando membresía', err.status || 500);
+    }
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -291,7 +491,8 @@ export class AppController {
       );
       
       this.logger.log(`✅ Checkout creado exitosamente. PayPal URL: ${response.approvalUrl}`);
-      return response;
+      // Renombramos approvalUrl a url para mantener compatibilidad con el frontend
+      return { url: response.approvalUrl };
     } catch (error) {
       this.logger.error(`❌ Error creando checkout para membresía ${dto.membershipId}:`, error);
       const status = error?.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -377,6 +578,162 @@ export class AppController {
     return firstValueFrom(
       this.gymClient.send({ cmd: 'members_remove' }, { gymId: req.gymId, id }),
     );
+  }
+
+  // ─── RESETEAR CONTRASEÑA DE MIEMBRO ───────────────────────────────────────────
+  @UseGuards(JwtAuthGuard, RolesGuard, GymManagerGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('members/reset-password')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  resetMemberPassword(@Body() data: { email: string }) {
+    return firstValueFrom(
+      this.authClient.send({ cmd: 'reset_password' }, data),
+    );
+  }
+
+  // ─── CAMBIAR ROL DE MIEMBRO ───────────────────────────────────────────────────
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('MANAGER', 'OWNER')
+@Put('staff/:id/role')
+@UsePipes(new ValidationPipe({ whitelist: true }))
+async changeStaffRole(@Param('id') userId: string, @Body() body: { role: string }, @Req() req: any) {
+  const managerId = req.user.sub;
+  return firstValueFrom(
+    this.authClient.send({ cmd: 'assign_role' }, { managerId, targetUserId: userId, role: body.role })
+  );
+}
+
+  // === NUEVO ENDPOINT PARA KPIs ESPECÍFICOS DEL MANAGER ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER')
+  @Get('analytics/kpis/my-gym')
+  @HttpCode(HttpStatus.OK)
+  async getManagerKpis(@Req() req: any) {
+    const managerId = req.user.sub;
+    return this.analyticsClient.send({ cmd: 'get_kpis_for_gym' }, { managerId });
+  }
+
+  // === NUEVO ENDPOINT PARA OBTENER STAFF DEL GIMNASIO ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('staff/my-gym')
+  @HttpCode(HttpStatus.OK)
+  async getGymStaff(@Req() req: any) {
+    const managerId = req.user.sub;
+    return this.authClient.send({ cmd: 'get_staff_for_gym' }, { managerId });
+  }
+
+  // === NUEVO ENDPOINT PARA ASIGNAR PERSONAL ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER')
+  @Post('staff/assign')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async assignStaff(@Req() req: any, @Body() body: { userId: string; role: 'RECEPTIONIST' }) {
+    if (body.role !== 'RECEPTIONIST') {
+      throw new HttpException('Managers can only assign the RECEPTIONIST role', HttpStatus.BAD_REQUEST);
+    }
+    const managerId = req.user.sub;
+    return this.authClient.send({ cmd: 'assign_role' }, { 
+      managerId, 
+      targetUserId: body.userId,
+      role: body.role 
+    });
+  }
+
+  // === EXPORTACIÓN DE REPORTES PARA MANAGER ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('reports/members/export')
+  async exportMembersReport(@Req() req: any, @Res() res: any) {
+    const managerId = req.user.sub;
+    try {
+      const result = await firstValueFrom(
+        this.gymClient.send({ cmd: 'export_members_report' }, { managerId })
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="reporte_miembros.csv"');
+      res.send(result.csvData);
+    } catch (error) {
+      this.logger.error('Error exportando reporte de miembros:', error);
+      throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Get('reports/sales/export')
+  async exportSalesReport(@Req() req: any, @Res() res: any) {
+    const managerId = req.user.sub;
+    try {
+      const result = await firstValueFrom(
+        this.inventoryClient.send({ cmd: 'export_sales_report' }, { managerId })
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="reporte_ventas.csv"');
+      res.send(result.csvData);
+    } catch (error) {
+      this.logger.error('Error exportando reporte de ventas:', error);
+      throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // === CORREGIR EL ENDPOINT DE ANALYTICS/KPIS PARA QUE COINCIDA CON TU VERSIÓN ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER')
+  @Get('analytics/kpis')
+  @HttpCode(HttpStatus.OK)
+  async getAnalyticsKpis() {
+    try {
+      // Peticiones en paralelo para más eficiencia
+      const [kpisFromAnalytics, activeGyms] = await Promise.all([
+        firstValueFrom(this.analyticsClient.send({ cmd: 'get_kpis' }, {})),
+        firstValueFrom(this.gymClient.send({ cmd: 'count_active_gyms' }, {})),
+      ]);
+
+      // Unimos los resultados
+      return {
+        ...kpisFromAnalytics,
+        totalRevenue: parseFloat(kpisFromAnalytics.totalRevenue) || 0,
+        totalGyms: activeGyms, // Añadimos el contador de gimnasios
+      };
+    } catch (error) {
+      this.logger.error('Error fetching combined KPIs:', error);
+      throw new HttpException('No se pudieron cargar los KPIs combinados.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // === CORREGIR EL ENDPOINT DE GLOBAL TRENDS PARA QUE COINCIDA CON TU VERSIÓN ===
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Get('analytics/global-trends')
+  @HttpCode(HttpStatus.OK)
+  async getAnalyticsGlobalTrends() {
+    try {
+      const rawData = await firstValueFrom(
+        this.analyticsClient.send({ cmd: 'get_global_trends' }, {}),
+      );
+
+      // Transformamos la data para que coincida con lo que espera el frontend
+      return {
+        monthlyRevenue: rawData.monthlyGrowth.map((item: any) => ({
+          month: item.month,
+          revenue: item.revenue || 0,
+        })),
+        membershipStats: [
+          { name: 'Vendidas este mes', value: rawData.monthlyGrowth[0]?.membershipsSold ?? 0, color: '#8884d8' },
+          { name: 'Nuevos usuarios', value: rawData.monthlyGrowth[0]?.newUsers ?? 0, color: '#82ca9d' },
+        ],
+        // Aseguramos que el crecimiento sea un número
+        monthlyGrowth: parseFloat(rawData.comparedToLastMonth.revenueGrowth) || 0,
+        lastUpdatedAt: rawData.lastUpdatedAt,
+      };
+    } catch (error) {
+      console.error('Error fetching global trends:', error);
+      throw new HttpException('No se pudieron cargar las tendencias globales.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   // ─── IMPORTACIÓN MASIVA CSV ───────────────────────────────────────────────────
@@ -908,25 +1265,25 @@ export class AppController {
   }
 
   // --- STAFF USERS ENDPOINT (OWNER ONLY) ---
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER')
-  @Get('staff')
-  @HttpCode(HttpStatus.OK)
-  async getStaffUsers() {
-    this.logger.log('Solicitando lista de usuarios administrativos...');
-    try {
-      return await firstValueFrom(
-        this.authClient.send({ cmd: 'get_staff_users' }, {}),
-      );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      this.logger.error(`Error obteniendo usuarios administrativos: ${errorMessage}`);
-      throw new HttpException(
-        'No se pudo obtener la lista de usuarios administrativos',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles('OWNER')
+  // @Get('staff')
+  // @HttpCode(HttpStatus.OK)
+  // async getStaffUsers() {
+  //   this.logger.log('Solicitando lista de usuarios administrativos...');
+  //   try {
+  //     return await firstValueFrom(
+  //       this.authClient.send({ cmd: 'get_staff_users' }, {}),
+  //     );
+  //   } catch (error) {
+  //     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+  //     this.logger.error(`Error obteniendo usuarios administrativos: ${errorMessage}`);
+  //     throw new HttpException(
+  //       'No se pudo obtener la lista de usuarios administrativos',
+  //       HttpStatus.INTERNAL_SERVER_ERROR,
+  //     );
+  //   }
+  // }
 
   // --- UPDATE USER PROFILE ENDPOINT (OWNER ONLY) ---
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -975,59 +1332,71 @@ export class AppController {
     }
   }
 
-  // === NUEVO ENDPOINT PARA LOS KPIs PRINCIPALES ===
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER', 'MANAGER')
-  @Get('analytics/kpis')
+  @UseGuards(JwtAuthGuard)
+  @Get('members/me')
   @HttpCode(HttpStatus.OK)
-  async getAnalyticsKpis() {
+  async getMyMembership(@Req() req: any) {
+    const userId = req.user.sub;
+    this.logger.log(`Obteniendo membresía para el usuario ${userId}`);
     try {
-      // Peticiones en paralelo para más eficiencia
-      const [kpisFromAnalytics, activeGyms] = await Promise.all([
-        firstValueFrom(this.analyticsClient.send({ cmd: 'get_kpis' }, {})),
-        firstValueFrom(this.gymClient.send({ cmd: 'count_active_gyms' }, {})),
-      ]);
-
-      // Unimos los resultados
-      return {
-        ...kpisFromAnalytics,
-        totalRevenue: parseFloat(kpisFromAnalytics.totalRevenue) || 0,
-        totalGyms: activeGyms, // Añadimos el contador de gimnasios
-      };
+      return await firstValueFrom(
+        this.gymClient.send({ cmd: 'get_my_membership' }, { userId }),
+      );
     } catch (error) {
-      this.logger.error('Error fetching combined KPIs:', error);
-      throw new HttpException('No se pudieron cargar los KPIs combinados.', HttpStatus.INTERNAL_SERVER_ERROR);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error obteniendo membresía: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo obtener la información de membresía',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async updateProfile(@Req() req: any, @Body() body: UpdateProfileDto) {
+    const userId = req.user.sub;
+    this.logger.log(`Actualizando perfil para el usuario ${userId}`);
+    try {
+      // 1) Await en la respuesta de Auth Service
+      const authResult = await firstValueFrom(
+        this.authClient.send({ cmd: 'update_profile' }, { userId, data: body }),
+      );
+      
+      // 2) Siempre sincronizamos en Gym Management, sin importar el rol
+      await firstValueFrom(
+        this.gymClient.send({ cmd: 'update_member_profile' }, { userId, data: body }),
+      );
+      
+      return authResult;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error actualizando perfil: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo actualizar el perfil',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
   
-  // === NUEVO ENDPOINT PARA LAS GRÁFICAS DEL DASHBOARD ===
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER')
-  @Get('analytics/global-trends')
+  @Post('auth/request-password-reset')
   @HttpCode(HttpStatus.OK)
-  async getAnalyticsGlobalTrends() {
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async requestPasswordReset(@Body() body: { email: string }) {
+    this.logger.log(`Solicitando restablecimiento de contraseña para ${body.email}`);
     try {
-      const rawData = await firstValueFrom(
-        this.analyticsClient.send({ cmd: 'get_global_trends' }, {}),
+      return await firstValueFrom(
+        this.authClient.send({ cmd: 'request_password_reset' }, { email: body.email }),
       );
-
-      // Transformamos la data para que coincida con lo que espera el frontend
-      return {
-        monthlyRevenue: rawData.monthlyGrowth.map((item: any) => ({
-          month: item.month,
-          revenue: item.revenue || 0,
-        })),
-        membershipStats: [
-          { name: 'Vendidas este mes', value: rawData.monthlyGrowth[0]?.membershipsSold ?? 0, color: '#8884d8' },
-          { name: 'Nuevos usuarios', value: rawData.monthlyGrowth[0]?.newUsers ?? 0, color: '#82ca9d' },
-        ],
-        // Aseguramos que el crecimiento sea un número
-        monthlyGrowth: parseFloat(rawData.comparedToLastMonth.revenueGrowth) || 0,
-        lastUpdatedAt: rawData.lastUpdatedAt,
-      };
     } catch (error) {
-      console.error('Error fetching global trends:', error);
-      throw new HttpException('No se pudieron cargar las tendencias globales.', HttpStatus.INTERNAL_SERVER_ERROR);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error solicitando restablecimiento de contraseña: ${errorMessage}`);
+      throw new HttpException(
+        'No se pudo procesar la solicitud de restablecimiento de contraseña',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -1048,6 +1417,28 @@ export class AppController {
         'No se pudo reactivar el gimnasio',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'OWNER')
+  @Post('memberships/:id/ban')
+  @HttpCode(HttpStatus.OK)
+  async banMembership(
+    @Param('id') membershipId: string,
+    @Body() body: { reason?: string },
+    @Req() req,
+  ) {
+    const managerId = req.user.sub;
+    try {
+      return await firstValueFrom(
+        this.gymClient.send(
+          { cmd: 'ban_membership' },
+          { membershipId, managerId, reason: body.reason },
+        ),
+      );
+    } catch (e: any) {
+      throw new HttpException(e.message, e.status || 500);
     }
   }
 }
