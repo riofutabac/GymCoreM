@@ -323,12 +323,18 @@ export class AppController {
     const userId = req.user.sub;
     this.logger.log(`Actualizando perfil de miembro para usuario ${userId}`);
     try {
+      // 1) Primero actualizamos en Auth Service (Prisma + Supabase)
+      await firstValueFrom(
+        this.authClient.send({ cmd: 'update_profile' }, { userId, data: body }),
+      );
+      
+      // 2) Luego actualizamos en Gym Management
       return await firstValueFrom(
         this.gymClient.send({ cmd: 'members_update_profile' }, { userId, ...body }),
       );
     } catch (error) {
       // Propagar el error del microservicio correctamente
-      this.logger.error(`Error desde gym-service al actualizar perfil: ${JSON.stringify(error)}`);
+      this.logger.error(`Error actualizando perfil: ${JSON.stringify(error)}`);
       
       // Extraer status y mensaje del error RPC
       const status = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -1354,17 +1360,15 @@ async changeStaffRole(@Param('id') userId: string, @Body() body: { role: string 
     const userId = req.user.sub;
     this.logger.log(`Actualizando perfil para el usuario ${userId}`);
     try {
-      // Primero actualizamos en el servicio de autenticación
+      // 1) Await en la respuesta de Auth Service
       const authResult = await firstValueFrom(
         this.authClient.send({ cmd: 'update_profile' }, { userId, data: body }),
       );
       
-      // Si el usuario es miembro, también actualizamos en el servicio de gimnasio
-      if (req.user.role === 'MEMBER') {
-        await firstValueFrom(
-          this.gymClient.send({ cmd: 'update_member_profile' }, { userId, data: body }),
-        );
-      }
+      // 2) Siempre sincronizamos en Gym Management, sin importar el rol
+      await firstValueFrom(
+        this.gymClient.send({ cmd: 'update_member_profile' }, { userId, data: body }),
+      );
       
       return authResult;
     } catch (error) {
