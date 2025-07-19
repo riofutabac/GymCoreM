@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, CreditCard, User, Settings } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getMyMembership } from '@/lib/api/member';
+import { createMembershipPayment } from '@/lib/api/payment';
 import JoinGymForm from '@/components/member/JoinGymForm';
 import MembershipStatus from '@/components/member/MembershipStatus';
 import ProfileEditForm from '@/components/member/ProfileEditForm';
@@ -169,7 +170,25 @@ export default function MemberDashboardPage() {
               <Button 
                 size="sm" 
                 className="w-full"
-                onClick={() => router.push(`/api/v1/payments/create-checkout-session?membershipId=${membership.membershipId}`)}
+                onClick={async () => {
+                  // 1) Abrimos la ventana en el click para evitar bloqueo de popup
+                  const paymentWindow = window.open('', '_blank');
+                  try {
+                    // 2) Generamos la sesión de pago
+                    const response = await createMembershipPayment(membership.membershipId);
+                    if (response.url) {
+                      // 3) Redirigimos la ventana recién abierta
+                      paymentWindow!.location.href = response.url;
+                    } else {
+                      paymentWindow?.close();
+                      alert('Error: URL de pago no disponible');
+                    }
+                  } catch (error) {
+                    paymentWindow?.close();
+                    console.error('Error al crear sesión de pago:', error);
+                    alert('Error al procesar el pago. Por favor intenta nuevamente.');
+                  }
+                }}
               >
                 Completar Pago
               </Button>
@@ -177,7 +196,25 @@ export default function MemberDashboardPage() {
               <Button 
                 size="sm" 
                 className="w-full"
-                onClick={() => router.push('/api/v1/payments/create-checkout-session')}
+                onClick={async () => {
+                  // 1) Abrimos la ventana en el click para evitar bloqueo de popup
+                  const paymentWindow = window.open('', '_blank');
+                  try {
+                    // 2) Generamos la sesión de pago
+                    const response = await createMembershipPayment(membership.membershipId);
+                    if (response.url) {
+                      // 3) Redirigimos la ventana recién abierta
+                      paymentWindow!.location.href = response.url;
+                    } else {
+                      paymentWindow?.close();
+                      alert('Error: URL de pago no disponible');
+                    }
+                  } catch (error) {
+                    paymentWindow?.close();
+                    console.error('Error al crear sesión de pago:', error);
+                    alert('Error al procesar la renovación. Por favor intenta nuevamente.');
+                  }
+                }}
               >
                 Renovar Membresía
               </Button>

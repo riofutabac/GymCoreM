@@ -12,6 +12,7 @@ import MembershipStatus from '@/components/member/MembershipStatus';
 import { CalendarIcon, Clock, CreditCard } from 'lucide-react';
 
 export default function MembershipPage() {
+  const router = useRouter();
   const [membership, setMembership] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

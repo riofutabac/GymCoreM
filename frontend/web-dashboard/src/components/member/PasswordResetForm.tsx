@@ -2,29 +2,33 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { requestPasswordReset } from '@/lib/api/member';
+import { useAuth } from '@/hooks/useAuth';
+import { forgotPassword } from '@/lib/api/auth';
 
 
 export default function PasswordResetForm() {
-  const [email, setEmail] = useState('');
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleResetPassword = async () => {
+    if (!user?.email) {
+      setError('No se pudo obtener tu email. Por favor, contacta a soporte.');
+      return;
+    }
+    
     setIsLoading(true);
     setError('');
     setSuccess('');
     
     try {
-      await requestPasswordReset(email);
-      setSuccess('Se ha enviado un correo con instrucciones para restablecer tu contraseña');
-      setEmail(''); // Limpiar el campo después del éxito
+      // Usar la función forgotPassword de auth.ts que apunta al endpoint correcto
+      await forgotPassword(user.email);
+      
+      setSuccess('Se ha enviado un correo con instrucciones para restablecer tu contraseña. Revisa tu bandeja de entrada.');
     } catch (err: any) {
       setError(err.message || 'Error al solicitar el restablecimiento de contraseña');
       console.error('Password reset request failed:', err);
@@ -34,7 +38,7 @@ export default function PasswordResetForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-4">
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -47,25 +51,17 @@ export default function PasswordResetForm() {
         </Alert>
       )}
       
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@email.com"
-          disabled={isLoading}
-          required
-        />
-        <p className="text-sm text-muted-foreground">
-          Ingresa el email asociado a tu cuenta para recibir instrucciones de restablecimiento.
+      <div className="p-4 border rounded-md bg-muted/50">
+        <p className="font-medium">Email asociado a tu cuenta:</p>
+        <p className="text-lg mt-1">{user?.email || 'Cargando...'}</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Se enviará un enlace para restablecer tu contraseña a este correo.
         </p>
       </div>
       
       <Button
-        type="submit"
-        disabled={isLoading || !email.trim()}
+        onClick={handleResetPassword}
+        disabled={isLoading || !user?.email}
         className="w-full"
       >
         {isLoading ? (
@@ -77,6 +73,6 @@ export default function PasswordResetForm() {
           'Enviar correo de recuperación'
         )}
       </Button>
-    </form>
+    </div>
   );
 }

@@ -485,7 +485,8 @@ export class AppController {
       );
       
       this.logger.log(`✅ Checkout creado exitosamente. PayPal URL: ${response.approvalUrl}`);
-      return response;
+      // Renombramos approvalUrl a url para mantener compatibilidad con el frontend
+      return { url: response.approvalUrl };
     } catch (error) {
       this.logger.error(`❌ Error creando checkout para membresía ${dto.membershipId}:`, error);
       const status = error?.status || HttpStatus.INTERNAL_SERVER_ERROR;

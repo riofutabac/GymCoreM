@@ -167,14 +167,14 @@ export async function listPublicGyms() {
 
 export async function joinGym(gymCode: string) {
   try {
-    const response = await fetch(`${API_BASE_URL}/members/join-gym`, {
+    const response = await fetch(`${API_BASE_URL}/gyms/join`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
       credentials: 'include',
-      body: JSON.stringify({ gymCode })
+      body: JSON.stringify({ uniqueCode: gymCode })
     });
     
     if (!response.ok) {

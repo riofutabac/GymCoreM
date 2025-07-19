@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { updateUserProfile, ProfileUpdateData } from '@/lib/api/profile';
+import { updateProfile } from '@/lib/api/auth';
 
 
 interface ProfileEditFormProps {
@@ -37,7 +37,10 @@ export default function ProfileEditForm({ user }: ProfileEditFormProps) {
     setSuccess('');
     
     try {
-      await updateUserProfile(formData);
+      await updateProfile({
+        firstName: formData.firstName,
+        lastName: formData.lastName
+      });
       setSuccess('Perfil actualizado exitosamente');
     } catch (err: any) {
       setError(err.message || 'Error al actualizar el perfil');
