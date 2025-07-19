@@ -6,9 +6,9 @@ export interface Member {
   email: string;
   phone?: string;
   address?: string;
-  membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED';
+  membershipStatus: 'ACTIVE' | 'PENDING_PAYMENT' | 'EXPIRED' | 'CANCELLED' | 'GRACE_PERIOD' | 'BANNED' | 'INACTIVE';
   membershipEndDate: string;
-  activeMembershipId?: string; // Add this line
+  activeMembershipId?: string;
   role: 'MEMBER' | 'RECEPTIONIST' | 'MANAGER';
 }
 

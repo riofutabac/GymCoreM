@@ -53,16 +53,18 @@ export class MembershipService {
     }
 
     // 4. SI LA VALIDACIÓN PASA, PROCEDEMOS CON LA ACTIVACIÓN
+    this.logger.log(`🔄 Iniciando activación de membresía para usuario ${dto.userId}`);
+    this.logger.log(`📅 Fechas de membresía - Inicio: ${startDate.toISOString()}, Fin: ${endDate.toISOString()}`);
     return this.prisma.$transaction(async (tx) => {
       // Actualizar la membresía a ACTIVA (no crear una nueva)
       const activatedMembership = await tx.membership.update({
-        where: { id: pendingMembership.id },
-        data: {
-          status: 'ACTIVE',
-          startDate: startDate,
-          endDate: endDate,
-          activatedById: managerId,
-        },
+      where: { id: pendingMembership.id },
+      data: {
+        status: 'ACTIVE',
+        startDate: startDate,
+        endDate: endDate,
+        activatedById: managerId,
+      },
       });
 
       // Crear el log de auditoría
@@ -84,6 +86,7 @@ export class MembershipService {
         method: 'CASH', // Método para activación manual
         reason: dto.reason ?? 'Activación manual (pago en efectivo)',
         activatedBy: managerId,
+        gymId: manager.gymId, // ← Incluir gymId para Analytics
       };
 
       await this.amqpConnection.publish(
@@ -112,6 +115,16 @@ export class MembershipService {
 
       this.logger.log(`Evento de notificación emitido para membresía ${activatedMembership.id}`);
 
+      // Log final con resumen completo de la membresía activada
+      this.logger.log(`✅ MEMBRESÍA ACTIVADA EXITOSAMENTE:`);
+      this.logger.log(`   • ID Membresía: ${activatedMembership.id}`);
+      this.logger.log(`   • Usuario ID: ${dto.userId}`);
+      this.logger.log(`   • Fecha de Inicio: ${startDate.toLocaleDateString('es-ES')} (${startDate.toISOString()})`);
+      this.logger.log(`   • Fecha de Fin: ${endDate.toLocaleDateString('es-ES')} (${endDate.toISOString()})`);
+      this.logger.log(`   • Duración: ${Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} días`);
+      this.logger.log(`   • Monto: $${dto.amount || 0} USD`);
+      this.logger.log(`   • Activado por Manager: ${managerId}`);
+
       return activatedMembership;
     });
   }
@@ -121,16 +134,38 @@ export class MembershipService {
     if (!membership) throw new NotFoundException('Membership not found');
 
     const newEnd = new Date(dto.newEndDate);
-    if (newEnd <= membership.endDate) {
-      throw new BadRequestException('newEndDate must be after current endDate');
+    const today = new Date();
+    
+    // Validación mejorada: permitir renovar membresías expiradas
+    // Solo validar que la nueva fecha de fin sea posterior a hoy
+    if (newEnd <= today) {
+      throw new BadRequestException('La nueva fecha de finalización debe ser posterior a hoy');
     }
 
     await this.validatePermissions(managerId, membership.userId, membership.gymId);
 
+    this.logger.log(`🔄 Iniciando renovación de membresía ${dto.membershipId}`);
+    this.logger.log(`📅 Nueva fecha de finalización: ${newEnd.toISOString()}`);
+
     return this.prisma.$transaction(async (tx) => {
+      // Determinar la fecha de inicio para la renovación
+      let startDate: Date;
+      if (membership.endDate && membership.endDate > today) {
+        // Si la membresía aún está activa, extender desde la fecha actual de fin
+        startDate = membership.endDate;
+      } else {
+        // Si la membresía está expirada, comenzar desde hoy
+        startDate = today;
+      }
+
       const updated = await tx.membership.update({
         where: { id: membership.id },
-        data: { endDate: newEnd, status: 'ACTIVE' },
+        data: { 
+          endDate: newEnd, 
+          startDate: startDate,
+          status: 'ACTIVE',
+          activatedById: managerId 
+        },
       });
 
       await tx.membershipLog.create({
@@ -138,10 +173,44 @@ export class MembershipService {
           membershipId: membership.id,
           action: 'RENEWED',
           performedById: managerId,
-          reason: dto.reason ?? 'Manual renewal',
-          details: { oldEndDate: membership.endDate, newEndDate: newEnd },
+          reason: dto.reason ?? 'Renovación manual (pago en efectivo)',
+          details: { 
+            oldEndDate: membership.endDate, 
+            newEndDate: newEnd,
+            newStartDate: startDate,
+            wasExpired: membership.endDate <= today,
+            amount: dto.amount
+          },
         },
       });
+
+      // Si se especifica un monto, emitir evento para crear registro de pago
+      if (dto.amount) {
+        const eventPayload = {
+          userId: membership.userId,
+          membershipId: membership.id,
+          amount: dto.amount,
+          method: 'CASH',
+          reason: dto.reason ?? 'Renovación manual (pago en efectivo)',
+          renewedBy: managerId,
+          gymId: membership.gymId, // ← Incluir gymId para Analytics
+        };
+
+        await this.amqpConnection.publish(
+          'gymcore-exchange',
+          'membership.renewed.manually',
+          eventPayload,
+          { persistent: true }
+        );
+        
+        this.logger.log(`Evento 'membership.renewed.manually' emitido para membresía ${membership.id}`);
+      }
+
+      this.logger.log(`✅ MEMBRESÍA RENOVADA EXITOSAMENTE:`);
+      this.logger.log(`   • ID Membresía: ${updated.id}`);
+      this.logger.log(`   • Nueva fecha de inicio: ${startDate.toLocaleDateString('es-ES')}`);
+      this.logger.log(`   • Nueva fecha de fin: ${newEnd.toLocaleDateString('es-ES')}`);
+      this.logger.log(`   • Renovado por Manager: ${managerId}`);
 
       return updated;
     });
@@ -176,6 +245,12 @@ export class MembershipService {
     if (!membership) {
       this.logger.error(`[Error] Membresía con ID ${payload.membershipId} no fue encontrada en la base de datos.`);
       throw new NotFoundException(`Membresía ${payload.membershipId} no encontrada.`);
+    }
+
+    // 🛠️ CORRECCIÓN: Evitar procesar membresías ya activadas manualmente
+    if (membership.status === 'ACTIVE' && membership.activatedById) {
+      this.logger.warn(`⚠️ Membresía ${payload.membershipId} ya fue activada manualmente por manager ${membership.activatedById}. Ignorando evento de pago automático.`);
+      return; // Salir sin hacer nada
     }
 
     // --- CORRECCIÓN DE LÓGICA DE FECHAS ---

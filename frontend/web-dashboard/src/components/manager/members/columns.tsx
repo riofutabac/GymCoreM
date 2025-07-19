@@ -69,7 +69,7 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="icon" 
                   className="h-8 w-8"
                   onClick={() => setIsActivateModalOpen(true)}
                 >
@@ -147,6 +147,7 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
           memberId={member.id}
           membershipStatus={member.membershipStatus}
           membershipEndDate={member.membershipEndDate}
+          activeMembershipId={member.activeMembershipId}
         />
       )}
     </>
@@ -184,21 +185,43 @@ export const columns = (onEdit: (member: Member) => void): ColumnDef<Member>[] =
     header: 'Estado Membresía',
     cell: ({ row }) => {
       const status = row.original.membershipStatus;
-      let variant: 'default' | 'destructive' | 'secondary' | 'outline' = 'outline'; // Add secondary
+      let variant: 'default' | 'destructive' | 'secondary' | 'outline' = 'outline';
+      
       switch (status) {
         case 'ACTIVE':
-          variant = 'default';
+          variant = 'default'; // Verde para activo
           break;
         case 'BANNED':
-          variant = 'destructive'; // Use destructive for banned
+          variant = 'destructive'; // Rojo para baneado
           break;
         case 'EXPIRED':
-          variant = 'secondary'; // Use secondary for expired
+          variant = 'secondary'; // Gris para expirado
           break;
-        default:
-          variant = 'outline'; // For INACTIVE, PENDING_PAYMENT, etc.
+        case 'PENDING_PAYMENT':
+          variant = 'outline'; // Outline para pendiente de pago
+          break;
+        case 'CANCELLED':
+          variant = 'secondary'; // Gris para cancelado
+          break;
+        case 'GRACE_PERIOD':
+          variant = 'outline'; // Outline para período de gracia
+          break;
+        default: // INACTIVE
+          variant = 'outline';
       }
-      return <Badge variant={variant}>{status}</Badge>;
+      
+      // Mapear nombres más amigables para mostrar
+      const statusNames = {
+        'ACTIVE': 'Activo',
+        'PENDING_PAYMENT': 'Pago Pendiente',
+        'EXPIRED': 'Expirado',
+        'CANCELLED': 'Cancelado',
+        'GRACE_PERIOD': 'Período de Gracia',
+        'BANNED': 'Baneado',
+        'INACTIVE': 'Inactivo'
+      };
+      
+      return <Badge variant={variant}>{statusNames[status] || status}</Badge>;
     }
   },
   {

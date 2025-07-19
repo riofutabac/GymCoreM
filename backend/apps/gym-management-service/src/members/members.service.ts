@@ -51,7 +51,7 @@ export class MembersService {
     where,
     skip,
     take: dto.limit,
-    select: { // <-- AÑADIR ESTO
+    select: {
       id: true,
       email: true,
       firstName: true,
@@ -60,9 +60,7 @@ export class MembersService {
       createdAt: true,
       updatedAt: true,
       memberships: {
-        where: {
-          status: 'ACTIVE'
-        },
+        // Remover el filtro de status: 'ACTIVE' para incluir BANNED y otros estados
         orderBy: {
           endDate: 'desc'
         },

@@ -110,6 +110,7 @@ export class SalesService {
       // 3. Publicar evento para analytics (evento estándar payment.completed)
       const paymentCompletedPayload = {
         saleId: sale.id,
+        gymId: sale.gymId, // Agregar gymId para facilitar filtrado
         amount: sale.totalAmount,
         paymentMethod: paymentType,
         status: 'COMPLETED',

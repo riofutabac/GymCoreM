@@ -13,6 +13,7 @@ export class AnalyticsService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -48,8 +49,16 @@ export class AnalyticsService {
   /**
    * Procesa un pago completado, actualizando ingresos y membresías.
    * Incluye protección de idempotencia para evitar procesamientos duplicados.
+   * ⚠️ IMPORTANTE: No procesa pagos de membresías que ya fueron procesados.
    */
   async processCompletedPayment(amount: number, eventId?: string, isMembership: boolean = false): Promise<void> {
+    // 🚫 EVITAR DUPLICACIÓN: No procesar pagos de membresías
+    // que ya fueron procesados via membership.activated.manually
+    if (isMembership) {
+      this.logger.log(`⚠️ Ignorando payment.completed con isMembership=true (eventId: ${eventId}) - ya procesado via membership event`);
+      return;
+    }
+
     // --- PROTECCIÓN DE IDEMPOTENCIA ---
     if (eventId) {
       const alreadyProcessed = await this.redis.get(`processed:${eventId}`);
@@ -147,8 +156,6 @@ export class AnalyticsService {
    * Obtiene KPIs específicos para el gimnasio de un manager
    */
   async getKpisForGym(managerId: string) {
-    this.logger.log(`Calculando KPIs para manager ${managerId}`);
-    
     try {
       // Obtener información del manager desde auth-service
       const managerData = await firstValueFrom(
@@ -167,7 +174,6 @@ export class AnalyticsService {
       }
 
       const gymId = managerData.gymId;
-      this.logger.log(`Manager pertenece al gimnasio ${gymId}`);
 
       // Calcular fechas para las consultas
       const today = new Date();
@@ -182,10 +188,23 @@ export class AnalyticsService {
         })
       );
 
-      // Obtener ingresos en efectivo del mes actual solo del gimnasio específico
-      // Como DailyAnalyticsSummary no tiene gymId, necesitamos agregarlo al esquema
-      // Por ahora, devolvemos 0 para ingresos hasta que se agregue gymId al esquema
-      const cashRevenueThisMonth = 0; // TODO: Agregar gymId a DailyAnalyticsSummary
+      // Obtener ingresos totales en efectivo del mes actual del gimnasio específico
+      // Incluye: membresías pagadas en efectivo + ventas POS en efectivo
+      let cashRevenueThisMonth = 0;
+      
+      try {
+        const paymentStats = await firstValueFrom(
+          this.paymentClient.send({ cmd: 'get_cash_revenue_for_gym' }, { 
+            gymId,
+            startOfMonth: startOfMonth.toISOString(),
+            endOfMonth: today.toISOString()
+          })
+        );
+        cashRevenueThisMonth = paymentStats?.totalCashRevenue || 0;
+      } catch (error) {
+        this.logger.warn(`No se pudieron obtener ingresos en efectivo para gym ${gymId}:`, error);
+        cashRevenueThisMonth = 0;
+      }
 
       const gymKpis = {
         activeMembers: membershipStats?.activeMembers || 0,
@@ -195,7 +214,7 @@ export class AnalyticsService {
         lastUpdatedAt: new Date().toISOString(),
       };
 
-      this.logger.log(`KPIs reales para gym ${gymId} calculados: ${JSON.stringify(gymKpis)}`);
+      this.logger.log(`KPIs calculados para gym ${gymId}: ${gymKpis.activeMembers} activos, $${gymKpis.cashRevenueThisMonth} ingresos`);
       return gymKpis;
     } catch (error) {
       this.logger.error('Error calculando KPIs del gimnasio:', error);
@@ -406,6 +425,70 @@ export class AnalyticsService {
   }
 
   /**
-   * Maneja la activación de membresía
+   * Procesa la activación manual de una membresía
    */
+  async processMembershipActivation(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    activatedBy: string;
+    gymId?: string;
+  }): Promise<void> {
+    this.logger.log(`Procesando activación de membresía ${payload.membershipId} por $${payload.amount}`);
+    
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Actualizar resumen diario con el ingreso y membresía vendida
+    await this.prisma.dailyAnalyticsSummary.upsert({
+      where: { date: today },
+      update: { 
+        revenue: { increment: payload.amount },
+        membershipsSold: { increment: 1 }
+      },
+      create: { 
+        date: today, 
+        newUsers: 0, 
+        revenue: payload.amount, 
+        membershipsSold: 1
+      },
+    });
+    
+    this.logger.log(`✅ Resumen diario actualizado: +$${payload.amount} ingresos, +1 membresía`);
+    await this.invalidateKpiCache();
+  }
+
+  /**
+   * Procesa la renovación manual de una membresía
+   */
+  async processMembershipRenewal(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    renewedBy: string;
+    gymId?: string;
+  }): Promise<void> {
+    this.logger.log(`Procesando renovación de membresía ${payload.membershipId} por $${payload.amount}`);
+    
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Actualizar resumen diario con el ingreso (renovaciones cuentan como ingresos)
+    await this.prisma.dailyAnalyticsSummary.upsert({
+      where: { date: today },
+      update: { 
+        revenue: { increment: payload.amount },
+        // Las renovaciones no cuentan como nuevas membresías vendidas
+      },
+      create: { 
+        date: today, 
+        newUsers: 0, 
+        revenue: payload.amount, 
+        membershipsSold: 0
+      },
+    });
+    
+    this.logger.log(`✅ Resumen diario actualizado: +$${payload.amount} ingresos por renovación`);
+    await this.invalidateKpiCache();
+  }
 }

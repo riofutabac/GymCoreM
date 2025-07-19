@@ -19,7 +19,9 @@ import { Response } from 'express';
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) {
+    this.logger.log('PaymentService inicializado');
+  }
 
   @Get()
   getHello(): string {
@@ -38,11 +40,69 @@ export class AppController {
     return this.appService.createSaleCheckout(payload);
   }
 
+  @MessagePattern({ cmd: 'get_cash_revenue_for_gym' })
+  getCashRevenueForGym(@Payload() data: { gymId: string; startOfMonth: string; endOfMonth: string }) {
+    return this.appService.getCashRevenueForGym(data.gymId, data.startOfMonth, data.endOfMonth);
+  }
+
   // --- WEBHOOK CON VERIFICACIÓN DE FIRMA USANDO SDK ---
   @MessagePattern({ cmd: 'handle_paypal_webhook' })
-  handleWebhook(@Payload() data: { body: any; headers: any; rawBody: string }) {
-    // Pasamos el cuerpo, las cabeceras y el rawBody (como string) al servicio
+  async handlePaypalWebhook(@Payload() data: any) {
+    this.logger.log('📥 Webhook de PayPal recibido en payment-service');
     return this.appService.handlePaypalWebhook(data);
+  }
+
+  // Escuchar eventos payment.completed del inventory-service (ventas POS)
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'payment.completed',
+    queue: 'payment-service-payment-completed',
+    queueOptions: { durable: true },
+  })
+  async handlePaymentCompleted(@Payload() data: any): Promise<void> {
+    this.logger.log(`🎯 PAYMENT-SERVICE: Evento payment.completed recibido: ${JSON.stringify(data)}`);
+    
+    // SIEMPRE procesar para debug
+    this.logger.log(`🔍 Debug - source: ${data.source}, saleId: ${data.saleId}`);
+    
+    // Solo procesar si viene del POS (inventory-service)
+    if (data.source === 'POS') {
+      this.logger.log(`✅ Procesando venta POS: ${data.saleId}`);
+      await this.appService.createPaymentFromPOSSale(data);
+      return;
+    }
+    
+    this.logger.log(`⚠️ Evento payment.completed ignorado (source: ${data.source})`);
+  }
+
+  // LISTENER DE DEBUG - TEMPORAL
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: '#',
+    queue: 'payment-debug-all-events',
+    queueOptions: { durable: false, autoDelete: true },
+  })
+  async debugAllEvents(@Payload() data: any, @Payload('routingKey') routingKey: string): Promise<void> {
+    this.logger.log(`🐛 DEBUG: Payment Service recibió evento: ${routingKey}`);
+    
+    // 🎯 PROCESAR RENOVACIONES DIRECTAMENTE AQUÍ
+    if (routingKey === 'membership.renewed.manually') {
+      this.logger.log(`🔍 DEBUG: Evento de renovación detectado en listener genérico: ${JSON.stringify(data)}`);
+      this.logger.log(`🎯 [PAYMENT SERVICE - GENÉRICO] Procesando renovación para membresía ${data.membershipId}`);
+      
+      // Llamar al mismo método que usa el listener específico
+      await this.appService.createManualPayment({
+        ...data,
+        activatedBy: data.renewedBy, // Mapear renewedBy a activatedBy para compatibilidad
+      });
+      
+      this.logger.log(`✅ [PAYMENT SERVICE - GENÉRICO] Renovación procesada exitosamente`);
+      return;
+    }
+    
+    if (routingKey === 'payment.completed') {
+      this.logger.log(`🐛 DEBUG: Capturé event payment.completed en listener genérico: ${JSON.stringify(data)}`);
+    }
   }
 
   // --- AÑADIR ESTE NUEVO MÉTODO PARA PROMETHEUS ---
@@ -105,10 +165,32 @@ export class AppController {
     method: string;
     reason?: string;
     activatedBy: string;
+    gymId?: string; // ← Nuevo campo
   }) {
     this.logger.log(`Evento de activación manual recibido para membresía ${payload.membershipId}`);
     
     // Llamar a un método en AppService para manejar la lógica
     await this.appService.createManualPayment(payload);
+  }
+
+  // LISTENER UNIFICADO - Maneja renovaciones y otros eventos
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: '#',
+    queue: 'payment-unified-events',
+    queueOptions: { durable: false, autoDelete: true },
+  })
+  async handleUnifiedEvents(@Payload() data: any, @Payload('routingKey') routingKey: string): Promise<void> {
+    // Procesar renovaciones
+    if (routingKey === 'membership.renewed.manually') {
+      this.logger.log(`Procesando renovación para membresía ${data.membershipId}`);
+      
+      await this.appService.createManualPayment({
+        ...data,
+        activatedBy: data.renewedBy,
+      });
+      
+      this.logger.log(`Renovación procesada exitosamente`);
+    }
   }
 }

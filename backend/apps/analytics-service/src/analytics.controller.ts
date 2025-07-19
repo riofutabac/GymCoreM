@@ -57,7 +57,6 @@ export class AnalyticsController {
 
   @MessagePattern({ cmd: 'get_kpis_for_gym' })
   public async getKPIsForGym(@Payload() data: { managerId: string }) {
-    this.logger.log(`Solicitud de KPIs para manager ${data.managerId}`);
     return this.analyticsService.getKpisForGym(data.managerId);
   }
 
@@ -115,5 +114,38 @@ export class AnalyticsController {
   public async handleGymCreated(payload: { gymId: string; name: string }) {
     this.logger.log(`Evento 'gym.created' recibido para gimnasio ${payload.name} (ID: ${payload.gymId})`);
     await this.analyticsService.handleGymUpdate(); // Reutilizamos la función que invalida la caché
+  }
+
+  // --- NUEVOS LISTENERS PARA MEMBRESÍAS ---
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'membership.activated.manually',
+    queue: 'analytics.membership.activated.manually',
+  })
+  public async handleMembershipActivatedManually(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    activatedBy: string;
+    gymId?: string;
+  }) {
+    this.logger.log(`Evento 'membership.activated.manually' recibido para membresía ${payload.membershipId} por $${payload.amount}`);
+    await this.analyticsService.processMembershipActivation(payload);
+  }
+
+  @RabbitSubscribe({
+    exchange: 'gymcore-exchange',
+    routingKey: 'membership.renewed.manually',
+    queue: 'analytics.membership.renewed.manually',
+  })
+  public async handleMembershipRenewedManually(payload: { 
+    userId: string; 
+    membershipId: string; 
+    amount: number; 
+    renewedBy: string;
+    gymId?: string;
+  }) {
+    this.logger.log(`Evento 'membership.renewed.manually' recibido para membresía ${payload.membershipId} por $${payload.amount}`);
+    await this.analyticsService.processMembershipRenewal(payload);
   }
 }

@@ -366,8 +366,6 @@ export class AppService {
   }
 
   async getMembershipStats(gymId: string, todayString: string, startOfMonthString: string) {
-    this.logger.log(`Calculando estadísticas de membresías para gym ${gymId}`);
-    
     try {
       const today = new Date(todayString);
       const startOfMonth = new Date(startOfMonthString);
@@ -415,7 +413,6 @@ export class AppService {
         membershipsExpiringNext7Days
       };
 
-      this.logger.log(`Estadísticas calculadas para gym ${gymId}: ${JSON.stringify(stats)}`);
       return stats;
     } catch (error) {
       this.logger.error(`Error calculando estadísticas para gym ${gymId}:`, error);
@@ -424,6 +421,50 @@ export class AppService {
         newMembersLast30Days: 0,
         membershipsExpiringNext7Days: 0
       };
+    }
+  }
+
+  /**
+   * Obtiene la información del gimnasio al que pertenece una membresía
+   */
+  async getMembershipGym(membershipId: string) {
+    try {
+      const membership = await this.prisma.membership.findUnique({
+        where: { id: membershipId },
+        select: { gymId: true },
+      });
+
+      if (!membership) {
+        this.logger.warn(`Membresía ${membershipId} no encontrada`);
+        return null;
+      }
+
+      return { gymId: membership.gymId };
+    } catch (error) {
+      this.logger.error(`Error obteniendo gym de membresía ${membershipId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtiene la información del gimnasio al que pertenece un usuario
+   */
+  async getUserGym(userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { gymId: true },
+      });
+
+      if (!user) {
+        this.logger.warn(`Usuario ${userId} no encontrado`);
+        return null;
+      }
+
+      return { gymId: user.gymId };
+    } catch (error) {
+      this.logger.error(`Error obteniendo gym de usuario ${userId}:`, error);
+      return null;
     }
   }
 }

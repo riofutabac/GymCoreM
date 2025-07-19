@@ -80,29 +80,47 @@ export const getMembersForManager = async (): Promise<Member[]> => {
     const activeMembership = member.memberships?.[0];
     
     // Determinar el estado de membresía
-    let membershipStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'BANNED' = 'INACTIVE'; // Add BANNED
+    let membershipStatus: 'ACTIVE' | 'PENDING_PAYMENT' | 'EXPIRED' | 'CANCELLED' | 'GRACE_PERIOD' | 'BANNED' | 'INACTIVE' = 'INACTIVE';
     let membershipEndDate = '';
-    let activeMembershipId = undefined; // Initialize activeMembershipId
+    let activeMembershipId = undefined;
     
     if (activeMembership) {
       const endDate = new Date(activeMembership.endDate);
       const today = new Date();
       
-      // Handle BANNED status
-      if (activeMembership.status === 'BANNED') {
-        membershipStatus = 'BANNED';
-      } else if (activeMembership.status === 'ACTIVE') {
-        if (endDate > today) {
-          membershipStatus = 'ACTIVE';
-        } else {
+      // Mapear directamente el estado del backend, pero validar ACTIVE contra fecha
+      switch (activeMembership.status) {
+        case 'ACTIVE':
+          // Verificar si realmente está activa o expiró
+          membershipStatus = endDate > today ? 'ACTIVE' : 'EXPIRED';
+          break;
+        case 'PENDING_PAYMENT':
+          membershipStatus = 'PENDING_PAYMENT';
+          // No asignar fecha para usuarios pendientes de pago
+          membershipEndDate = '';
+          break;
+        case 'EXPIRED':
           membershipStatus = 'EXPIRED';
-        }
-      } else { // PENDING_PAYMENT, CANCELLED, GRACE_PERIOD
-         membershipStatus = activeMembership.status; // Map other statuses
+          break;
+        case 'CANCELLED':
+          membershipStatus = 'CANCELLED';
+          break;
+        case 'GRACE_PERIOD':
+          membershipStatus = 'GRACE_PERIOD';
+          break;
+        case 'BANNED':
+          membershipStatus = 'BANNED';
+          break;
+        default:
+          membershipStatus = 'INACTIVE';
       }
       
-      membershipEndDate = activeMembership.endDate;
-      activeMembershipId = activeMembership.id; // Extract the membership ID
+      // Asignar la fecha para todos los estados excepto PENDING_PAYMENT
+      if (membershipStatus !== 'PENDING_PAYMENT') {
+        membershipEndDate = activeMembership.endDate;
+      }
+      
+      activeMembershipId = activeMembership.id;
     }
     
     return {
@@ -140,6 +158,18 @@ export const activateMembership = async (payload: ActivateMembershipPayload) => 
             amount: payload.amount,
             reason: payload.reason ?? 'Activación manual (pago en efectivo)',
         }),
+    });
+};
+
+export const renewMembership = async (payload: {
+    membershipId: string;
+    newEndDate: string;
+    amount?: number;
+    reason?: string;
+}) => {
+    return apiFetch('/memberships/renew', {
+        method: 'POST',
+        body: JSON.stringify(payload),
     });
 };
 
