@@ -228,7 +228,15 @@ export const exportSales = async (): Promise<Blob> => {
 export const resetMemberPassword = async (email: string) => {
     return apiFetch('/members/reset-password', { 
         method: 'POST', 
-        body: JSON.stringify({ email }) 
+        body: JSON.stringify({ email }),
+    });
+};
+
+// Función para enrollamiento biométrico
+export const enrollBiometric = async (userId: string) => {
+    return apiFetch('/biometric/enroll', {
+        method: 'POST',
+        body: JSON.stringify({ userId }), 
     });
 };
 

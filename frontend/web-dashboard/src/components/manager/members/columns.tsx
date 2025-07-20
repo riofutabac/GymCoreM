@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ActivateMembershipModal from './ActivateMembershipModal';
-import { resetMemberPassword, banMembership } from '@/lib/api/manager';
+import { resetMemberPassword, banMembership, enrollBiometric } from '@/lib/api/manager';
 import { useToast } from '@/hooks/use-toast';
-import { MoreHorizontal, KeyRound, CreditCard, UserCog, Ban, CircleSlash } from 'lucide-react';
+import { MoreHorizontal, Fingerprint, KeyRound, CreditCard, UserCog, Ban, CircleSlash } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { addDays } from 'date-fns';
 
@@ -35,6 +35,23 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
     }
   };
 
+  const handleBiometricEnrollment = async () => {
+    try {
+      await enrollBiometric(member.id);
+      toast({
+        title: 'Éxito',
+        description: 'Huella registrada correctamente',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast({
+        title: 'Error',
+        description: `Error al registrar la huella: ${errorMessage}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const isMembershipActive = member.membershipStatus === 'ACTIVE';
   const isMembershipBanned = member.membershipStatus === 'BANNED';
 
@@ -42,6 +59,17 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
     <>
       <TooltipProvider delayDuration={100}>
         <div className="flex items-center justify-end gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBiometricEnrollment}>
+                <Fingerprint className="h-4 w-4" />
+                <span className="sr-only">Registrar huella</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Registrar huella</p>
+            </TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(member)}>
