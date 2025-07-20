@@ -8,7 +8,7 @@ import {
 
 export class CreateProductDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -16,15 +16,15 @@ export class CreateProductDto {
 
   @IsNumber()
   @IsPositive()
-  price: number;
+  price!: number;
 
   @IsNumber()
   @Min(0)
-  stock: number;
+  stock!: number;
 
   @IsString()
-  barcode: string;
+  barcode!: string;
 
   @IsString()
-  gymId: string;
+  gymId!: string;
 }

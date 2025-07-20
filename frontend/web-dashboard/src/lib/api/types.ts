@@ -10,6 +10,7 @@ export interface Member {
   membershipEndDate: string;
   activeMembershipId?: string;
   role: 'MEMBER' | 'RECEPTIONIST' | 'MANAGER';
+  hasBiometricTemplate?: boolean;
 }
 
 export interface StaffMember {

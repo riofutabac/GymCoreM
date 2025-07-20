@@ -164,7 +164,7 @@ export class GymEventsController {
         email: payload.email,
       });
       this.logger.log(`✅ Perfil de usuario ${payload.userId} sincronizado`);
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`❌ Error sincronizando perfil ${payload.userId}:`, err);
       throw err;
     }
