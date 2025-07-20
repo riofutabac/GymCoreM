@@ -1,0 +1,185 @@
+# Ubicación: riofutabac-gymcorem/docker-compose.prod.yml
+# Propósito: Construir y orquestar imágenes optimizadas para producción.
+# Ejecutar con: docker compose -f docker-compose.prod.yml up --build -d
+
+version: "3.9"
+
+networks:
+  gymcore-net-prod:
+    driver: bridge
+
+services:
+  # --- Dependencias Esenciales ---
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: gymcore-rabbitmq-prod
+    ports: ["5672:5672", "15672:15672"]
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: gymcore-redis-prod
+    ports: ["6379:6379"]
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+
+  # --- Frontend ---
+  web-dashboard:
+    container_name: gymcore-web-dashboard-prod
+    build:
+      context: .
+      dockerfile: ./frontend/web-dashboard/Dockerfile
+    ports:
+      - "3030:3030"
+    networks:
+      - gymcore-net-prod
+    restart: unless-stopped
+    depends_on:
+      - api-gateway
+
+  # --- Microservicios de Backend ---
+  api-gateway:
+    container_name: gymcore-api-gateway-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: api-gateway
+        INFISICAL_PATH: /api-gateway
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/api-gateway
+    ports: ["${PORT:-3000}:3000"]
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]
+
+  auth-service:
+    container_name: gymcore-auth-service-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: auth-service
+        INFISICAL_PATH: /auth-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/auth-service
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]
+
+  gym-management-service:
+    container_name: gymcore-gym-management-service-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: gym-management-service
+        INFISICAL_PATH: /gym-management-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/gym-management-service
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]
+
+  payment-service:
+    container_name: gymcore-payment-service-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: payment-service
+        INFISICAL_PATH: /payment-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/payment-service
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]
+
+  inventory-service:
+    container_name: gymcore-inventory-service-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: inventory-service
+        INFISICAL_PATH: /inventory-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/inventory-service
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]
+
+  analytics-service:
+    container_name: gymcore-analytics-service-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: analytics-service
+        INFISICAL_PATH: /analytics-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/analytics-service
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]
+
+  biometric-service:
+    container_name: gymcore-biometric-service-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: biometric-service
+        INFISICAL_PATH: /biometric-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/biometric-service
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]
+
+  notification-service:
+    container_name: gymcore-notification-service-prod
+    build:
+      context: .
+      dockerfile: ./backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: notification-service
+        INFISICAL_PATH: /notification-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: prod
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - INFISICAL_PATH=/notification-service
+    networks: [gymcore-net-prod]
+    restart: unless-stopped
+    depends_on: [rabbitmq, redis]

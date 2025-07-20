@@ -1,0 +1,19 @@
+# backend/apps/Dockerfile.dev
+
+FROM node:18-alpine
+WORKDIR /app
+
+# 1) Instala pnpm y CLI de Infisical
+RUN apk add --no-cache bash curl \
+    && npm install -g pnpm @infisical/cli \
+    && curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.alpine.sh' | bash \
+    && apk add --no-cache infisical
+
+ENV PATH=/app/node_modules/.bin:$PATH
+
+# 2) Copia e instala dependencias
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# 3) Mantiene el contenedor vivo; Compose define el entrypoint real
+CMD ["tail", "-f", "/dev/null"]
