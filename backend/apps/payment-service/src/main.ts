@@ -5,10 +5,15 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { AppController } from './app.controller';
+import { AmqpLogger } from './amqp-logger.service';
 
 async function bootstrap() {
   const logger = new Logger('PaymentService-Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { logger: false });
+  
+  // Configurar el logger centralizado
+  const amqpLogger = app.get(AmqpLogger);
+  app.useLogger(amqpLogger);
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 3003;

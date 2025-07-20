@@ -5,12 +5,22 @@ import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
+import { AmqpLogger } from './amqp-logger.service';
 
 async function bootstrap() {
-  const logger = new Logger('BiometricService-Bootstrap');
+  // Creamos la aplicación con el logger desactivado inicialmente
+  const app = await NestFactory.create(AppModule, {
+    // Desactivamos el logger por defecto para que no haya duplicados
+    logger: false,
+  });
 
-  // 1. Creamos la aplicación completa. Este es el modo que SÍ conecta con tu Arduino.
-  const app = await NestFactory.create(AppModule);
+  // Usamos nuestro logger personalizado que envía a RabbitMQ
+  const amqpLogger = app.get(AmqpLogger);
+  app.useLogger(amqpLogger);
+
+  // Ahora usamos el logger personalizado para bootstrap también
+  const logger = amqpLogger;
+  logger.setContext('BiometricService-Bootstrap');
 
   const configService = app.get(ConfigService);
   const tcpPort = configService.get<number>('PORT') || 3006;

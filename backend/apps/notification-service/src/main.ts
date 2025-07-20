@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
 import { INestApplication, INestApplicationContext } from '@nestjs/common';
+import { AmqpLogger } from './amqp-logger.service';
 
 async function bootstrap() {
   const logger = new Logger('NotificationService');
@@ -13,27 +14,37 @@ async function bootstrap() {
 
   if (runWithHttpServer) {
     // Create HTTP application for testing endpoints
-    const httpApp = await NestFactory.create(AppModule);
+    const httpApp = await NestFactory.create(AppModule, { logger: false });
+    
+    // Configurar el logger centralizado
+    const amqpLogger = httpApp.get(AmqpLogger);
+    httpApp.useLogger(amqpLogger);
+    
     const port = process.env.PORT ?? 3007; // Different port to avoid conflicts
     await httpApp.listen(port);
     app = httpApp;
 
-    logger.log('🚀 Notification Service started with HTTP server!');
-    logger.log(`🌐 HTTP server running on port ${port}`);
-    logger.log('📧 Email service configured with SendGrid');
-    logger.log('🐰 RabbitMQ event listeners are active');
-    logger.log(
+    amqpLogger.log('🚀 Notification Service started with HTTP server!', 'Bootstrap');
+    amqpLogger.log(`🌐 HTTP server running on port ${port}`, 'Bootstrap');
+    amqpLogger.log('📧 Email service configured with SendGrid', 'Bootstrap');
+    amqpLogger.log('🐰 RabbitMQ event listeners are active', 'Bootstrap');
+    amqpLogger.log(
       `📱 Test endpoint available at: http://localhost:${port}/test-email`,
+      'Bootstrap'
     );
   } else {
     // Create application context for background service
     // This allows the service to listen to RabbitMQ events without HTTP server
-    app = await NestFactory.createApplicationContext(AppModule);
+    app = await NestFactory.createApplicationContext(AppModule, { logger: false });
+    
+    // Configurar el logger centralizado
+    const amqpLogger = app.get(AmqpLogger);
+    app.useLogger(amqpLogger);
 
-    logger.log('🚀 Notification Service started successfully!');
-    logger.log('📧 Email service configured with SendGrid');
-    logger.log('🐰 RabbitMQ event listeners are active');
-    logger.log('📱 Service is ready to handle notification events');
+    amqpLogger.log('🚀 Notification Service started successfully!', 'Bootstrap');
+    amqpLogger.log('📧 Email service configured with SendGrid', 'Bootstrap');
+    amqpLogger.log('🐰 RabbitMQ event listeners are active', 'Bootstrap');
+    amqpLogger.log('📱 Service is ready to handle notification events', 'Bootstrap');
   }
 
   // Graceful shutdown

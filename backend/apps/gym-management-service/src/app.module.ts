@@ -9,6 +9,7 @@ import { AppService } from './app.service';
 import { MembershipService } from './membership.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { MembersModule } from './members/members.module';
+import { AmqpLogger } from './amqp-logger.service';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { MembersModule } from './members/members.module';
       exchanges: [
         { name: 'gymcore-exchange', type: 'topic',  options: { durable: true } },
         { name: 'gymcore-dead-letter-exchange', type: 'fanout', options: { durable: true } },
+        { name: 'gymcore-logs-exchange', type: 'topic', options: { durable: true } },
       ],
       uri: process.env.MESSAGE_BUS_URL ?? 'amqp://localhost:5672',
       enableControllerDiscovery: true,
@@ -53,6 +55,7 @@ import { MembersModule } from './members/members.module';
     GymEventsController,  // @RabbitSubscribe listeners
   ],
 
-  providers: [AppService, MembershipService],
+  providers: [AppService, MembershipService, AmqpLogger],
+  exports: [AmqpLogger],
 })
 export class AppModule {}

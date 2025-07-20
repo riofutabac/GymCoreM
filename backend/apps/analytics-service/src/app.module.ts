@@ -8,6 +8,7 @@ import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 import { RedisModule } from './redis.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AmqpLogger } from './amqp-logger.service';
 
 @Module({
   imports: [
@@ -57,6 +58,11 @@ import { PrismaModule } from './prisma/prisma.module';
             type: 'topic',
             options: { durable: true },
           },
+          {
+            name: 'gymcore-logs-exchange',
+            type: 'topic',
+            options: { durable: true },
+          },
         ],
         uri: configService.get<string>(
           'MESSAGE_BUS_URL',
@@ -69,6 +75,7 @@ import { PrismaModule } from './prisma/prisma.module';
     }),
   ],
   controllers: [AppController, AnalyticsController],
-  providers: [AppService, AnalyticsService],
+  providers: [AppService, AnalyticsService, AmqpLogger],
+  exports: [AmqpLogger],
 })
 export class AppModule {}
