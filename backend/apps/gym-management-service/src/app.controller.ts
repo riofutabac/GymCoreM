@@ -134,4 +134,13 @@ async getUserGym(@Payload() payload: { userId: string }) {
   return this.appService.getUserGym(payload.userId);
 }
 
+@MessagePattern('check_membership')
+  async checkMembership(@Payload() data: { userId: string }): Promise<{ isActive: boolean }> {
+    this.logger.log(`[RPC] Recibida solicitud para verificar membresía del usuario: ${data.userId}`);
+    const membership = await this.membershipService.getActiveMembership(data.userId);
+    const isActive = !!membership; // Convierte el resultado (objeto o null) a un booleano
+    this.logger.log(`[RPC] El estado de la membresía del usuario ${data.userId} es: ${isActive ? 'ACTIVA' : 'INACTIVA'}`);
+    return { isActive };
+  }
+
 }
