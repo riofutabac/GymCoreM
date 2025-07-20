@@ -5,6 +5,7 @@ import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { EmailService } from './email.service';
+import { AmqpLogger } from './amqp-logger.service';
 
 @Module({
   imports: [
@@ -13,6 +14,11 @@ import { EmailService } from './email.service';
       exchanges: [
         {
           name: 'gymcore-exchange',
+          type: 'topic',
+          options: { durable: true },
+        },
+        {
+          name: 'gymcore-logs-exchange',
           type: 'topic',
           options: { durable: true },
         },
@@ -47,6 +53,11 @@ import { EmailService } from './email.service';
     ]),
   ],
   controllers: [AppController],
-  providers: [AppService, EmailService],
+  providers: [
+    AppService, 
+    EmailService,
+    AmqpLogger,
+  ],
+  exports: [AmqpLogger],
 })
 export class AppModule {}

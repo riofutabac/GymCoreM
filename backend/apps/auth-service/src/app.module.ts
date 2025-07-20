@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './supabase/supabase.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AmqpLogger } from './amqp-logger.service';
 
 @Module({
   imports: [
@@ -15,24 +16,36 @@ import { PrismaModule } from './prisma/prisma.module';
     }),
     SupabaseModule,
     PrismaModule,
-    RabbitMQModule.forRoot({
-      exchanges: [
-        {
-          name: 'gymcore-exchange',
-          type: 'topic',
-          options: {
-            durable: true,
+    RabbitMQModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        exchanges: [
+          {
+            name: 'gymcore-exchange',
+            type: 'topic',
+            options: {
+              durable: true,
+            },
           },
+          {
+            name: 'gymcore-logs-exchange',
+            type: 'topic',
+            options: {
+              durable: true,
+            },
+          },
+        ],
+        uri: configService.get<string>('MESSAGE_BUS_URL') || 'amqp://localhost:5672',
+        connectionInitOptions: {
+          wait: false, // No esperar la conexión para inicializar
+          reject: false, // No fallar si no se puede conectar
+          timeout: 5000, // Timeout más corto
         },
-      ],
-      uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
-      connectionInitOptions: {
-        wait: true,
-        reject: process.env.NODE_ENV === 'production' ? true : false,
-        timeout: 10000,
-      },
-      enableControllerDiscovery: true,
-      prefetchCount: 1,
+        enableControllerDiscovery: true,
+        prefetchCount: 1,
+        enableDirectReplyTo: false, // Deshabilitar para evitar bloqueos
+      }),
+      inject: [ConfigService],
     }),
     ClientsModule.registerAsync([
       {
@@ -55,6 +68,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ]),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, AmqpLogger],
+  exports: [AmqpLogger],
 })
 export class AppModule {}
