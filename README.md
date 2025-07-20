@@ -239,6 +239,11 @@ Distribuido bajo la licencia **MIT**. Ver [LICENSE](LICENSE) para detalles.
 - **Email**: alexislapo1@gmail.com  
 - **GitHub**: [@riofutabac](https://github.com/riofutabac)  
 
+- **Co-Autores**: Alexis Lapo  
+- Santiago Bejarano [@santiagobejarano](https://github.com/santiagobejarano)
+- Andrés Cantuña [@Cantx08](https://github.com/Cantx08)
+- Matías Mejía [@mtmatias1282](https://github.com/mtmatias1282)
+- Isaac Friedman
 ---
 
 ## 🙏 Acknowledgments
