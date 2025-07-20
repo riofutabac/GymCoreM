@@ -28,7 +28,7 @@ import { Loader2 } from 'lucide-react';
 // Esquema de validación con Zod
 const gymSchema = z.object({
   name: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 });
 
 type GymFormData = z.infer<typeof gymSchema>;

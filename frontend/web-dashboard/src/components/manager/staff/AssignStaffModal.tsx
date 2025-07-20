@@ -65,7 +65,7 @@ export default function AssignStaffModal({ isOpen, onClose, members }: AssignSta
                         <SelectContent>
                           {availableMembers.map(member => (
                             <SelectItem key={member.id} value={member.id}>
-                              {member.name} ({member.email})
+                              {member.firstName} {member.lastName} ({member.email})
                             </SelectItem>
                           ))}
                         </SelectContent>

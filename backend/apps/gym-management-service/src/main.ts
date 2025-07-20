@@ -8,10 +8,15 @@ import { Logger } from '@nestjs/common';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { GymEventsController } from './gym-events.controller';
+import { AmqpLogger } from './amqp-logger.service';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { logger: false });
+  
+  // Configurar el logger centralizado
+  const amqpLogger = app.get(AmqpLogger);
+  app.useLogger(amqpLogger);
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT') ?? 3002;

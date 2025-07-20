@@ -318,16 +318,22 @@ export default function UsersManagementPage() {
       {/* Modales */}
       <StaffProfileFormModal
         open={profileModalOpen}
-        onOpenChange={setProfileModalOpen}
-        staff={selectedUser}
+        onClose={() => setProfileModalOpen(false)}
+        staffMember={selectedUser}
         onSave={handleSaveProfile}
-        isSubmitting={isSubmitting}
+        isLoading={isSubmitting}
       />
 
       <StaffRoleFormModal
         open={roleModalOpen}
-        onOpenChange={setRoleModalOpen}
-        staff={selectedUser}
+        onClose={() => setRoleModalOpen(false)}
+        staff={selectedUser && selectedUser.role !== 'MEMBER' ? {
+          id: selectedUser.id,
+          role: selectedUser.role as 'OWNER' | 'MANAGER' | 'RECEPTIONIST',
+          firstName: selectedUser.firstName,
+          lastName: selectedUser.lastName,
+          gymId: selectedUser.gymId
+        } : null}
         gyms={gymsList || []}
         onSave={handleSaveRole}
         isSubmitting={isSubmitting}

@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { PaypalModule } from './paypal/paypal.module';
 import { RabbitBindingsService } from './rabbit-bindings.service';
+import { AmqpLogger } from './amqp-logger.service';
 
 @Module({
   imports: [
@@ -22,6 +23,11 @@ import { RabbitBindingsService } from './rabbit-bindings.service';
           name: 'gymcore-exchange',
           type: 'topic',
           options: { durable: true }, // Asegúrate que el exchange sea durable
+        },
+        {
+          name: 'gymcore-logs-exchange',
+          type: 'topic',
+          options: { durable: true },
         },
       ],
       uri: process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672',
@@ -54,7 +60,9 @@ import { RabbitBindingsService } from './rabbit-bindings.service';
   providers: [
     AppService,
     RabbitBindingsService,
+    AmqpLogger,
   ],
+  exports: [AmqpLogger],
 })
 export class AppModule {
   constructor() {
