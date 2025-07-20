@@ -41,6 +41,11 @@ export class AppController {
     return this.appService.enrollBiometric(data.userId, data.fingerprintId);
   }
 
+  @MessagePattern({ cmd: 'get_users_biometric_status' })
+  getUsersBiometricStatus(@Payload() data: { userIds: string[] }) {
+    return this.appService.getUsersBiometricStatus(data.userIds);
+  }
+
   @MessagePattern({ cmd: 'get_user_by_id' })
   getUserById(@Payload() data: { userId: string }) {
     return this.appService.getUserById(data.userId);

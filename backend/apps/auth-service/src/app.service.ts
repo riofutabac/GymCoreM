@@ -223,6 +223,36 @@ export class AppService {
     }
   }
 
+  async getUsersBiometricStatus(userIds: string[]) {
+    this.logger.log(`🔍 getUsersBiometricStatus for ${userIds.length} users`);
+    try {
+      const users = await this.prisma.user.findMany({
+        where: {
+          id: { in: userIds }
+        },
+        select: {
+          id: true,
+          biometricTemplate: {
+            select: {
+              id: true
+            }
+          }
+        }
+      });
+
+      return users.map(user => ({
+        userId: user.id,
+        hasBiometric: !!user.biometricTemplate
+      }));
+    } catch (error) {
+      this.logger.error(`❌ Error getUsersBiometricStatus: ${error instanceof Error ? error.message : error}`);
+      throw new RpcException({
+        status: 500,
+        message: `Error al obtener estados biométricos: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+
   async getUserById(userId: string) {
     this.logger.log(`🔍 getUserById: ${userId}`);
     try {

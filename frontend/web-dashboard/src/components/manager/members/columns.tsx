@@ -40,13 +40,13 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
       await enrollBiometric(member.id);
       toast({
         title: 'Éxito',
-        description: 'Huella registrada correctamente',
+        description: hasBiometricTemplate ? 'Huella actualizada correctamente' : 'Huella registrada correctamente',
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       toast({
         title: 'Error',
-        description: `Error al registrar la huella: ${errorMessage}`,
+        description: `Error al ${hasBiometricTemplate ? 'actualizar' : 'registrar'} la huella: ${errorMessage}`,
         variant: 'destructive',
       });
     }
@@ -54,22 +54,12 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
 
   const isMembershipActive = member.membershipStatus === 'ACTIVE';
   const isMembershipBanned = member.membershipStatus === 'BANNED';
+  const hasBiometricTemplate = member.hasBiometricTemplate ?? false;
 
   return (
     <>
       <TooltipProvider delayDuration={100}>
         <div className="flex items-center justify-end gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBiometricEnrollment}>
-                <Fingerprint className="h-4 w-4" />
-                <span className="sr-only">Registrar huella</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Registrar huella</p>
-            </TooltipContent>
-          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(member)}>
@@ -110,6 +100,22 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
               </TooltipContent>
             </Tooltip>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant={hasBiometricTemplate ? "ghost" : "default"} 
+                size="icon" 
+                className={`h-8 w-8 ${!hasBiometricTemplate ? 'bg-[#2e9c66] hover:bg-[#2e9c66]/90 text-white' : ''}`}
+                onClick={handleBiometricEnrollment}
+              >
+                <Fingerprint className={`h-4 w-4 ${!hasBiometricTemplate ? 'text-white' : ''}`} />
+                <span className="sr-only">{hasBiometricTemplate ? 'Actualizar huella' : 'Registrar huella'}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{hasBiometricTemplate ? 'Actualizar huella' : 'Registrar huella'}</p>
+            </TooltipContent>
+          </Tooltip>
           {!isMembershipBanned && member.activeMembershipId && ( // ⬅️ solo si NO está baneada Y tenemos el ID
             <Tooltip>
               <TooltipTrigger asChild>

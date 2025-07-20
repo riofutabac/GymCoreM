@@ -133,7 +133,8 @@ export const getMembersForManager = async (): Promise<Member[]> => {
       membershipStatus,
       membershipEndDate,
       activeMembershipId, // Include the membership ID
-      role: member.role
+      role: member.role,
+      hasBiometricTemplate: member.biometricTemplate || false // Check if biometric template exists
     };
   });
 };

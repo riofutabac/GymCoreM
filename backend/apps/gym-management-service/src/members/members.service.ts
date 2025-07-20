@@ -78,8 +78,26 @@ export class MembersService {
   this.prisma.user.count({ where }),
 ]);
 
+    // Get biometric information for all users
+    const userIds = items.map(item => item.id);
+    let biometricInfo: any[] = [];
+    try {
+      biometricInfo = await firstValueFrom(
+        this.authClient.send({ cmd: 'get_users_biometric_status' }, { userIds })
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to get biometric info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Continue without biometric info if service is unavailable
+    }
+
+    // Merge biometric information with user data
+    const itemsWithBiometric = items.map(item => ({
+      ...item,
+      biometricTemplate: biometricInfo.find((bio: any) => bio.userId === item.id)?.hasBiometric || false
+    }));
+
     return {
-      items,
+      items: itemsWithBiometric,
       total,
       page,
       limit,
