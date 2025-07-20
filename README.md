@@ -1,4 +1,4 @@
-# GymCoreM - Sistema Integral de Gestión de Gimnasios
+# GymCore - Sistema Integral de Gestión de Gimnasios
 
 [![CI](https://circleci.com/gh/riofutabac/GymCoreM.svg)](https://circleci.com/gh/riofutabac/GymCoreM)
 [![Codecov](https://codecov.io/gh/riofutabac/GymCoreM/branch/main/graph/badge.svg)](https://codecov.io/gh/riofutabac/GymCoreM)
