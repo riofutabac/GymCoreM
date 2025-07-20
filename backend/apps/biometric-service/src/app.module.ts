@@ -4,6 +4,9 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SerialModule } from './serial/serial.module';
+import { RedisModule } from './redis.module';
+import { RedisService } from './biometric.service';
+import { BiometricEventsController } from './biometric.events.controller';
 
 @Module({
   imports: [
@@ -20,10 +23,22 @@ import { SerialModule } from './serial/serial.module';
           port: 3001,
         },
       },
+      {
+        name: 'GYM_SERVICE',
+        transport: Transport.RMQ,
+        options: {
+          urls: [process.env.MESSAGE_BUS_URL || 'amqp://localhost:5672'],
+          queue: 'gym-management.check_membership',
+          queueOptions: {
+            durable: false,
+          },
+        },
+      },
     ]),
-    SerialModule
+    SerialModule,
+    RedisModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, BiometricEventsController],
+  providers: [AppService, RedisService],
 })
 export class AppModule {}

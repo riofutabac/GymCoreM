@@ -1,7 +1,8 @@
 import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { SerialService } from './serial/serial.service';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
+import { RedisService } from './biometric.service';
 
 @Injectable()
 export class AppService implements OnModuleInit {
@@ -14,6 +15,8 @@ export class AppService implements OnModuleInit {
   constructor(
     private readonly serialService: SerialService,
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
+    @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
+    private readonly redisService: RedisService,
   ) {}
 
   async onModuleInit() {
@@ -101,22 +104,37 @@ export class AppService implements OnModuleInit {
             );
 
             if (user && user.id) {
-                this.logger.log(`✅ ACCESO CONCEDIDO. Usuario: ${user.email}. Notificando al Arduino.`);
-                // SOLUCIÓN AL CRASH: Usamos el método que no espera respuesta
-                this.serialService.sendFireAndForgetCommand('VERIFY_SUCCESS');
+          // --- NUEVA LÓGICA DE VERIFICACIÓN DE MEMBRESÍA ---
+          this.logger.log(`[Verificación de Membresía] Consultando para usuario: ${user.email}`);
+          
+          try {
+            // Usamos timeout para no bloquear el sistema si gym-management-service no responde
+            const membershipResponse: { isActive: boolean } = await firstValueFrom(
+              this.gymClient.send('check_membership', { userId: user.id }).pipe(timeout(1000)) // Timeout de 1 segundo
+            );
+
+            if (membershipResponse.isActive) {
+              this.logger.log(`✅ ACCESO CONCEDIDO. Usuario: ${user.email}, Membresía: Activa. Notificando al Arduino.`);
+              this.serialService.sendFireAndForgetCommand('VERIFY_SUCCESS');
             } else {
-                this.logger.warn(`❌ ACCESO DENEGADO. Huella ID ${fingerprintId} no está registrada en la BD. Notificando al Arduino.`);
-                // SOLUCIÓN AL CRASH: Usamos el método que no espera respuesta
-                this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+              this.logger.warn(`❌ ACCESO DENEGADO. Usuario: ${user.email}, Membresía: Inactiva o Expirada. Notificando al Arduino.`);
+              this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
             }
-        } catch (error) {
-            this.logger.error(`❌ Error durante el proceso de verificación con auth-service: ${error.message}`);
-            // SOLUCIÓN AL CRASH: Usamos el método que no espera respuesta
+          } catch (error) {
+            this.logger.error(`[Error RPC] No se pudo verificar la membresía para ${user.email}. Acceso denegado por seguridad.`, error);
             this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
-        } finally {
-            this.isVerifying = false;
-            this.startCooldown(); // <--- SOLUCIÓN AL DELAY
+          }
+        } else {
+          this.logger.warn(`❌ ACCESO DENEGADO. Huella ID ${fingerprintId} no registrada en la BD. Notificando al Arduino.`);
+          this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
         }
+      } catch (error) {
+        this.logger.error(`❌ Error durante el proceso de verificación: ${error.message}`);
+        this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+      } finally {
+        this.isVerifying = false;
+        this.startCooldown();
+      }
     }
   }
 
