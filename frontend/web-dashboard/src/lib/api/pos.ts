@@ -136,7 +136,7 @@ export const posApi = {
       console.log('✅ Auth check:', authTest);
       
       // Test products list
-      const productsTest = await apiCall('/inventory/products');
+      const productsTest = await apiCall('/inventory/products') as any[];
       console.log('✅ Products list:', productsTest.length, 'products found');
       
       return {

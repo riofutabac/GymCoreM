@@ -71,12 +71,15 @@ export default function StaffManagementPage() {
     }
   };
 
-  const handleSaveRole = async (data: { role: string }) => {
+  const handleSaveRole = async (data: { role: string; gymId?: string }) => {
     if (!selectedStaff) return;
     
     setIsSubmitting(true);
     try {
-      await ownerApi.updateUserRole(selectedStaff.id, data.role);
+      await ownerApi.updateUserRole(selectedStaff.id, { 
+        role: data.role, 
+        gymId: data.gymId || selectedStaff.gymId 
+      });
       toast.success('Rol actualizado exitosamente');
       await refresh();
     } catch (err) {
@@ -134,8 +137,8 @@ export default function StaffManagementPage() {
         open={roleModalOpen}
         onClose={() => setRoleModalOpen(false)}
         onSave={handleSaveRole}
-        staffMember={selectedStaff}
-        isLoading={isSubmitting}
+        staff={selectedStaff}
+        isSubmitting={isSubmitting}
       />
     </div>
   );

@@ -39,10 +39,18 @@ export default function MemberFormModal({ isOpen, onClose, member }: MemberFormM
   const onSubmit = async (values: MemberFormValues) => {
     try {
       if (isEditMode) {
-        const { firstName, lastName } = values;
-        await updateMember({ id: member.id, firstName, lastName });
+        const { firstName, lastName, email } = values;
+        await updateMember({ 
+          id: member.id, 
+          name: `${firstName} ${lastName}`.trim(),
+          email
+        });
       } else { 
-        await createMember(values); 
+        const { firstName, lastName, email } = values;
+        await createMember({ 
+          name: `${firstName} ${lastName}`.trim(),
+          email
+        }); 
       }
       onClose(true);          // ✅ avisa que sí se guardó
     } catch (error) { 

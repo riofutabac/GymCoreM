@@ -38,7 +38,7 @@ export function LoginForm() {
   useEffect(() => {
     if (state.success && state.redirectUrl) {
       startTransition(() => {
-        router.push(state.redirectUrl);
+        router.push(state.redirectUrl!);
       });
     }
   }, [state, router]);
