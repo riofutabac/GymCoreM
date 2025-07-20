@@ -12,32 +12,32 @@ import { Type } from 'class-transformer';
 
 export class CreateSaleItemDto {
   @IsString()
-  productId: string;
+  productId!: string;
 
   @IsInt()
   @Min(1)
-  quantity: number;
+  quantity!: number;
 
   @IsNumber()
   @IsPositive()
-  price: number;
+  price!: number;
 }
 
 export class CreateSaleDto {
   @IsString()
-  gymId: string;
+  gymId!: string;
 
   @IsString()
-  cashierId: string;
+  cashierId!: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateSaleItemDto)
-  items: CreateSaleItemDto[];
+  items!: CreateSaleItemDto[];
 
   @IsNumber()
   @IsPositive()
-  total: number;
+  total!: number;
 
   @IsOptional()
   @IsString()

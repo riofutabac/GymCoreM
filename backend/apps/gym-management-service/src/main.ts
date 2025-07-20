@@ -23,6 +23,22 @@ async function bootstrap() {
 
   micro.useGlobalFilters(new AllExceptionsFilter());
 
+  // =================================================================
+  // CONFIGURACIÓN #2: MICROSERVICIO RABBITMQ (¡La nueva para RPC!)
+  // Esto convierte al servicio en un "respondedor" de RPC.
+  // Escuchará en 'gym_service_queue' y responderá las preguntas.
+  // =================================================================
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: {
+      urls: [process.env.MESSAGE_BUS_URL || 'amqp://guest:guest@localhost:5672'],
+      queue: 'gym-management.check_membership', // La cola dedicada para las preguntas de membresía
+      queueOptions: {
+        durable: false, // Las colas RPC no necesitan sobrevivir a reinicios
+      },
+    },
+  });
+
   // 🔥 REGISTRO MANUAL TEMPORAL DE HANDLERS - hasta que funcione enableControllerDiscovery
   try {
     const amqp = app.get(AmqpConnection);
@@ -83,7 +99,7 @@ async function bootstrap() {
     );
     
     logger.log('✅ Handlers RabbitMQ registrados manualmente');
-  } catch (error) {
+  } catch (error: any) {
     logger.error('❌ Error registrando handlers RabbitMQ', error);
   }
 

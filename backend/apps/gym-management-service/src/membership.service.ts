@@ -15,6 +15,11 @@ export class MembershipService {
     private readonly amqpConnection: AmqpConnection,
   ) {}
 
+  private async invalidateCache(userId: string) {
+    this.logger.log(`[Cache Invalidation] Emitting event for user ${userId}`);
+    await this.amqpConnection.publish('gymcore-exchange', 'membership.updated', { userId });
+  }
+  
   async activate(dto: ActivateMembershipDto, managerId: string) {
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
@@ -66,6 +71,9 @@ export class MembershipService {
         activatedById: managerId,
       },
       });
+
+      // Invalidate cache after successful activation
+      await this.invalidateCache(dto.userId);
 
       // Crear el log de auditoría
       await tx.membershipLog.create({
@@ -129,6 +137,25 @@ export class MembershipService {
     });
   }
 
+  /**
+   * Verifica si un usuario tiene una membresía activa en este momento.
+   * @param userId - El ID del usuario a verificar.
+   * @returns El objeto de la membresía si está activa, de lo contrario null.
+   */
+  async getActiveMembership(userId: string) {
+    this.logger.log(`Buscando membresía activa para el usuario: ${userId}`);
+    const now = new Date();
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        userId: userId,
+        status: 'ACTIVE', // Solo membresías con estado ACTIVO
+        startDate: { lte: now }, // La fecha de inicio ya pasó
+        endDate: { gte: now }, // La fecha de fin aún no ha llegado
+      },
+    });
+    return membership;
+  }
+  
   async renew(dto: RenewMembershipDto, managerId: string) {
     const membership = await this.prisma.membership.findUnique({ where: { id: dto.membershipId } });
     if (!membership) throw new NotFoundException('Membership not found');
@@ -167,6 +194,8 @@ export class MembershipService {
           activatedById: managerId 
         },
       });
+
+      await this.invalidateCache(membership.userId);
 
       await tx.membershipLog.create({
         data: {
@@ -393,6 +422,8 @@ export class MembershipService {
         data : { status: 'BANNED' },
       });
 
+      await this.invalidateCache(membership.userId);
+
       await tx.membershipLog.create({
         data: {
           membershipId,
@@ -419,7 +450,6 @@ export class MembershipService {
 
     const membership = await this.prisma.membership.findFirst({
       where: { userId },
-      orderBy: { createdAt: 'desc' }, // Obtener la membresía más reciente
       include: {
         gym: true, // Incluir datos del gimnasio asociado
       },
@@ -468,13 +498,11 @@ export class MembershipService {
         userId,
         gymId: user.gymId 
       },
-      orderBy: { createdAt: 'desc' },
       include: {
         gym: {
           select: {
             id: true,
             name: true,
-            address: true,
             uniqueCode: true
           }
         },
@@ -540,8 +568,7 @@ export class MembershipService {
       where: { 
         userId,
         gymId: user.gymId 
-      },
-      orderBy: { createdAt: 'desc' }
+      }
     });
     
     if (!membership) {
@@ -577,7 +604,7 @@ export class MembershipService {
         success: true,
         user: updatedMembership.user
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error al actualizar perfil de miembro: ${error.message}`);
       throw new RpcException({
         status: 500,

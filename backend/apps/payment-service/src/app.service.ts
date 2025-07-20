@@ -86,7 +86,7 @@ export class AppService {
     let order: any;
     try {
       order = await this.paypalSvc.client.execute(request);
-    } catch (err) {
+    } catch (err: any) {
       throw new RpcException({
           message: 'Error de PayPal al crear la orden.',
           status: HttpStatus.INTERNAL_SERVER_ERROR
@@ -105,7 +105,7 @@ export class AppService {
       },
     });
 
-    const approvalLink = order.result.links.find((l) => l.rel === 'approve');
+    const approvalLink = order.result.links.find((l: any) => l.rel === 'approve');
     if (!approvalLink) {
         throw new RpcException({
             message: 'No se pudo obtener el link de aprobación de PayPal.',
@@ -143,7 +143,7 @@ export class AppService {
     let order: any;
     try {
       order = await this.paypalSvc.client.execute(request);
-    } catch (err) {
+    } catch (err: any) {
       throw new RpcException({
         message: 'Error de PayPal al crear la orden.',
         status: HttpStatus.INTERNAL_SERVER_ERROR
@@ -164,7 +164,7 @@ export class AppService {
       },
     });
 
-    const approvalLink = order.result.links.find((l) => l.rel === 'approve');
+    const approvalLink = order.result.links.find((l: any) => l.rel === 'approve');
     if (!approvalLink) {
       throw new RpcException({
         message: 'No se pudo obtener el link de aprobación de PayPal.',
@@ -197,7 +197,7 @@ export class AppService {
       }
 
       // 2) Obtener access token usando el SDK
-      const accessTokenRequest = new paypal.core.AccessTokenRequest(this.paypalSvc.client.environment);
+      const accessTokenRequest = new paypal.core.AccessTokenRequest(this.paypalSvc.client.environment as any);
       const accessTokenResponse: any = await this.paypalSvc.client.execute(accessTokenRequest);
       const accessToken = accessTokenResponse.result.access_token;
 
@@ -240,7 +240,7 @@ export class AppService {
       const { verification_status } = responseData;
       return verification_status === 'SUCCESS';
       
-    } catch (error) {
+    } catch (error: any) {
       // Por seguridad, si hay cualquier error en la verificación, rechazamos
       return false;
     }
@@ -415,7 +415,7 @@ export class AppService {
       
       // NO publicar payment.completed para membresías manuales
       // Analytics Service ya procesa estos pagos via membership.activated.manually
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error creando pago manual para membresía ${payload.membershipId}`, error);
       // Re-lanzar el error para que RabbitMQ pueda manejarlo (e.g., Dead Letter Queue)
       throw error;
@@ -488,7 +488,7 @@ export class AppService {
               }
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn(`Error verificando pago ${payment.id}:`, error);
           // Continuar con el siguiente pago
         }
@@ -502,7 +502,7 @@ export class AppService {
       this.logger.log(`Total ingresos en efectivo calculados para gym ${gymId}: $${totalCashRevenue} (membresías + POS)`);
       return { totalCashRevenue };
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error calculando ingresos en efectivo para gym ${gymId}:`, error);
       return { totalCashRevenue: 0 };
     }
@@ -551,7 +551,7 @@ export class AppService {
       
       return payment;
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error creando Payment desde venta POS:', error);
       throw error;
     }

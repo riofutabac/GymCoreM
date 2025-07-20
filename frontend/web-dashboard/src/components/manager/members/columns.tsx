@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ActivateMembershipModal from './ActivateMembershipModal';
-import { resetMemberPassword, banMembership } from '@/lib/api/manager';
+import { resetMemberPassword, banMembership, enrollBiometric } from '@/lib/api/manager';
 import { useToast } from '@/hooks/use-toast';
-import { MoreHorizontal, KeyRound, CreditCard, UserCog, Ban, CircleSlash } from 'lucide-react';
+import { MoreHorizontal, Fingerprint, KeyRound, CreditCard, UserCog, Ban, CircleSlash } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { addDays } from 'date-fns';
 
@@ -35,8 +35,26 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
     }
   };
 
+  const handleBiometricEnrollment = async () => {
+    try {
+      await enrollBiometric(member.id);
+      toast({
+        title: 'Éxito',
+        description: hasBiometricTemplate ? 'Huella actualizada correctamente' : 'Huella registrada correctamente',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast({
+        title: 'Error',
+        description: `Error al ${hasBiometricTemplate ? 'actualizar' : 'registrar'} la huella: ${errorMessage}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const isMembershipActive = member.membershipStatus === 'ACTIVE';
   const isMembershipBanned = member.membershipStatus === 'BANNED';
+  const hasBiometricTemplate = member.hasBiometricTemplate ?? false;
 
   return (
     <>
@@ -82,6 +100,22 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
               </TooltipContent>
             </Tooltip>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant={hasBiometricTemplate ? "ghost" : "default"} 
+                size="icon" 
+                className={`h-8 w-8 ${!hasBiometricTemplate ? 'bg-[#2e9c66] hover:bg-[#2e9c66]/90 text-white' : ''}`}
+                onClick={handleBiometricEnrollment}
+              >
+                <Fingerprint className={`h-4 w-4 ${!hasBiometricTemplate ? 'text-white' : ''}`} />
+                <span className="sr-only">{hasBiometricTemplate ? 'Actualizar huella' : 'Registrar huella'}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{hasBiometricTemplate ? 'Actualizar huella' : 'Registrar huella'}</p>
+            </TooltipContent>
+          </Tooltip>
           {!isMembershipBanned && member.activeMembershipId && ( // ⬅️ solo si NO está baneada Y tenemos el ID
             <Tooltip>
               <TooltipTrigger asChild>

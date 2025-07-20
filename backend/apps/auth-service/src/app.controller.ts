@@ -1,8 +1,10 @@
-// backend/apps/auth-service/src/app.controller.ts (VERSIÓN CORREGIDA)
+// backend/apps/auth-service/src/app.controller.ts
 
 import { Controller, ValidationPipe } from '@nestjs/common';
 import { MessagePattern, Payload, EventPattern } from '@nestjs/microservices';
 import { AppService } from './app.service';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { LoginUserDto } from './dto/login-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
@@ -10,7 +12,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @MessagePattern({ cmd: 'get_health' }) // Para verificar que está vivo
+  @MessagePattern({ cmd: 'get_health' })
   getHealth(): string {
     return this.appService.getHello();
   }
@@ -30,6 +32,44 @@ export class AppController {
     return this.appService.changeRole(data.userId, data.newRole, data.gymId);
   }
 
+  //
+  // ─── BIOMETRÍA ─────────────────────────────────────────────────────────────
+  //
+
+  @MessagePattern({ cmd: 'enroll_biometric' })
+  enrollBiometric(@Payload() data: { userId: string; fingerprintId: number }) {
+    return this.appService.enrollBiometric(data.userId, data.fingerprintId);
+  }
+
+  @MessagePattern({ cmd: 'get_users_biometric_status' })
+  getUsersBiometricStatus(@Payload() data: { userIds: string[] }) {
+    return this.appService.getUsersBiometricStatus(data.userIds);
+  }
+
+  @MessagePattern({ cmd: 'get_user_by_id' })
+  getUserById(@Payload() data: { userId: string }) {
+    return this.appService.getUserById(data.userId);
+  }
+
+  @MessagePattern({ cmd: 'get_user_by_fingerprint_id' })
+  getUserByFingerprintId(@Payload() data: { fingerprintId: number }) {
+    return this.appService.getUserByFingerprintId(data.fingerprintId);
+  }
+
+  @MessagePattern({ cmd: 'get_fingerprints_for_user' })
+  getFingerprintsForUser(@Payload() data: { userId: string }) {
+    return this.appService.getFingerprintsByUserId(data.userId);
+  }
+
+  @MessagePattern({ cmd: 'delete_fingerprints_for_user' })
+  deleteFingerprintsForUser(@Payload() data: { userId: string }) {
+    return this.appService.deleteFingerprintsByUserId(data.userId);
+  }
+
+  //
+  // ─── USUARIOS / STAFF / PERFIL (develop) ────────────────────────────────────
+  //
+
   @MessagePattern({ cmd: 'get_user_info' })
   async getUserInfo(@Payload() data: { userId: string }) {
     return this.appService.findUserById(data.userId);
@@ -37,7 +77,6 @@ export class AppController {
 
   @MessagePattern({ cmd: 'get_staff_users' })
   async getStaffUsers() {
-    // Devuelve usuarios que son OWNER, MANAGER o RECEPTIONIST
     return this.appService.findUsersByRole(['OWNER', 'MANAGER', 'RECEPTIONIST']);
   }
 
@@ -45,7 +84,7 @@ export class AppController {
   async updateUserProfile(@Payload() payload: { userId: string; data: UpdateProfileDto }) {
     return this.appService.updateUserProfile(payload.userId, payload.data);
   }
-  
+
   @MessagePattern({ cmd: 'update_profile' })
   async updateProfile(@Payload() payload: { userId: string; data: UpdateProfileDto }) {
     return this.appService.updateUserProfile(payload.userId, payload.data);
@@ -58,12 +97,17 @@ export class AppController {
 
   @MessagePattern({ cmd: 'list_users' })
   async listAllUsers() {
-    // Devuelve TODOS los usuarios
     return this.appService.findAllUsers();
   }
-  
+
   @MessagePattern({ cmd: 'update_user' })
-  async updateUser(@Payload() payload: { id: string; firstName?: string; lastName?: string; role?: string; gymId?: string }) {
+  async updateUser(@Payload() payload: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    role?: string;
+    gymId?: string;
+  }) {
     const { id, ...data } = payload;
     return this.appService.updateUser(id, data);
   }
@@ -74,7 +118,11 @@ export class AppController {
   }
 
   @MessagePattern({ cmd: 'assign_role' })
-  async assignRole(@Payload() data: { managerId: string; targetUserId: string; role: string }) {
+  async assignRole(@Payload() data: {
+    managerId: string;
+    targetUserId: string;
+    role: string;
+  }) {
     return this.appService.assignRoleInGym(data.managerId, data.targetUserId, data.role);
   }
 
@@ -82,7 +130,8 @@ export class AppController {
   async handleUserEmailUpdate(@Payload() data: { userId: string; newEmail: string }) {
     return this.appService.updateUserAuthEmail(data.userId, data.newEmail);
   }
-   @MessagePattern({ cmd: 'reset_password' })
+
+  @MessagePattern({ cmd: 'reset_password' })
   async resetPassword(@Payload() data: { email: string }) {
     return this.appService.sendPasswordReset(data.email);
   }

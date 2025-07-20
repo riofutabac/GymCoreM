@@ -17,7 +17,7 @@ export class ProductsController {
       const result = await this.productsService.create(createProductDto);
       this.logger.log(`Product created successfully: ${result.id}`);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error creating product: ${error.message}`, error.stack);
       throw error;
     }

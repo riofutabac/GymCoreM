@@ -1,3 +1,3 @@
 export class PublicGymDto {
-  name: string;
+  name!: string;
 }

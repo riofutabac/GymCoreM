@@ -107,7 +107,7 @@ export class AnalyticsService {
         this.logger.log('Obteniendo KPIs desde Redis...');
         return JSON.parse(cachedKpis);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn('Error accediendo a Redis:', error);
     }
 
@@ -145,7 +145,7 @@ export class AnalyticsService {
       this.logger.log('KPIs guardados en Redis.');
       return kpis;
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('[ERROR-KPIs] Fallo al calcular KPIs desde la DB', error);
       // Devolver ceros en caso de error para no romper el frontend
       return { totalUsers: 0, totalRevenue: '0.00', newMembershipsToday: 0, lastUpdatedAt: new Date().toISOString() };
@@ -201,7 +201,7 @@ export class AnalyticsService {
           })
         );
         cashRevenueThisMonth = paymentStats?.totalCashRevenue || 0;
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`No se pudieron obtener ingresos en efectivo para gym ${gymId}:`, error);
         cashRevenueThisMonth = 0;
       }
@@ -216,7 +216,7 @@ export class AnalyticsService {
 
       this.logger.log(`KPIs calculados para gym ${gymId}: ${gymKpis.activeMembers} activos, $${gymKpis.cashRevenueThisMonth} ingresos`);
       return gymKpis;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error calculando KPIs del gimnasio:', error);
       return {
         activeMembers: 0,
@@ -236,7 +236,7 @@ export class AnalyticsService {
         this.logger.log('Obteniendo Global Trends desde Redis...');
         return JSON.parse(cachedTrends);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error al leer Global Trends desde Redis', error);
     }
 
@@ -298,7 +298,7 @@ export class AnalyticsService {
       this.logger.log('Global Trends guardados en Redis.');
       return result;
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('[ERROR-Trends] Fallo al calcular Global Trends desde la DB', error);
       // Devolver estructura vacía en caso de error
       return { monthlyGrowth: [], comparedToLastMonth: { userGrowth: '0%', revenueGrowth: '0%' }, totalDataPoints: 0, lastUpdatedAt: new Date().toISOString() };
