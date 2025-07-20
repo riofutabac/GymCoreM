@@ -1,9 +1,9 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { MongoLogService } from './mongo-log.service';
+import { AppElasticsearchService } from './elasticsearch.service';
 
 @Controller('logs')
 export class LogsController {
-  constructor(private readonly mongoLogService: MongoLogService) {}
+  constructor(private readonly elasticsearchService: AppElasticsearchService) {}
 
   @Get('search')
   async searchLogs(
@@ -14,18 +14,19 @@ export class LogsController {
     @Query('search') search?: string,
   ) {
     try {
-      const logs = await this.mongoLogService.searchLogs({
-        context,
-        level,
-        startDate,
-        endDate,
-        search,
-      });
-      
+      // Por ahora retornamos un mensaje indicando que se usa Kibana para búsquedas
       return {
         success: true,
-        count: logs.length,
-        logs,
+        message: 'Para búsquedas avanzadas de logs, usa Kibana en http://localhost:5601',
+        kibanaUrl: 'http://localhost:5601',
+        elasticsearchIndex: 'gymcore-logs',
+        filters: {
+          context,
+          level,
+          startDate,
+          endDate,
+          search,
+        },
       };
     } catch (error: any) {
       return {
@@ -38,10 +39,13 @@ export class LogsController {
 
   @Get('stats')
   async getStats() {
-    // Aquí puedes agregar estadísticas de logs
+    // Estadísticas de logs via Kibana/Elasticsearch
     return {
-      message: 'Usa MongoDB Compass para ver estadísticas detalladas',
-      mongodbCompassUrl: 'mongodb://localhost:27017/gymcore-logs',
+      success: true,
+      message: 'Usa Kibana para ver estadísticas detalladas de logs',
+      kibanaUrl: 'http://localhost:5601',
+      elasticsearchUrl: 'http://localhost:9200',
+      elasticsearchIndex: 'gymcore-logs',
     };
   }
 }

@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ElasticsearchModule } from './elasticsearch.module';
 import { AppElasticsearchService } from './elasticsearch.service';
+import { LogsController } from './logs.controller';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { AppElasticsearchService } from './elasticsearch.service';
     }),
     ElasticsearchModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, LogsController],
   providers: [AppService, AppElasticsearchService],
 })
 export class AppModule {}
