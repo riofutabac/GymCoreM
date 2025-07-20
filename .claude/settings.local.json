@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose:*)",
+      "Bash(cp:*)",
+      "Bash(docker run:*)",
+      "Bash(rm:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker exec:*)",
+      "Bash(timeout 30 docker-compose up api-gateway)",
+      "Bash(timeout 30 docker-compose up auth-service)",
+      "Bash(timeout 30 docker-compose up biometric-service)",
+      "Bash(timeout 30 docker-compose up analytics-service)",
+      "Bash(timeout 30 docker-compose up notification-service)"
+    ],
+    "deny": []
+  }
+}
