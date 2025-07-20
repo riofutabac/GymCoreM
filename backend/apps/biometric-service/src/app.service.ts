@@ -1,5 +1,5 @@
 import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { SerialService } from './serial/serial.service';
 import { firstValueFrom, timeout } from 'rxjs';
 import { RedisService } from './biometric.service';
@@ -206,49 +206,71 @@ export class AppService implements OnModuleInit {
     }
   }
 
+  /**
+   * Inicia el proceso de enrolamiento, limpiando registros previos si existen.
+   * @param userId El ID del usuario a enrolar.
+   */
   async startEnrollment(userId: string): Promise<any> {
-    this.logger.log(`🔄 Iniciando inscripción para el usuario: ${userId}`);
-    
+    this.logger.log(`🔄 Iniciando flujo de enrolamiento completo para usuario: ${userId}`);
+
     try {
-      // Verificar que el Arduino esté conectado
       if (!this.serialService.isArduinoConnected()) {
         throw new Error('Arduino no está conectado');
       }
 
-      // Guardar el userId actual para cuando llegue la respuesta ENROLL_SUCCESS
-      this.currentEnrollmentUserId = userId;
+      // --- PASO 1: VERIFICAR SI HAY HUELLAS ANTIGUAS ---
+      this.logger.log(`   [1/4] Verificando huellas existentes en la base de datos...`);
+      const existingFingerprints: any[] = await firstValueFrom(
+        this.authClient.send({ cmd: 'get_fingerprints_for_user' }, { userId })
+      );
 
-      // Enviar comando ENROLL al Arduino
-      this.logger.log(`➡️ Enviando comando ENROLL al Arduino...`);
+      // --- PASO 2: SI EXISTEN, BORRARLAS ---
+      if (existingFingerprints && existingFingerprints.length > 0) {
+        this.logger.warn(`   [2/4] Se encontraron ${existingFingerprints.length} huellas previas. Procediendo a eliminarlas.`);
+
+        // 2a. Borrar del Arduino
+        this.logger.log(`       -> Borrando ${existingFingerprints.length} huellas del Arduino...`);
+        for (const fp of existingFingerprints) {
+          try {
+            await this.deleteFingerprint(fp.fingerprintId);
+          } catch (err) {
+            // Es seguro ignorar si la huella no existe en el Arduino.
+            this.logger.warn(`       -> No se pudo borrar la huella ID ${fp.fingerprintId} del Arduino (posiblemente ya no existía).`);
+          }
+        }
+        
+        // 2b. Borrar de la Base de Datos
+        this.logger.log(`       -> Borrando registros de la base de datos...`);
+        await firstValueFrom(
+          this.authClient.send({ cmd: 'delete_fingerprints_for_user' }, { userId })
+        );
+        this.logger.log(`   [3/4] Limpieza de registros previos completada.`);
+
+      } else {
+        this.logger.log(`   [2/4] y [3/4] El usuario no tiene huellas previas. Saltando limpieza.`);
+      }
+
+      // --- PASO 4: INICIAR NUEVO ENROLAMIENTO ---
+      this.logger.log(`   [4/4] Enviando comando ENROLL al Arduino...`);
+      this.currentEnrollmentUserId = userId; // Guardamos el ID para cuando el Arduino responda
       const response = await this.serialService.sendCommand('ENROLL');
       
-      this.logger.log(`📡 Respuesta del Arduino: ${response}`);
+      this.logger.log(`   -> Respuesta del Arduino: ${response}`);
       
-      // Procesar la respuesta inicial del Arduino
       if (response === 'ENROLL_START') {
+        this.logger.log(`✅ Flujo de enrolamiento iniciado exitosamente para ${userId}.`);
         return {
-          message: `Proceso de inscripción iniciado para usuario ${userId}`,
+          message: `Proceso de enrolamiento iniciado para usuario ${userId}. Por favor, sigue las instrucciones del dispositivo.`,
           status: 'started',
-          instructions: 'Sigue las instrucciones del Arduino para completar la inscripción'
         };
-      } else if (response.startsWith('ENROLL_ERROR:')) {
-        // Resetear el usuario actual si hay error
-        this.currentEnrollmentUserId = null;
-        const errorDetails = response.split(':')[1];
-        throw new Error(`Error en inscripción: ${errorDetails}`);
       } else {
-        // Para otras respuestas del proceso de inscripción
-        return {
-          message: `Proceso de inscripción en progreso para usuario ${userId}`,
-          status: 'in_progress',
-          currentStep: response
-        };
+        throw new Error(`El Arduino respondió con un estado inesperado durante el inicio del enrolamiento: ${response}`);
       }
+
     } catch (error) {
-      // Resetear el usuario actual en caso de error
-      this.currentEnrollmentUserId = null;
-      this.logger.error(`❌ Error al iniciar inscripción: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      this.currentEnrollmentUserId = null; // Limpiar estado en caso de cualquier error
+      this.logger.error(`❌ Error catastrófico durante el flujo de enrolamiento para ${userId}:`, error.stack || error.message);
+      throw new RpcException(error.message || 'Error desconocido al iniciar el enrolamiento');
     }
   }
 

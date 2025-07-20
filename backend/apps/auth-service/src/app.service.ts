@@ -300,6 +300,30 @@ export class AppService {
     }
   }
 
+  /**
+   * Busca todas las plantillas biométricas asociadas a un ID de usuario.
+   * @param userId - El ID del usuario.
+   * @returns Un array de objetos BiometricTemplate.
+   */
+  async getFingerprintsByUserId(userId: string) {
+    this.logger.log(`🔍 Buscando huellas existentes para el usuario: ${userId}`);
+    return this.prisma.biometricTemplate.findMany({
+      where: { userId },
+    });
+  }
+
+  /**
+   * Elimina todas las plantillas biométricas asociadas a un ID de usuario.
+   * @param userId - El ID del usuario cuyas huellas se eliminarán.
+   * @returns El resultado de la operación de borrado.
+   */
+  async deleteFingerprintsByUserId(userId: string) {
+    this.logger.log(`🗑️ Eliminando todas las huellas para el usuario: ${userId}`);
+    return this.prisma.biometricTemplate.deleteMany({
+      where: { userId },
+    });
+  }
+
   //
   // ─── USUARIOS / STAFF / PERFIL ──────────────────────────────────────────────
   //

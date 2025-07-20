@@ -56,6 +56,16 @@ export class AppController {
     return this.appService.getUserByFingerprintId(data.fingerprintId);
   }
 
+  @MessagePattern({ cmd: 'get_fingerprints_for_user' })
+  getFingerprintsForUser(@Payload() data: { userId: string }) {
+    return this.appService.getFingerprintsByUserId(data.userId);
+  }
+
+  @MessagePattern({ cmd: 'delete_fingerprints_for_user' })
+  deleteFingerprintsForUser(@Payload() data: { userId: string }) {
+    return this.appService.deleteFingerprintsByUserId(data.userId);
+  }
+
   //
   // ─── USUARIOS / STAFF / PERFIL (develop) ────────────────────────────────────
   //
