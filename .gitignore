@@ -6,7 +6,7 @@ node_modules
 # ########## #
 # Ignorar las carpetas de dependencias en cualquier nivel del proyecto.
 **/node_modules
-**/pnpm-lock.yaml
+
 
 # ################# #
 # Build y Cachés  #

@@ -1,0 +1,33 @@
+services:
+  # Cada comando apunta a su propia carpeta Infisical
+  api-gateway:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/api-gateway -- pnpm --filter=api-gateway run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]
+
+  auth-service:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/auth-service -- pnpm --filter=auth-service run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]
+
+  gym-management-service:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/gym-management-service -- pnpm --filter=gym-management-service run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]
+
+  payment-service:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/payment-service -- pnpm --filter=payment-service run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]
+
+  inventory-service:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/inventory-service -- pnpm --filter=inventory-service run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]
+
+  analytics-service:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/analytics-service -- pnpm --filter=analytics-service run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]
+
+  biometric-service:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/biometric-service -- pnpm --filter=biometric-service run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]
+
+  notification-service:
+    command: sh -c "infisical run --token=$INFISICAL_TOKEN --env=$INFISICAL_ENV --path=/notification-service -- pnpm --filter=notification-service run start:dev"
+    volumes: [ ./:/app, /app/node_modules ]

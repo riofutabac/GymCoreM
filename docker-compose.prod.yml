@@ -1,0 +1,194 @@
+version: '3.8'
+
+# ── Red ─────────────────────────────────────────────────────────
+networks:
+  gymcore-net:
+    driver: bridge
+
+# ── Servicios ───────────────────────────────────────────────────
+services:
+  # 🐇  RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: gymcore-rabbitmq
+    ports: ["5672:5672", "15672:15672"]
+    networks: [gymcore-net]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 📦  Redis
+  redis:
+    image: redis:7-alpine
+    container_name: gymcore-redis
+    ports: ["6379:6379"]
+    networks: [gymcore-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Microservicios backend ────────────────────────────────────
+  # Para cada servicio definimos: SERVICE_NAME  +  INFISICAL_PATH
+  api-gateway:
+    container_name: gymcore-api-gateway
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: api-gateway
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /api-gateway
+    ports: ["3000:3000"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /api-gateway
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }
+
+  auth-service:
+    container_name: gymcore-auth-service
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: auth-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /auth-service
+    ports: ["3001:3001"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /auth-service
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }
+
+  gym-management-service:
+    container_name: gymcore-gym-management-service
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: gym-management-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /gym-management-service
+    ports: ["3002:3002"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /gym-management-service
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }
+
+  payment-service:
+    container_name: gymcore-payment-service
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: payment-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /payment-service
+    ports: ["3003:3003"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /payment-service
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }
+
+  inventory-service:
+    container_name: gymcore-inventory-service
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: inventory-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /inventory-service
+    ports: ["3004:3004"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /inventory-service
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }
+
+  analytics-service:
+    container_name: gymcore-analytics-service
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: analytics-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /analytics-service
+    ports: ["3005:3005"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /analytics-service
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }
+
+  biometric-service:
+    container_name: gymcore-biometric-service
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: biometric-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /biometric-service
+    ports: ["3006:3006"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /biometric-service
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }
+
+  notification-service:
+    container_name: gymcore-notification-service
+    build:
+      context: .
+      dockerfile: backend/apps/Dockerfile.universal
+      args:
+        SERVICE_NAME: notification-service
+        INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+        INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+        INFISICAL_PATH: /notification-service
+    ports: ["3007:3007"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_PATH: /notification-service
+    networks: [gymcore-net]
+    depends_on: { rabbitmq: { condition: service_healthy } }

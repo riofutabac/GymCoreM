@@ -1,0 +1,104 @@
+# Un solo Dockerfile para gobernar a todos tus microservicios NestJS
+
+# --- ETAPA 1: Builder ---
+    FROM node:18-alpine AS builder
+
+    # Argumentos que se reciben desde docker-compose.yml
+    ARG SERVICE_NAME
+    ARG INFISICAL_TOKEN
+    ARG INFISICAL_ENV=prod
+    ARG INFISICAL_PATH=/
+    
+    WORKDIR /app
+    
+    # Instala pnpm y la CLI de Infisical globalmente
+    RUN npm install -g pnpm @infisical/cli
+    
+    # Copia los archivos de manifiesto
+    COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .infisical.json ./
+    COPY backend/apps/${SERVICE_NAME}/package.json ./backend/apps/${SERVICE_NAME}/
+    
+    # Instala dependencias
+    RUN pnpm install --frozen-lockfile --ignore-scripts
+    
+    # Copia el resto del código fuente
+    COPY . .
+    
+    # Variables de entorno para Infisical
+    ENV INFISICAL_TOKEN=$INFISICAL_TOKEN \
+        INFISICAL_ENV=$INFISICAL_ENV \
+        INFISICAL_PATH=$INFISICAL_PATH \
+        INFISICAL_DISABLE_UPDATE_CHECK=true
+    
+    # Verifica que el token existe antes de proceder
+    RUN if [ -z "$INFISICAL_TOKEN" ]; then \
+            echo "ERROR: INFISICAL_TOKEN no está definido"; \
+            exit 1; \
+        fi
+    
+    # ① Genera Prisma client (si existe)
+    RUN if [ -f "backend/apps/${SERVICE_NAME}/prisma/schema.prisma" ]; then \
+            echo "Generando cliente de Prisma para ${SERVICE_NAME}..."; \
+            infisical run \
+                --token="$INFISICAL_TOKEN" \
+                --project-config-dir=/app \
+                --env="$INFISICAL_ENV" \
+                --path="$INFISICAL_PATH" \
+                -- pnpm --filter=${SERVICE_NAME} exec prisma generate ; \
+        else \
+            echo "Sin schema.prisma, omitiendo generate"; \
+        fi
+    
+    # ② Compila el servicio
+    RUN echo "Compilando ${SERVICE_NAME}..." && \
+        infisical run \
+            --token="$INFISICAL_TOKEN" \
+            --project-config-dir=/app \
+            --env="$INFISICAL_ENV" \
+            --path="$INFISICAL_PATH" \
+            -- pnpm --filter=${SERVICE_NAME} run build
+    
+    # --- ETAPA 2: Runner ---
+    FROM node:18-alpine
+    
+    WORKDIR /app
+    
+    ARG SERVICE_NAME
+    ARG INFISICAL_TOKEN
+    ARG INFISICAL_ENV=prod
+    ARG INFISICAL_PATH=/
+    ARG PORT=3000
+    
+    ENV NODE_ENV=production \
+        INFISICAL_TOKEN=$INFISICAL_TOKEN \
+        INFISICAL_ENV=$INFISICAL_ENV \
+        INFISICAL_PATH=$INFISICAL_PATH \
+        INFISICAL_DISABLE_UPDATE_CHECK=true
+    
+    # Instala pnpm y Infisical CLI
+    RUN npm install -g pnpm @infisical/cli
+    
+    # Copia archivos necesarios
+    COPY package.json pnpm-workspace.yaml .infisical.json ./
+    COPY --from=builder /app/node_modules ./node_modules
+    COPY --from=builder /app/backend/apps/${SERVICE_NAME}/dist ./backend/apps/${SERVICE_NAME}/dist
+    
+    # Si existe Prisma, copia también el cliente generado
+    COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma 2>/dev/null || true
+    
+    EXPOSE ${PORT}
+    
+    # Comando de inicio con validación de token
+    CMD ["sh","-c", "\
+      if [ -z \"$INFISICAL_TOKEN\" ]; then \
+        echo 'ERROR: INFISICAL_TOKEN no está definido en runtime'; \
+        exit 1; \
+      fi; \
+      echo \"Iniciando ${SERVICE_NAME} con Infisical...\"; \
+      infisical run \
+        --token=\"$INFISICAL_TOKEN\" \
+        --project-config-dir=/app \
+        --env=\"$INFISICAL_ENV\" \
+        --path=\"$INFISICAL_PATH\" \
+        -- pnpm --filter=${SERVICE_NAME} run start:prod \
+    "]
