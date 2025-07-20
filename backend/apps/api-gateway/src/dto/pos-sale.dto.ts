@@ -3,24 +3,24 @@ import { Type } from 'class-transformer';
 
 export class PosSaleItemDto {
   @IsString()
-  productId: string;
+  productId!: string;
 
   @IsInt()
   @Min(1)
-  quantity: number;
+  quantity!: number;
 
   @IsNumber()
   @IsPositive()
-  price: number;
+  price!: number;
 }
 
 export class PosSaleDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PosSaleItemDto)
-  items: PosSaleItemDto[];
+  items!: PosSaleItemDto[];
 
   @IsNumber()
   @IsPositive()
-  total: number;
+  total!: number;
 }

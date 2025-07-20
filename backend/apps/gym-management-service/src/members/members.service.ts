@@ -85,7 +85,7 @@ export class MembersService {
       biometricInfo = await firstValueFrom(
         this.authClient.send({ cmd: 'get_users_biometric_status' }, { userIds })
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to get biometric info: ${error instanceof Error ? error.message : 'Unknown error'}`);
       // Continue without biometric info if service is unavailable
     }
@@ -169,7 +169,7 @@ export class MembersService {
       this.logger.log(`Socio ${dto.email} creado exitosamente`);
       return created;
 
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Error creando socio ${dto.email}:`, err);
       if (err instanceof RpcException) {
         throw err;
@@ -224,7 +224,7 @@ export class MembersService {
       this.logger.log(`Socio ${id} actualizado exitosamente`);
       return updated;
 
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Error actualizando socio ${id}:`, err);
       throw new RpcException({
         status: 500,
@@ -257,7 +257,7 @@ export class MembersService {
       this.logger.log(`Socio ${id} eliminado exitosamente`);
       return deleted;
 
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Error eliminando socio ${id}:`, err);
       throw new RpcException({
         status: 500,
@@ -295,7 +295,7 @@ export class MembersService {
         data: { role: data.newRole as any },
       });
       this.logger.log(`✅ Rol sincronizado para usuario ${data.userId}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error sincronizando rol para usuario ${data.userId}:`, error);
       // Dependiendo de la estrategia de manejo de errores, podrías reintentar o loguear más detalles
     }
@@ -414,7 +414,7 @@ export class MembersService {
         user: updatedUser,
       };
 
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Error al unir usuario ${userId} al gimnasio:`, err);
       if (err instanceof RpcException) {
         throw err;
@@ -499,7 +499,7 @@ export class MembersService {
       this.logger.log(`✅ Perfil obtenido para usuario ${userId}`);
       return response;
 
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Error obteniendo perfil de usuario ${userId}:`, err);
       if (err instanceof RpcException) {
         throw err;
@@ -535,7 +535,7 @@ export class MembersService {
       this.logger.log(`✅ Perfil local actualizado para usuario ${userId}`);
       return updated;
 
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Error actualizando perfil local de usuario ${userId}:`, err);
       throw new RpcException({
         status: 500,

@@ -88,7 +88,7 @@ export class SaleCompletedListener {
 
         this.logger.log(`✅ Evento 'payment.completed' emitido por venta POS #${payload.saleId} por $${completedSale.totalAmount} (asíncrona)`);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error processing sale completion for ${payload.saleId}:`, error);
       throw error;
     }

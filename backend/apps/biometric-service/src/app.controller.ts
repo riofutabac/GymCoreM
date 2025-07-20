@@ -19,7 +19,7 @@ export class AppController {
       // La lógica ya existe en tu servicio, solo la llamamos.
       const result = await this.appService.getHealth();
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en getHealth: ${error.message}`);
       throw new RpcException(error.message || 'Error desconocido al obtener el estado de salud');
     }
@@ -32,7 +32,7 @@ export class AppController {
       // Esta función ya existe en tu AppService
       const result = await this.appService.pingArduino();
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en pingArduino: ${error.message}`);
       throw new RpcException(error.message || 'Error desconocido durante el ping');
     }
@@ -49,7 +49,7 @@ export class AppController {
       const result = await this.appService.startEnrollment(data.userId);
       // El servicio ahora puede devolver un objeto más informativo.
       return { success: true, message: 'Proceso de enrolamiento iniciado.', data: result };
-    } catch (error) {
+    } catch (error: any) {
       // Propagar el error como una RpcException para que el api-gateway lo maneje.
       this.logger.error(`Error en startEnrollment: ${error.message}`);
       throw new RpcException(error.message || 'Error desconocido al iniciar el enrolamiento');
@@ -65,7 +65,7 @@ export class AppController {
     try {
       const result = await this.appService.countFingerprints();
       return { success: true, message: 'Conteo de huellas exitoso.', data: result };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en countFingerprints: ${error.message}`);
       throw new RpcException(error.message || 'Error desconocido al contar huellas');
     }
@@ -87,7 +87,7 @@ export class AppController {
       
       const result = await this.appService.deleteFingerprint(fingerprintId);
       return { success: true, message: `Huella ID ${fingerprintId} eliminada exitosamente.`, data: result };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en deleteFingerprint: ${error.message}`);
       throw new RpcException(error.message || 'Error desconocido al eliminar la huella');
     }

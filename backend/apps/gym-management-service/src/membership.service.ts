@@ -450,7 +450,6 @@ export class MembershipService {
 
     const membership = await this.prisma.membership.findFirst({
       where: { userId },
-      orderBy: { createdAt: 'desc' }, // Obtener la membresía más reciente
       include: {
         gym: true, // Incluir datos del gimnasio asociado
       },
@@ -499,13 +498,11 @@ export class MembershipService {
         userId,
         gymId: user.gymId 
       },
-      orderBy: { createdAt: 'desc' },
       include: {
         gym: {
           select: {
             id: true,
             name: true,
-            address: true,
             uniqueCode: true
           }
         },
@@ -571,8 +568,7 @@ export class MembershipService {
       where: { 
         userId,
         gymId: user.gymId 
-      },
-      orderBy: { createdAt: 'desc' }
+      }
     });
     
     if (!membership) {
@@ -608,7 +604,7 @@ export class MembershipService {
         success: true,
         user: updatedMembership.user
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error al actualizar perfil de miembro: ${error.message}`);
       throw new RpcException({
         status: 500,

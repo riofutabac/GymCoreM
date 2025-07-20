@@ -99,7 +99,7 @@ async function bootstrap() {
     );
     
     logger.log('✅ Handlers RabbitMQ registrados manualmente');
-  } catch (error) {
+  } catch (error: any) {
     logger.error('❌ Error registrando handlers RabbitMQ', error);
   }
 

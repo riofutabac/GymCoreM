@@ -29,10 +29,10 @@ export class CustomRpcExceptionFilter implements ExceptionFilter {
       message = result.message;
     } else {
       // Manejo de errores genéricos
-      if (exception.message) {
+      if (typeof exception?.message === 'string') {
         message = exception.message;
       }
-      if (exception.status && typeof exception.status === 'number') {
+      if (typeof exception?.status === 'number') {
         httpStatus = exception.status;
       }
     }
@@ -51,13 +51,15 @@ export class CustomRpcExceptionFilter implements ExceptionFilter {
     let message = 'Ocurrió un error inesperado en un servicio interno.';
 
     if (typeof rpcError === 'object' && rpcError !== null) {
-      if (typeof rpcError['status'] === 'number' && rpcError['status'] >= 100 && rpcError['status'] < 600) {
-        status = rpcError['status'];
+      const errorObj = rpcError as Record<string, unknown>;
+
+      if (typeof errorObj.status === 'number' && errorObj.status >= 100 && errorObj.status < 600) {
+        status = errorObj.status;
       }
-      if (typeof rpcError['message'] === 'string') {
-        message = rpcError['message'];
-      } else if (rpcError['error'] && typeof rpcError['error'] === 'string') {
-        message = rpcError['error'];
+      if (typeof errorObj.message === 'string') {
+        message = errorObj.message;
+      } else if (typeof errorObj.error === 'string') {
+        message = errorObj.error;
       }
     } else if (typeof rpcError === 'string') {
       message = rpcError;
@@ -69,7 +71,18 @@ export class CustomRpcExceptionFilter implements ExceptionFilter {
   private handleHttpException(exception: HttpException): { status: number; message: string } {
     const status = exception.getStatus();
     const errorResponse = exception.getResponse();
-    const message = typeof errorResponse === 'string' ? errorResponse : errorResponse['message'] ?? 'Error interno';
+    let message = 'Error interno';
+
+    if (typeof errorResponse === 'string') {
+      message = errorResponse;
+    } else if (
+      typeof errorResponse === 'object' &&
+      errorResponse !== null &&
+      'message' in errorResponse &&
+      typeof (errorResponse as any).message === 'string'
+    ) {
+      message = (errorResponse as any).message;
+    }
 
     return { status, message };
   }

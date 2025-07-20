@@ -82,7 +82,7 @@ export class AppController {
   async register(@Body() body: any) {
     try {
       return await firstValueFrom(this.authClient.send({ cmd: 'register' }, body));
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message || 'Internal server error', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -134,7 +134,7 @@ export class AppController {
         }
       }
       return response;
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message || 'Internal server error', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -157,7 +157,7 @@ export class AppController {
     this.logger.log(`Solicitando reseteo de contraseña para ${body.email}`);
     try {
       return await firstValueFrom(this.authClient.send({ cmd: 'request_password_reset' }, body));
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message || 'Internal server error', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -194,7 +194,7 @@ export class AppController {
       return await firstValueFrom(
         this.authClient.send({ cmd: 'update_user_profile' }, { userId, data: body }),
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message || 'Internal server error', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -209,7 +209,7 @@ export class AppController {
     this.logger.log(`Solicitando dashboard para el miembro ${userId}`);
     try {
       return await firstValueFrom(this.gymClient.send({ cmd: 'get_member_dashboard' }, { userId }));
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(
         error.message || 'Error al obtener los datos del dashboard',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
@@ -225,12 +225,12 @@ export class AppController {
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async joinGymOperation(@Body() body: JoinGymDto, @Req() req: any) {
     const userId = req.user.sub;
-    this.logger.log(`Usuario ${userId} intentando unirse a gimnasio con código ${body.gymCode}`);
+    this.logger.log(`Usuario ${userId} intentando unirse a gimnasio con código ${body.uniqueCode}`);
     try {
       return await firstValueFrom(
-        this.gymClient.send({ cmd: 'join_gym' }, { userId, gymCode: body.gymCode }),
+        this.gymClient.send({ cmd: 'join_gym' }, { userId, gymCode: body.uniqueCode }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en gym-service al unirse: ${JSON.stringify(error)}`);
       throw new HttpException(error.message || 'Error al unirse al gimnasio', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -246,7 +246,7 @@ export class AppController {
       return await firstValueFrom(
         this.gymClient.send({ cmd: 'members_get_profile' }, { userId }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error en gym-service al obtener perfil: ${JSON.stringify(error)}`);
       throw new HttpException(error.message || 'Error al obtener el perfil del miembro', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -266,7 +266,7 @@ export class AppController {
       return await firstValueFrom(
         this.gymClient.send({ cmd: 'members_update_profile' }, { userId, ...body }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error actualizando perfil: ${JSON.stringify(error)}`);
       throw new HttpException(error.message || 'Error al actualizar el perfil del miembro', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -307,7 +307,7 @@ export class AppController {
       return await firstValueFrom(
         this.gymClient.send({ cmd: 'update_gym' }, { id, data: body }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error actualizando gimnasio: ${error.message || error}`);
       throw new HttpException('No se pudo actualizar el gimnasio', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -323,7 +323,7 @@ export class AppController {
       return await firstValueFrom(
         this.gymClient.send({ cmd: 'deactivate_gym' }, { id }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error desactivando gimnasio: ${error.message || error}`);
       throw new HttpException('No se pudo desactivar el gimnasio', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -355,7 +355,7 @@ export class AppController {
           gymId,
         }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error asignando manager: ${error.message || error}`);
       throw new HttpException('No se pudo asignar el manager al gimnasio', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -386,7 +386,7 @@ export class AppController {
     const managerId = req.user.sub;
     try {
       return await firstValueFrom(this.gymClient.send({ cmd: 'renew_membership' }, { dto, managerId }));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error renewing membership: ${error.message || error}`);
       throw new HttpException('Error renewing membership', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -408,7 +408,7 @@ export class AppController {
         }),
       );
       return { url: response.approvalUrl };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error creando checkout: ${error.message || error}`);
       throw new HttpException(error.message || 'Internal server error', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -561,7 +561,7 @@ export class AppController {
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="reporte_miembros.csv"');
       res.send(result.csvData);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error exportando reporte de miembros:', error);
       throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -578,7 +578,7 @@ export class AppController {
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="reporte_ventas.csv"');
       res.send(result.csvData);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error exportando reporte de ventas:', error);
       throw new HttpException('Error generando el reporte', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -601,7 +601,7 @@ export class AppController {
         totalRevenue: parseFloat(kpisFromAnalytics.totalRevenue) || 0,
         totalGyms: activeGyms,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error fetching combined KPIs:', error);
       throw new HttpException('No se pudieron cargar los KPIs combinados.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -626,7 +626,7 @@ export class AppController {
         monthlyGrowth: parseFloat(rawData.comparedToLastMonth.revenueGrowth) || 0,
         lastUpdatedAt: rawData.lastUpdatedAt,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error fetching global trends:', error);
       throw new HttpException('No se pudieron cargar las tendencias globales.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -669,7 +669,7 @@ export class AppController {
               this.gymClient.send({ cmd: 'members_bulk_create' }, { gymId: req.gymId, members: rows }),
             );
             resolve(report);
-          } catch (error) {
+          } catch (error: any) {
             reject(error);
           }
         });
@@ -709,7 +709,7 @@ export class AppController {
       }
       await workbook.commit();
       this.logger.log(`✅ Exportación Excel completada: ${items.length} socios`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('❌ Error en exportación Excel:', error);
       if (!res.headersSent) {
         throw new HttpException('Error exportando datos', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -740,7 +740,7 @@ export class AppController {
           ),
         );
         this.logger.log(`gymId ${result.gymId} propagado al Auth Service para usuario ${userId}`);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`Error propagando gymId al Auth Service: ${error.message}`);
       }
     }
@@ -779,7 +779,7 @@ export class AppController {
         this.paymentClient.send({ cmd: 'create_sale_checkout' }, { saleId: sale.id, amount: sale.totalAmount }),
       );
       return { saleId: sale.id, approvalUrl: checkout.approvalUrl };
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message || 'Error creating sale', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -797,7 +797,7 @@ export class AppController {
         this.inventoryClient.send({ cmd: 'sales_create_cash' }, { ...dto, gymId, cashierId: req.user.sub }),
       );
       return { saleId: sale.id, status: 'COMPLETED', message: 'Venta en efectivo completada exitosamente' };
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message || 'Error creating cash sale', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -815,7 +815,7 @@ export class AppController {
         this.inventoryClient.send({ cmd: 'sales_create_card_present' }, { ...dto, gymId, cashierId: req.user.sub }),
       );
       return { saleId: sale.id, status: 'COMPLETED', message: 'Venta con tarjeta completada exitosamente' };
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message || 'Error creating card sale', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -917,11 +917,11 @@ export class AppController {
       if (!staffUsers?.length) return [];
       const gyms: Gym[] = await firstValueFrom(this.gymClient.send({ cmd: 'find_all_gyms' }, {}));
       const gymMap = new Map(gyms.map(g => [g.id, g.name]));
-      return staffUsers.map(user => ({
+      return staffUsers.map((user: UserWithGymName) => ({
         ...user,
         gymName: user.gymId ? gymMap.get(user.gymId) || 'Gimnasio no encontrado' : 'Ninguno asignado',
       }));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error fetching staff:', error);
       throw new HttpException('No se pudo cargar la lista de personal.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -934,7 +934,7 @@ export class AppController {
   async listAllUsers() {
     try {
       return await firstValueFrom(this.authClient.send({ cmd: 'list_users' }, {}));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error fetching all users:', error);
       throw new HttpException('No se pudo obtener la lista de usuarios.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -949,7 +949,7 @@ export class AppController {
     this.logger.log(`Actualizando perfil de usuario ${userId}`);
     try {
       return await firstValueFrom(this.authClient.send({ cmd: 'update_user_profile' }, { userId, data: body }));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error actualizando perfil de usuario: ${error.message || error}`);
       throw new HttpException('No se pudo actualizar el perfil del usuario', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -963,7 +963,7 @@ export class AppController {
     try {
       this.logger.log('Enviando PING al Biometric Service...');
       return await firstValueFrom(this.biometricClient.send({ cmd: 'ping_arduino' }, {}));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error durante el ping al Biometric Service', error);
       throw new HttpException('No se pudo comunicar con el servicio biométrico.', HttpStatus.SERVICE_UNAVAILABLE);
     }
@@ -975,7 +975,7 @@ export class AppController {
     try {
       this.logger.log('Consultando estado de salud del Biometric Service...');
       return await firstValueFrom(this.biometricClient.send({ cmd: 'get_health' }, {}));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error consultando estado de salud del Biometric Service', error);
       throw new HttpException('No se pudo obtener el estado del servicio biométrico.', HttpStatus.SERVICE_UNAVAILABLE);
     }
@@ -998,7 +998,7 @@ export class AppController {
       return await firstValueFrom(
         this.biometricClient.send({ cmd: 'enroll_fingerprint' }, { userId: body.userId }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error enrolling fingerprint', error);
       throw new HttpException(error.message || 'Error al registrar la huella dactilar', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -1023,7 +1023,7 @@ export class AppController {
           { userId, fingerprintId: parseInt(fingerprintId, 10), deletedBy: req.user.sub },
         ),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error deleting fingerprint', error);
       throw new HttpException(error.message || 'Error al eliminar la huella dactilar', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -1043,7 +1043,7 @@ export class AppController {
         if (targetUser.gymId !== currentUser.gymId) throw new HttpException('Solo puedes ver huellas de MEMBERs de tu mismo gimnasio', HttpStatus.FORBIDDEN);
       }
       return await firstValueFrom(this.biometricClient.send({ cmd: 'list_fingerprints' }, { userId }));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error listing fingerprints', error);
       throw new HttpException(error.message || 'Error al obtener las huellas dactilares', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -1058,7 +1058,7 @@ export class AppController {
       return await firstValueFrom(
         this.biometricClient.send({ cmd: 'verify_fingerprint' }, { userId: body.userId, fingerprintId: body.fingerprintId }),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error verifying fingerprint', error);
       throw new HttpException(error.message || 'Error al verificar la huella dactilar', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -1074,7 +1074,7 @@ export class AppController {
     this.logger.log(`Reactivando gimnasio ${id}`);
     try {
       return await firstValueFrom(this.gymClient.send({ cmd: 'reactivate_gym' }, { id }));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error reactivando gimnasio: ${error.message || error}`);
       throw new HttpException('No se pudo reactivar el gimnasio', HttpStatus.INTERNAL_SERVER_ERROR);
     }

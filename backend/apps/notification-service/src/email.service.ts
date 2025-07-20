@@ -85,7 +85,7 @@ export class EmailService {
                <p>Timestamp: ${new Date().toISOString()}</p>
                <p>🟢 Status: OK</p>`,
       });
-      this.logger.log(`✅ Resend id: ${result.id}`);
+      this.logger.log(`✅ Resend id: ${result.data?.id || 'unknown'}`);
     } catch (err: any) {
       this.logger.error('❌ Resend error', {
         name: err.name,

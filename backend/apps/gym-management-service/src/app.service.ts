@@ -35,7 +35,7 @@ export class AppService {
     try {
       await this.createLocalUser(data);
       this.logger.log(`✅ Usuario ${data.email} sincronizado`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error sincronizando ${data.email}:`, error);
       throw error; // Re-lanzamos para que RabbitMQ sepa que falló
     }
@@ -46,7 +46,7 @@ export class AppService {
     try {
       await this.updateLocalUserRole(data);
       this.logger.log(`✅ Rol actualizado para ${data.userId}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error actualizando rol ${data.userId}:`, error);
       throw error; // Re-lanzamos para que RabbitMQ sepa que falló
     }
@@ -124,7 +124,7 @@ export class AppService {
       this.logger.log(`✅ Evento 'gym.deactivated' publicado para gimnasio ${deactivatedGym.id}`);
 
       return deactivatedGym;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error desactivando gimnasio ${id}:`, error);
       throw error;
     }
@@ -159,7 +159,7 @@ export class AppService {
       this.logger.log(`✅ Evento 'gym.updated' publicado para gimnasio ${updatedGym.id}`);
 
       return updatedGym;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error actualizando gimnasio ${id}:`, error);
       throw error;
     }
@@ -299,7 +299,7 @@ export class AppService {
       this.logger.log(`✅ Evento 'gym.reactivated' publicado para gimnasio ${reactivatedGym.id}`);
 
       return reactivatedGym;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error reactivando gimnasio ${id}:`, error);
       throw error;
     }
@@ -359,7 +359,7 @@ export class AppService {
         filename: `reporte_miembros_${new Date().toISOString().split('T')[0]}.csv`,
         totalMembers: members.length
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error generando reporte de miembros:', error);
       throw error;
     }
@@ -414,7 +414,7 @@ export class AppService {
       };
 
       return stats;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error calculando estadísticas para gym ${gymId}:`, error);
       return {
         activeMembers: 0,
@@ -440,7 +440,7 @@ export class AppService {
       }
 
       return { gymId: membership.gymId };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error obteniendo gym de membresía ${membershipId}:`, error);
       return null;
     }
@@ -462,7 +462,7 @@ export class AppService {
       }
 
       return { gymId: user.gymId };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error obteniendo gym de usuario ${userId}:`, error);
       return null;
     }

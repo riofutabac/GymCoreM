@@ -39,7 +39,7 @@ export class SerialService implements OnModuleInit {
         this.dataCallbacks.forEach(callback => {
           try {
             callback(response);
-          } catch (error) {
+          } catch (error: any) {
             this.logger.error(`❌ Error en callback de datos: ${error instanceof Error ? error.message : String(error)}`);
           }
         });
@@ -60,7 +60,7 @@ export class SerialService implements OnModuleInit {
         this.logger.warn('🔌 Puerto serial cerrado');
         this.isConnected = false;
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error al crear el puerto serial: ${error instanceof Error ? error.message : String(error)}`);
       this.logger.warn('💡 El servicio continuará funcionando sin conexión al Arduino');
       this.isConnected = false;
@@ -142,7 +142,7 @@ export class SerialService implements OnModuleInit {
           error: 'El sensor no está funcionando correctamente'
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       return {
         isHealthy: false,
         error: error instanceof Error ? error.message : String(error)
@@ -165,7 +165,7 @@ export class SerialService implements OnModuleInit {
       this.logger.log(`📡 Respuesta del Arduino: ${response}`);
       return response;
       
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error en inscripción: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }

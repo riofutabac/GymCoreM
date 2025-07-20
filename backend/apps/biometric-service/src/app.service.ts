@@ -59,7 +59,7 @@ export class AppService implements OnModuleInit {
         // Resetear el usuario actual
         // this.currentEnrollmentUserId = null;
         
-      } catch (authError) {
+      } catch (authError: any) {
         this.logger.error(`❌ Error guardando en auth-service: ${authError instanceof Error ? authError.message : String(authError)}`);
         this.logger.error(`📊 Detalles del error: ${JSON.stringify(authError)}`);
         
@@ -68,7 +68,7 @@ export class AppService implements OnModuleInit {
         
         try {
           await this.performRollback(enrollmentId);
-        } catch (rollbackError) {
+        } catch (rollbackError: any) {
           this.logger.error(`❌ Error durante rollback: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
           this.logger.error(`⚠️ ATENCIÓN: La huella ID ${enrollmentId} quedó en el Arduino sin vincularse a usuario`);
         }
@@ -120,7 +120,7 @@ export class AppService implements OnModuleInit {
               this.logger.warn(`❌ ACCESO DENEGADO. Usuario: ${user.email}, Membresía: Inactiva o Expirada. Notificando al Arduino.`);
               this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
             }
-          } catch (error) {
+          } catch (error: any) {
             this.logger.error(`[Error RPC] No se pudo verificar la membresía para ${user.email}. Acceso denegado por seguridad.`, error);
             this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
           }
@@ -128,7 +128,7 @@ export class AppService implements OnModuleInit {
           this.logger.warn(`❌ ACCESO DENEGADO. Huella ID ${fingerprintId} no registrada en la BD. Notificando al Arduino.`);
           this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
         }
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(`❌ Error durante el proceso de verificación: ${error.message}`);
         this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
       } finally {
@@ -196,7 +196,7 @@ export class AppService implements OnModuleInit {
           response: response
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error al comunicarse con Arduino: ${error instanceof Error ? error.message : String(error)}`);
       return {
         success: false,
@@ -233,7 +233,7 @@ export class AppService implements OnModuleInit {
         for (const fp of existingFingerprints) {
           try {
             await this.deleteFingerprint(fp.fingerprintId);
-          } catch (err) {
+          } catch (err: any) {
             // Es seguro ignorar si la huella no existe en el Arduino.
             this.logger.warn(`       -> No se pudo borrar la huella ID ${fp.fingerprintId} del Arduino (posiblemente ya no existía).`);
           }
@@ -267,7 +267,7 @@ export class AppService implements OnModuleInit {
         throw new Error(`El Arduino respondió con un estado inesperado durante el inicio del enrolamiento: ${response}`);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       this.currentEnrollmentUserId = null; // Limpiar estado en caso de cualquier error
       this.logger.error(`❌ Error catastrófico durante el flujo de enrolamiento para ${userId}:`, error.stack || error.message);
       throw new RpcException(error.message || 'Error desconocido al iniciar el enrolamiento');
@@ -297,7 +297,7 @@ export class AppService implements OnModuleInit {
       } else {
         throw new Error('Respuesta inesperada del Arduino');
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error al contar huellas: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -339,7 +339,7 @@ export class AppService implements OnModuleInit {
           response: response
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error al eliminar huella: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -410,14 +410,14 @@ export class AppService implements OnModuleInit {
         this.serialService.onData(rollbackHandler);
         
         const command = `DELETE:${fingerprintId}`;
-        this.serialService.sendCommand(command).catch(error => {
+        this.serialService.sendCommand(command).catch((error: any) => {
           rollbackCompleted = true;
           clearTimeout(timeout);
           this.serialService.removeDataCallback(rollbackHandler);
           reject(error);
         });
         
-      } catch (error) {
+      } catch (error: any) {
         reject(error);
       }
     });

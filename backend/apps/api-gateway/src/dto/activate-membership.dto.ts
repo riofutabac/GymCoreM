@@ -2,17 +2,17 @@ import { IsUUID, IsDateString, IsOptional, IsString, IsNumber, IsPositive, IsEnu
 
 export class ActivateMembershipDto {
   @IsUUID()
-  userId: string; // El manager busca al usuario por ID
+  userId!: string; // El manager busca al usuario por ID
 
   @IsNumber()
   @IsPositive({ message: 'El monto debe ser un número positivo.' })
-  amount: number; // Campo OBLIGATORIO para el monto pagado en efectivo
+  amount!: number; // Campo OBLIGATORIO para el monto pagado en efectivo
 
   @IsDateString()
-  startDate: string;
+  startDate!: string;
 
   @IsDateString()
-  endDate: string;
+  endDate!: string;
 
   @IsEnum(['CASH', 'ONLINE'])
   @IsOptional()

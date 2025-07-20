@@ -1,15 +1,15 @@
 // expone SOLO lo necesario al cliente
 export class ProductDto {
-  id: string;
-  name: string;
+  id!: string;
+  name!: string;
   description?: string | null;
-  price: number;
-  stock: number;
-  barcode: string;
-  gymId: string;
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
+  price!: number;
+  stock!: number;
+  barcode!: string;
+  gymId!: string;
+  version!: number;
+  createdAt!: Date;
+  updatedAt!: Date;
   
   constructor(partial: any) {
     Object.assign(this, partial);

@@ -30,7 +30,7 @@ export class AppService {
         this.authClient.send({ cmd: 'get_user_info' }, { userId }),
       );
       return userInfo;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error obteniendo información del usuario ${userId}`, error);
       return null;
     }

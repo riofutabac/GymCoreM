@@ -66,7 +66,7 @@ async function bootstrap() {
     
     logger.log('✅ Todos los handlers de RabbitMQ registrados exitosamente.');
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('❌ Error registrando el handler de RabbitMQ', error);
   }
   // --- FIN DEL REGISTRO MANUAL ---

@@ -114,7 +114,7 @@ export class AppService {
         createdAt: authData.user.created_at,
         message: 'Usuario registrado. Verifica tu email para activar la cuenta.',
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       console.error('Error inesperado en registerUser:', error);
       throw new RpcException({ message: 'Error interno en registro.', status: 500 });
@@ -158,7 +158,7 @@ export class AppService {
         },
         expiresAt: authData.session.expires_at,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       console.error('Error inesperado en loginUser:', error);
       throw new RpcException({ message: 'Error interno en login.', status: 500 });
@@ -214,7 +214,7 @@ export class AppService {
       });
       this.logger.log(`✅ Biometric mapping saved for ${userId}`);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error enrollBiometric: ${error instanceof Error ? error.message : error}`);
       throw new RpcException({
         status: 500,
@@ -244,7 +244,7 @@ export class AppService {
         userId: user.id,
         hasBiometric: !!user.biometricTemplate
       }));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error getUsersBiometricStatus: ${error instanceof Error ? error.message : error}`);
       throw new RpcException({
         status: 500,
@@ -273,7 +273,7 @@ export class AppService {
       }
       this.logger.log(`✅ Found user: ${JSON.stringify(user)}`);
       return user;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error getUserById: ${error instanceof Error ? error.message : error}`);
       throw new RpcException({ message: 'Error interno al buscar el usuario', status: 500 });
     }
@@ -353,7 +353,7 @@ export class AppService {
         orderBy: { createdAt: 'desc' },
       });
       return staff;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error getStaffUsers:', error);
       throw new RpcException({ message: 'Error obteniendo staff', status: 500 });
     }
@@ -400,7 +400,7 @@ export class AppService {
         role: updated.role,
         gymId: updated.gymId,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.logger.error('Error updateUserProfile:', error);
       throw new RpcException({ message: 'Error interno actualizando perfil', status: 500 });
@@ -416,7 +416,7 @@ export class AppService {
         orderBy: { createdAt: 'desc' },
       });
       return users;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error findUsersByRole:', error);
       throw new RpcException({ message: 'Error obteniendo usuarios por rol', status: 500 });
     }
@@ -430,7 +430,7 @@ export class AppService {
         orderBy: { createdAt: 'desc' },
       });
       return users;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error findAllUsers:', error);
       throw new RpcException({ message: 'Error obteniendo todos los usuarios', status: 500 });
     }
@@ -462,7 +462,7 @@ export class AppService {
       });
 
       return updated;
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.logger.error('Error updateUser:', error);
       throw new RpcException({ message: 'Error interno actualizando usuario', status: 500 });
@@ -485,7 +485,7 @@ export class AppService {
         throw new RpcException({ status: 400, message: `Error reset password: ${error.message}` });
       }
       return { success: true, message: 'Enlace de reseteo enviado.' };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.logger.error('Error requestPasswordReset:', error);
       throw new RpcException({ message: 'Error interno reseteo contraseña', status: 500 });
@@ -515,7 +515,7 @@ export class AppService {
         orderBy: { createdAt: 'desc' },
       });
       return staff;
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.logger.error('Error getStaffByGym:', error);
       throw new RpcException({ message: 'Error obteniendo staff', status: 500 });
@@ -581,7 +581,7 @@ export class AppService {
         { persistent: true },
       );
       return updated;
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.logger.error('Error assignRoleInGym:', error);
       throw new RpcException({ message: 'Error interno asignando rol', status: 500 });
@@ -597,7 +597,7 @@ export class AppService {
       }
       await this.prisma.user.update({ where: { id: userId }, data: { email: newEmail, updatedAt: new Date() } });
       return { success: true, message: 'Email actualizado.' };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.logger.error('Error updateUserAuthEmail:', error);
       throw new RpcException({ message: 'Error interno actualizando email', status: 500 });
@@ -614,7 +614,7 @@ export class AppService {
         throw new RpcException({ status: 400, message: `Error reset: ${error.message}` });
       }
       return { success: true, message: 'Correo de reseteo enviado.' };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.logger.error('Error sendPasswordReset:', error);
       throw new RpcException({ message: 'Error interno enviando reseteo', status: 500 });

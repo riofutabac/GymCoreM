@@ -23,7 +23,7 @@ export class RabbitBindingsService implements OnModuleInit {
 
       // Nota: Renovaciones se manejan via listener unificado
       this.logger.log('Colas de Payment Service configuradas');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error configurando colas de RabbitMQ:', error);
       throw error;
     }

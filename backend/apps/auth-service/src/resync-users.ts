@@ -60,7 +60,7 @@ async function resyncUsers() {
     }
 
     console.log('✅ Todos los eventos de usuario han sido publicados.');
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error durante la resincronización:', error);
   } finally {
     // 4. Cerrar conexiones

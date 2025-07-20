@@ -31,7 +31,7 @@ export class AppService {
     try {
       await this.createLocalUser(data);
       this.logger.log(`✅ Usuario ${data.email} sincronizado`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error sincronizando ${data.email}:`, error);
       throw error; // Re-lanzamos para que RabbitMQ sepa que falló
     }
@@ -42,7 +42,7 @@ export class AppService {
     try {
       await this.updateLocalUserRole(data);
       this.logger.log(`✅ Rol actualizado para ${data.userId}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error actualizando rol ${data.userId}:`, error);
       throw error; // Re-lanzamos para que RabbitMQ sepa que falló
     }

@@ -112,7 +112,7 @@ export class AppController {
       this.logger.log(
         `✅ Membership activation email sent for user ${payload.userId} to ${userInfo.email}`,
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
@@ -145,7 +145,7 @@ export class AppController {
       this.logger.log(
         `✅ Payment failed email sent for user ${payload.userId}`,
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
@@ -192,7 +192,7 @@ export class AppController {
       this.logger.log(
         `✅ Email de activación de membresía enviado para usuario ${payload.userId}`,
       );
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(

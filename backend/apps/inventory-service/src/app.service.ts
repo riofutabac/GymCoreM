@@ -67,7 +67,7 @@ export class AppService {
         totalSales: mockSales.length,
         totalRevenue: mockSales.reduce((sum, sale) => sum + sale.total, 0)
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error generando reporte de ventas:', error);
       throw error;
     }
