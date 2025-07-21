@@ -14,23 +14,26 @@ COPY backend/apps/api-gateway/package.json ./backend/apps/api-gateway/
 RUN pnpm install --frozen-lockfile
 
 # ==========================================
-# 🔨 BUILD STAGE
+# 🔨 BUILD STAGE (VERSIÓN DEFINITIVA Y ROBUSTA)
 # ==========================================
 FROM node:18-alpine AS builder
 WORKDIR /app
+RUN npm install -g pnpm
 
-RUN npm install -g pnpm @nestjs/cli
+# 1. Copiar SÓLO los archivos de manifiesto y el lockfile.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+# 2. Copiar los package.json de las aplicaciones para que pnpm entienda la estructura del workspace.
+COPY backend/apps/api-gateway/package.json ./backend/apps/api-gateway/
 
-# Copy source code
-COPY backend/apps/api-gateway ./backend/apps/api-gateway
-COPY tsconfig.json ./
+# 3. Instalar TODAS las dependencias. Esto crea los symlinks correctamente EN ESTA ETAPA.
+RUN pnpm install --frozen-lockfile
 
-# Build the application using the nest CLI from node_modules
-RUN cd backend/apps/api-gateway && ../../../node_modules/.bin/nest build
+# 4. Ahora, copiar el RESTO del código fuente de tu proyecto.
+COPY . .
+
+# 5. Construir la aplicación. ¡Ahora sí encontrará el comando `nest`!
+RUN pnpm --filter api-gateway build
 
 # ==========================================
 # 🚀 DEVELOPMENT STAGE
