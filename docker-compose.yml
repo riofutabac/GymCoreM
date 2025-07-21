@@ -249,19 +249,26 @@ services:
       - ./backend/apps/logging-service/src:/app/backend/apps/logging-service/src
 
   # ─── Frontend ────────────────────────────────────────────────────────────
-  # frontend:
-  #   build:
-  #     context: ./frontend/web-dashboard
-  #     dockerfile: Dockerfile
-  #   container_name: gymcore-frontend
-  #   ports:
-  #     - "3001:3000"
-  #   env_file:
-  #     - ./frontend/web-dashboard/.env.local
-  #   networks:
-  #     - gymcore-net
-  #   depends_on:
-  #     - api-gateway
-  #   volumes:
-  #     - ./frontend/web-dashboard/src:/app/src
-  #     - ./frontend/web-dashboard/public:/app/public
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/web-dashboard/Dockerfile
+      target: runner
+    container_name: gymcore-frontend
+    ports:
+      - "3030:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:3030
+      - NEXTAUTH_SECRET=production-nextauth-secret-key-change-in-production
+    networks:
+      - gymcore-net
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
