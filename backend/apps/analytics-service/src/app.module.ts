@@ -22,30 +22,54 @@ import { AmqpLogger } from './amqp-logger.service';
     // Módulo de Prisma para base de datos
     PrismaModule,
     // Clientes para comunicación con otros microservicios
-    ClientsModule.register([
+    ClientsModule.registerAsync([
       {
         name: 'AUTH_SERVICE',
-        transport: Transport.TCP,
-        options: {
-          host: 'localhost',
-          port: 3001,
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => {
+          const authServiceUrl = configService.get<string>('AUTH_SERVICE_URL') || 'tcp://localhost:3001';
+          const [host, port] = authServiceUrl.replace('tcp://', '').split(':');
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: host,
+              port: +port,
+            },
+          };
         },
+        inject: [ConfigService],
       },
       {
         name: 'GYM_SERVICE',
-        transport: Transport.TCP,
-        options: {
-          host: 'localhost',
-          port: 3002,
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => {
+          const gymServiceUrl = configService.get<string>('GYM_SERVICE_URL') || 'tcp://localhost:3002';
+          const [host, port] = gymServiceUrl.replace('tcp://', '').split(':');
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: host,
+              port: +port,
+            },
+          };
         },
+        inject: [ConfigService],
       },
       {
         name: 'PAYMENT_SERVICE',
-        transport: Transport.TCP,
-        options: {
-          host: 'localhost',
-          port: 3003,
+        imports: [ConfigModule],
+        useFactory: (configService: ConfigService) => {
+          const paymentServiceUrl = configService.get<string>('PAYMENT_SERVICE_URL') || 'tcp://localhost:3003';
+          const [host, port] = paymentServiceUrl.replace('tcp://', '').split(':');
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: host,
+              port: +port,
+            },
+          };
         },
+        inject: [ConfigService],
       },
     ]),
     // Módulo de RabbitMQ para recibir eventos
