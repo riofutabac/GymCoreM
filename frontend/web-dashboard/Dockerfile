@@ -61,10 +61,10 @@ COPY frontend/web-dashboard/postcss.config.mjs ./frontend/web-dashboard/
 ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED 1
 
-EXPOSE 3000
+EXPOSE 3030
 
 # Comando de desarrollo
-CMD ["pnpm", "--filter", "web-dashboard", "run", "dev"]
+CMD ["pnpm", "--filter", "web-dashboard", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]
 
 # --- ETAPA 4: Runner (Imagen Final de Producción) ---
 FROM node:18-alpine AS runner
@@ -89,8 +89,9 @@ COPY --from=builder /app/frontend/web-dashboard/next.config.js ./frontend/web-da
 
 WORKDIR /app/frontend/web-dashboard
 
-# Expone el puerto que usa Next.js (por defecto 3000 interno).
-EXPOSE 3000
+# Expone el puerto que usa Next.js (configurado para 3030).
+EXPOSE 3030
 
 # El comando para iniciar la aplicación con Next.js start
+ENV HOSTNAME="0.0.0.0"
 CMD ["pnpm", "start"]
