@@ -18,24 +18,30 @@ RUN pnpm install --frozen-lockfile
 RUN cd backend/apps/auth-service && npx prisma generate
 
 # ==========================================
-# 🔨 BUILD STAGE
+# 🔨 BUILD STAGE (VERSIÓN DEFINITIVA Y ROBUSTA)
 # ==========================================
 FROM node:18-alpine AS builder
 WORKDIR /app
+RUN npm install -g pnpm
 
-RUN npm install -g pnpm @nestjs/cli
+# 1. Copiar SÓLO los archivos de manifiesto y el lockfile.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
-COPY --from=deps /app/backend/apps/auth-service/prisma ./backend/apps/auth-service/prisma
+# 2. Copiar los package.json de las aplicaciones para que pnpm entienda la estructura del workspace.
+COPY backend/apps/auth-service/package.json ./backend/apps/auth-service/
+COPY backend/apps/auth-service/prisma ./backend/apps/auth-service/prisma
 
-# Copy source code
-COPY backend/apps/auth-service ./backend/apps/auth-service
-COPY tsconfig.json ./
+# 3. Instalar TODAS las dependencias. Esto crea los symlinks correctamente EN ESTA ETAPA.
+RUN pnpm install --frozen-lockfile
 
-# Build the application using workspace build
-RUN cd backend/apps/auth-service && npx nest build
+# 4. Generar Prisma client
+RUN cd backend/apps/auth-service && npx prisma generate
+
+# 5. Ahora, copiar el RESTO del código fuente de tu proyecto.
+COPY . .
+
+# 6. Construir la aplicación. ¡Ahora sí encontrará el comando `nest`!
+RUN pnpm --filter auth-service build
 
 # ==========================================
 # 🚀 DEVELOPMENT STAGE
