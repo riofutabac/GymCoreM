@@ -1,8 +1,7 @@
 // Frontend API functions for POS Real
 import { CreateSaleDto, CreateSaleResponse, SaleResponse } from './types';
 import { handleAuthError } from '@/lib/auth-utils';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
+import { API_V1_URL } from './config';
 
 // Helper function to make authenticated API calls
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -12,7 +11,7 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1${endpoint}`, {
+    const response = await fetch(`${API_V1_URL()}${endpoint}`, {
       ...options,
       headers,
       credentials: 'include', // 🔐 Clave para enviar cookies HTTP-Only
@@ -129,15 +128,12 @@ export const posApi = {
   // Diagnostic function to test API connectivity and permissions
   async testConnection() {
     try {
-      console.log('🔍 Testing API connection...');
       
       // Test user authentication
       const authTest = await apiCall('/auth/me');
-      console.log('✅ Auth check:', authTest);
       
       // Test products list
       const productsTest = await apiCall('/inventory/products') as any[];
-      console.log('✅ Products list:', productsTest.length, 'products found');
       
       return {
         success: true,
@@ -145,7 +141,6 @@ export const posApi = {
         productCount: productsTest.length
       };
     } catch (error) {
-      console.error('❌ Connection test failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

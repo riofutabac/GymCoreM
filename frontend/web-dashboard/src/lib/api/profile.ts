@@ -1,3 +1,5 @@
+import { API_V1_URL } from './config';
+
 export interface ProfileUpdateData {
   firstName?: string;
   lastName?: string;
@@ -5,7 +7,7 @@ export interface ProfileUpdateData {
 }
 
 export async function updateUserProfile(data: ProfileUpdateData) {
-  const response = await fetch('/api/v1/profile', {
+  const response = await fetch(`${API_V1_URL()}/profile`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -21,7 +23,7 @@ export async function updateUserProfile(data: ProfileUpdateData) {
 }
 
 export async function requestPasswordReset(email: string) {
-  const response = await fetch('/api/v1/auth/request-password-reset', {
+  const response = await fetch(`${API_V1_URL()}/auth/request-password-reset`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

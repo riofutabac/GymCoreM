@@ -14,46 +14,84 @@ COPY frontend/web-dashboard/package.json ./frontend/web-dashboard/
 # Instala TODAS las dependencias (dev + prod) incluyendo Next.js
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# --- ETAPA 2: Builder ---
+# --- ETAPA 2: Builder (VERSIÓN CORREGIDA) ---
 FROM node:18-alpine AS builder
+WORKDIR /app
+RUN npm install -g pnpm
+
+# 1. Copia los archivos de configuración del monorepo.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# 2. Copia el package.json específico del frontend.
+COPY frontend/web-dashboard/package.json ./frontend/web-dashboard/
+
+# 3. Reinstala las dependencias. ¡Este es el paso clave!
+# pnpm creará los enlaces (symlinks) correctamente en esta etapa.
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# 4. Ahora sí, copia el resto del código fuente del frontend.
+# (Es más simple y robusto que copiar cada archivo por separado)
+COPY frontend/web-dashboard ./frontend/web-dashboard
+
+# Configura la variable de entorno para la salida standalone.
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# 5. Ejecuta el build del frontend.
+RUN pnpm --filter web-dashboard run build
+
+# --- ETAPA 3: Development ---
+FROM node:18-alpine AS development
 WORKDIR /app
 
 RUN npm install -g pnpm
 
-# Copia dependencias desde la etapa anterior.
+# Copia dependencias desde la etapa deps
 COPY --from=deps /app/node_modules ./node_modules
-# Copia los archivos de configuración del monorepo
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 
-# Copia todo el código fuente.
-COPY . .
+# Copia solo los archivos necesarios del frontend
+COPY frontend/web-dashboard/src ./frontend/web-dashboard/src
+COPY frontend/web-dashboard/public ./frontend/web-dashboard/public
+COPY frontend/web-dashboard/package.json ./frontend/web-dashboard/
+COPY frontend/web-dashboard/next.config.js ./frontend/web-dashboard/
+COPY frontend/web-dashboard/tsconfig.json ./frontend/web-dashboard/
+COPY frontend/web-dashboard/components.json ./frontend/web-dashboard/
+COPY frontend/web-dashboard/postcss.config.mjs ./frontend/web-dashboard/
 
-# Configura la variable de entorno para la salida standalone.
-# Esto genera una carpeta .next/standalone con solo lo necesario para producción.
+ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# DEBUGGING: Verificar que Next.js esté instalado
-RUN ls -la node_modules/.bin/ | grep next || echo "Next.js no encontrado en node_modules/.bin/"
+EXPOSE 3030
 
-# Ejecuta el build del frontend usando el filtro de pnpm (desde la raíz)
-RUN pnpm --filter web-dashboard run build
+# Comando de desarrollo
+CMD ["pnpm", "--filter", "web-dashboard", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]
 
-# --- ETAPA 3: Runner (Imagen Final) ---
+# --- ETAPA 4: Runner (Imagen Final de Producción) ---
 FROM node:18-alpine AS runner
 WORKDIR /app
+
+RUN npm install -g pnpm
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Copia la salida del build standalone desde la etapa 'builder'.
-COPY --from=builder /app/frontend/web-dashboard/.next/standalone ./
-# Copia las carpetas de assets estáticos y públicos.
-COPY --from=builder /app/frontend/web-dashboard/public ./frontend/web-dashboard/public
-COPY --from=builder /app/frontend/web-dashboard/.next/static ./frontend/web-dashboard/.next/static
+# Copia las dependencias de producción
+COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=deps /app/frontend/web-dashboard/package.json ./frontend/web-dashboard/
 
-# Expone el puerto que usa Next.js (por defecto 3030 según tu package.json).
+# Instala solo dependencias de producción
+RUN pnpm install --frozen-lockfile --prod
+
+# Copia el build completo desde la etapa builder
+COPY --from=builder /app/frontend/web-dashboard/.next ./frontend/web-dashboard/.next
+COPY --from=builder /app/frontend/web-dashboard/public ./frontend/web-dashboard/public
+COPY --from=builder /app/frontend/web-dashboard/next.config.js ./frontend/web-dashboard/
+
+WORKDIR /app/frontend/web-dashboard
+
+# Expone el puerto que usa Next.js (configurado para 3030).
 EXPOSE 3030
 
-# El comando para iniciar la aplicación.
-# Next.js standalone usa un server.js optimizado.
-CMD ["node", "frontend/web-dashboard/server.js"]
+# El comando para iniciar la aplicación con Next.js start
+ENV HOSTNAME="0.0.0.0"
+CMD ["pnpm", "start"]
