@@ -128,15 +128,12 @@ export const posApi = {
   // Diagnostic function to test API connectivity and permissions
   async testConnection() {
     try {
-      console.log('🔍 Testing API connection...');
       
       // Test user authentication
       const authTest = await apiCall('/auth/me');
-      console.log('✅ Auth check:', authTest);
       
       // Test products list
       const productsTest = await apiCall('/inventory/products') as any[];
-      console.log('✅ Products list:', productsTest.length, 'products found');
       
       return {
         success: true,
@@ -144,7 +141,6 @@ export const posApi = {
         productCount: productsTest.length
       };
     } catch (error) {
-      console.error('❌ Connection test failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

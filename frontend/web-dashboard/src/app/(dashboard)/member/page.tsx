@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, CreditCard, User, Settings } from "lucide-react";
+import { Activity, CreditCard, User } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getMyMembership } from '@/lib/api/member';
 import { createMembershipPayment } from '@/lib/api/payment';
@@ -225,7 +225,7 @@ export default function MemberDashboardPage() {
                 className="w-full"
                 asChild
               >
-                <Link href="/member/visits">Ver mis visitas</Link>
+                <Link href="/member/membership">Ver membresía</Link>
               </Button>
             )}
           </CardContent>
@@ -241,7 +241,7 @@ export default function MemberDashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <Button variant="outline" className="h-24 flex flex-col items-center justify-center" asChild>
               <Link href="/member/profile">
                 <User className="h-6 w-6 mb-2" />
@@ -252,12 +252,6 @@ export default function MemberDashboardPage() {
               <Link href="/member/membership">
                 <CreditCard className="h-6 w-6 mb-2" />
                 <span>Membresía</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center" asChild>
-              <Link href="/member/settings">
-                <Settings className="h-6 w-6 mb-2" />
-                <span>Configuración</span>
               </Link>
             </Button>
           </div>

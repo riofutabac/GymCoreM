@@ -25,8 +25,6 @@ export async function registerUser(userData: z.infer<typeof registerFormSchema>)
  */
 export async function loginUser(credentials: z.infer<typeof loginFormSchema>) {
   const url = `${API_V1_URL()}/auth/login`;
-  console.log('🔍 Auth API Debug: Login URL:', url);
-  console.log('🔍 Auth API Debug: Credentials:', { email: credentials.email, password: '***' });
   
   const response = await fetch(url, {
     method: 'POST',
@@ -35,17 +33,13 @@ export async function loginUser(credentials: z.infer<typeof loginFormSchema>) {
     body: JSON.stringify(credentials),
   });
 
-  console.log('🔍 Auth API Debug: Response status:', response.status);
-  console.log('🔍 Auth API Debug: Response headers:', Object.fromEntries(response.headers.entries()));
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.log('🔍 Auth API Debug: Error data:', errorData);
     throw new Error(errorData.message || 'Credenciales inválidas.');
   }
 
   const responseData = await response.json();
-  console.log('🔍 Auth API Debug: Success response data:', responseData);
   return responseData;
 }
 

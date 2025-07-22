@@ -9,7 +9,7 @@ export const getApiBaseUrl = () => {
   
   // Debug logging (remove in production)
   if (!isClient) {
-    console.log('🔍 API Config Debug:', {
+    console.log(' ', {
       isClient,
       hostname,
       pwd,
@@ -20,19 +20,17 @@ export const getApiBaseUrl = () => {
   
   // If running on client-side (browser), always use localhost for external access
   if (isClient) {
-    console.log('🌐 Client-side: Using localhost');
     return 'http://127.0.0.1:3000';
   }
   
   // If running on server-side (Docker container), check for Docker indicators
   // Docker containers often have hostname set to container ID
   if (hostname || (pwd && pwd.startsWith('/app'))) {
-    console.log('🐳 Docker container detected: Using api-gateway');
     return 'http://api-gateway:3000';
   }
   
   // Local development fallback
-  console.log('💻 Local development: Using localhost');
+
   return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3000';
 };
 
