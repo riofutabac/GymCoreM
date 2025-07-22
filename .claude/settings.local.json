@@ -11,7 +11,8 @@
       "Bash(timeout 30 docker-compose up auth-service)",
       "Bash(timeout 30 docker-compose up biometric-service)",
       "Bash(timeout 30 docker-compose up analytics-service)",
-      "Bash(timeout 30 docker-compose up notification-service)"
+      "Bash(timeout 30 docker-compose up notification-service)",
+      "Bash(pnpm install:*)"
     ],
     "deny": []
   }
