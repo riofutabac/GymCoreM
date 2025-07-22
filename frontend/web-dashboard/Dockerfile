@@ -14,34 +14,29 @@ COPY frontend/web-dashboard/package.json ./frontend/web-dashboard/
 # Instala TODAS las dependencias (dev + prod) incluyendo Next.js
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# --- ETAPA 2: Builder ---
+# --- ETAPA 2: Builder (VERSIÓN CORREGIDA) ---
 FROM node:18-alpine AS builder
 WORKDIR /app
-
 RUN npm install -g pnpm
 
-# Copia dependencias desde la etapa anterior.
-COPY --from=deps /app/node_modules ./node_modules
-# Copia los archivos de configuración del monorepo
+# 1. Copia los archivos de configuración del monorepo.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Copia solo los archivos necesarios (evita problemas con node_modules)
-COPY frontend/web-dashboard/src ./frontend/web-dashboard/src
-COPY frontend/web-dashboard/public ./frontend/web-dashboard/public
+# 2. Copia el package.json específico del frontend.
 COPY frontend/web-dashboard/package.json ./frontend/web-dashboard/
-COPY frontend/web-dashboard/next.config.js ./frontend/web-dashboard/
-COPY frontend/web-dashboard/tsconfig.json ./frontend/web-dashboard/
-COPY frontend/web-dashboard/components.json ./frontend/web-dashboard/
-COPY frontend/web-dashboard/postcss.config.mjs ./frontend/web-dashboard/
+
+# 3. Reinstala las dependencias. ¡Este es el paso clave!
+# pnpm creará los enlaces (symlinks) correctamente en esta etapa.
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# 4. Ahora sí, copia el resto del código fuente del frontend.
+# (Es más simple y robusto que copiar cada archivo por separado)
+COPY frontend/web-dashboard ./frontend/web-dashboard
 
 # Configura la variable de entorno para la salida standalone.
-# Esto genera una carpeta .next/standalone con solo lo necesario para producción.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# DEBUGGING: Verificar que Next.js esté instalado
-RUN ls -la node_modules/.bin/ | grep next || echo "Next.js no encontrado en node_modules/.bin/"
-
-# Ejecuta el build del frontend usando el filtro de pnpm (desde la raíz)
+# 5. Ejecuta el build del frontend.
 RUN pnpm --filter web-dashboard run build
 
 # --- ETAPA 3: Development ---

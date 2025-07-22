@@ -73,22 +73,22 @@ WORKDIR /app
 
 RUN npm install -g pnpm
 
-# Install only production dependencies
+# 1. Copiar solo los archivos necesarios para instalar dependencias de PRODUCCIÓN
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY backend/apps/payment-service/package.json ./backend/apps/payment-service/
-COPY backend/apps/payment-service/prisma ./backend/apps/payment-service/prisma
+
+# 2. Instalar ÚNICAMENTE las dependencias de producción
 RUN pnpm install --frozen-lockfile --prod
 
-# Generate Prisma client for production
-RUN cd backend/apps/payment-service && npx prisma generate
-
-# Copy built application from builder stage
+# 3. Copiar la aplicación ya compilada y el schema de Prisma desde la etapa 'builder'
 COPY --from=builder /app/backend/apps/payment-service/dist ./backend/apps/payment-service/dist
 COPY --from=builder /app/backend/apps/payment-service/package.json ./backend/apps/payment-service/
+COPY --from=builder /app/backend/apps/payment-service/prisma ./backend/apps/payment-service/prisma
 
+# 4. Establecer el directorio de trabajo final
 WORKDIR /app/backend/apps/payment-service
 
 EXPOSE 3003
 
-# Production command
+# 5. Comando para ejecutar la aplicación
 CMD ["node", "dist/main.js"]
