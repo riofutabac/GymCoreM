@@ -1,16 +1,9 @@
 import { loginFormSchema, registerFormSchema } from "@/lib/validations";
+import { API_V1_URL } from "./config";
 import * as z from "zod";
 
-const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
-const API_BASE_URL = `${API_GATEWAY_URL}/api/v1`;
-
-/**
- * Llama al endpoint de registro del API Gateway.
- * @param userData - Datos del formulario de registro.
- * @returns La respuesta del servidor.
- */
 export async function registerUser(userData: z.infer<typeof registerFormSchema>) {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  const response = await fetch(`${API_V1_URL()}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include', // Para enviar cookies HTTP-Only
@@ -31,19 +24,29 @@ export async function registerUser(userData: z.infer<typeof registerFormSchema>)
  * @returns La respuesta del servidor, que debe incluir el access_token.
  */
 export async function loginUser(credentials: z.infer<typeof loginFormSchema>) {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const url = `${API_V1_URL()}/auth/login`;
+  console.log('🔍 Auth API Debug: Login URL:', url);
+  console.log('🔍 Auth API Debug: Credentials:', { email: credentials.email, password: '***' });
+  
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include', // Para recibir cookies HTTP-Only
     body: JSON.stringify(credentials),
   });
 
+  console.log('🔍 Auth API Debug: Response status:', response.status);
+  console.log('🔍 Auth API Debug: Response headers:', Object.fromEntries(response.headers.entries()));
+
   if (!response.ok) {
     const errorData = await response.json();
+    console.log('🔍 Auth API Debug: Error data:', errorData);
     throw new Error(errorData.message || 'Credenciales inválidas.');
   }
 
-  return response.json();
+  const responseData = await response.json();
+  console.log('🔍 Auth API Debug: Success response data:', responseData);
+  return responseData;
 }
 
 /**
@@ -51,7 +54,7 @@ export async function loginUser(credentials: z.infer<typeof loginFormSchema>) {
  * @returns La respuesta del servidor.
  */
 export async function logoutUser() {
-  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+  const response = await fetch(`${API_V1_URL()}/auth/logout`, {
     method: 'POST',
     credentials: 'include', // Para enviar cookies HTTP-Only
   });
@@ -69,7 +72,7 @@ export async function logoutUser() {
  * @returns La información del usuario actual
  */
 export async function getCurrentUser() {
-  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+  const response = await fetch(`${API_V1_URL()}/auth/me`, {
     method: 'GET',
     credentials: 'include', // Para enviar cookies HTTP-Only
   });
@@ -87,7 +90,7 @@ export async function getCurrentUser() {
 
 
 export async function updateProfile(data: { firstName?: string; lastName?: string }) {
-  const response = await fetch(`${API_BASE_URL}/profile`, {
+  const response = await fetch(`${API_V1_URL()}/profile`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -98,7 +101,7 @@ export async function updateProfile(data: { firstName?: string; lastName?: strin
 };
 
 export async function forgotPassword(email: string) {
-  const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+  const response = await fetch(`${API_V1_URL()}/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
