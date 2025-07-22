@@ -103,7 +103,6 @@
     "check:services": "concurrently \"curl -f http://localhost:3000/health\" \"curl -f http://localhost:3030\" \"curl -f http://localhost:9200/_cluster/health\" \"curl -f http://localhost:5601/api/status\"",
     "dev:services": "pnpm dev:backend",
     "dev:full": "pnpm dev:all",
-    "postinstall": "pnpm db:generate:all",
     "precommit": "pnpm lint && pnpm test",
     "prepare": "husky install || true",
     

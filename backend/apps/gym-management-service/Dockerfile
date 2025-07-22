@@ -73,22 +73,22 @@ WORKDIR /app
 
 RUN npm install -g pnpm
 
-# Install only production dependencies
+# 1. Copiar solo los archivos necesarios para instalar dependencias de PRODUCCIÓN
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY backend/apps/gym-management-service/package.json ./backend/apps/gym-management-service/
-COPY backend/apps/gym-management-service/prisma ./backend/apps/gym-management-service/prisma
+
+# 2. Instalar ÚNICAMENTE las dependencias de producción
 RUN pnpm install --frozen-lockfile --prod
 
-# Generate Prisma client for production
-RUN cd backend/apps/gym-management-service && npx prisma generate
-
-# Copy built application from builder stage
+# 3. Copiar la aplicación ya compilada y el schema de Prisma desde la etapa 'builder'
 COPY --from=builder /app/backend/apps/gym-management-service/dist ./backend/apps/gym-management-service/dist
 COPY --from=builder /app/backend/apps/gym-management-service/package.json ./backend/apps/gym-management-service/
+COPY --from=builder /app/backend/apps/gym-management-service/prisma ./backend/apps/gym-management-service/prisma
 
+# 4. Establecer el directorio de trabajo final
 WORKDIR /app/backend/apps/gym-management-service
 
 EXPOSE 3002
 
-# Production command
+# 5. Comando para ejecutar la aplicación
 CMD ["node", "dist/main.js"]
