@@ -259,8 +259,8 @@ services:
       - "3030:3030"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
-      - NEXTAUTH_URL=http://localhost:3030
+      - NEXT_PUBLIC_API_BASE_URL=http://api-gateway:3000
+      - NEXTAUTH_URL=http://127.0.0.1:3030
       - NEXTAUTH_SECRET=production-nextauth-secret-key-change-in-production
     networks:
       - gymcore-net
