@@ -215,6 +215,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      auth-service:
+        condition: service_started
     volumes:
       - ./backend/apps/biometric-service/src:/app/backend/apps/biometric-service/src
 

@@ -20,6 +20,17 @@ export class AppService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    // Verificar conectividad con auth-service al inicializar
+    this.logger.log('🔄 Verificando conectividad con auth-service...');
+    try {
+      // Intentar una llamada simple para verificar la conectividad
+      await this.authClient.connect();
+      this.logger.log('✅ Conectividad con auth-service establecida');
+    } catch (error: any) {
+      this.logger.warn(`⚠️ No se pudo conectar inmediatamente con auth-service: ${error.message}`);
+      // No lanzamos error, ya que la conexión se puede establecer más tarde
+    }
+
     // Escuchar respuestas del Arduino para detectar enrollments exitosos
     this.websocketService.onData((data: string) => {
       this.handleArduinoResponse(data);
@@ -51,7 +62,7 @@ export class AppService implements OnModuleInit {
           this.authClient.send(
             { cmd: 'enroll_biometric' },
             { userId: this.currentEnrollmentUserId, fingerprintId: enrollmentId }
-          )
+          ).pipe(timeout(5000)) // Timeout de 5 segundos
         );
         
         this.logger.log(`✅ Mapeo de huella guardado en auth-service: ${JSON.stringify(authResult)}`);
@@ -100,7 +111,7 @@ export class AppService implements OnModuleInit {
             this.logger.log(`🗣️  Consultando a auth-service por el dueño del fingerprintId: ${fingerprintId}`);
 
             const user = await firstValueFrom(
-                this.authClient.send({ cmd: 'get_user_by_fingerprint_id' }, { fingerprintId })
+                this.authClient.send({ cmd: 'get_user_by_fingerprint_id' }, { fingerprintId }).pipe(timeout(5000))
             );
 
             if (user && user.id) {
@@ -221,7 +232,7 @@ export class AppService implements OnModuleInit {
       // --- PASO 1: VERIFICAR SI HAY HUELLAS ANTIGUAS ---
       this.logger.log(`   [1/4] Verificando huellas existentes en la base de datos...`);
       const existingFingerprints: any[] = await firstValueFrom(
-        this.authClient.send({ cmd: 'get_fingerprints_for_user' }, { userId })
+        this.authClient.send({ cmd: 'get_fingerprints_for_user' }, { userId }).pipe(timeout(5000))
       );
 
       // --- PASO 2: SI EXISTEN, BORRARLAS ---
@@ -242,7 +253,7 @@ export class AppService implements OnModuleInit {
         // 2b. Borrar de la Base de Datos
         this.logger.log(`       -> Borrando registros de la base de datos...`);
         await firstValueFrom(
-          this.authClient.send({ cmd: 'delete_fingerprints_for_user' }, { userId })
+          this.authClient.send({ cmd: 'delete_fingerprints_for_user' }, { userId }).pipe(timeout(5000))
         );
         this.logger.log(`   [3/4] Limpieza de registros previos completada.`);
 
