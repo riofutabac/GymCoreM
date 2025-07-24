@@ -1,0 +1,32 @@
+{
+  "name": "biometric-agent",
+  "version": "1.0.0",
+  "description": "Agente local para conectar Arduino con biometric-service via WebSocket",
+  "main": "agente.js",
+  "scripts": {
+    "start": "node agente.js",
+    "dev": "nodemon agente.js",
+    "install-service": "node install-service.js",
+    "uninstall-service": "node uninstall-service.js"
+  },
+  "keywords": [
+    "arduino",
+    "websocket",
+    "biometric",
+    "serial",
+    "fingerprint"
+  ],
+  "author": "GymCoreM",
+  "license": "MIT",
+  "dependencies": {
+    "serialport": "^13.0.0",
+    "@serialport/parser-readline": "^13.0.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

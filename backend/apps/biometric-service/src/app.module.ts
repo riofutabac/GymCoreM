@@ -4,7 +4,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { SerialModule } from './serial/serial.module';
+import { WebSocketModule } from './websocket/websocket.module';
 import { RedisModule } from './redis.module';
 import { RedisService } from './biometric.service';
 import { BiometricEventsController } from './biometric.events.controller';
@@ -34,8 +34,8 @@ import { AmqpLogger } from './amqp-logger.service';
         name: 'AUTH_SERVICE',
         transport: Transport.TCP,
         options: {
-          host: 'localhost',
-          port: 3001,
+          host: process.env.NODE_ENV === 'production' ? 'auth-service' : '127.0.0.1',
+          port: parseInt(process.env.AUTH_SERVICE_PORT || '3001', 10),
         },
       },
       {
@@ -50,7 +50,7 @@ import { AmqpLogger } from './amqp-logger.service';
         },
       },
     ]),
-    SerialModule,
+    WebSocketModule,
     RedisModule,
   ],
   controllers: [AppController, BiometricEventsController],

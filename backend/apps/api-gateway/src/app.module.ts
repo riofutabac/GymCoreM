@@ -106,7 +106,7 @@ import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-di
         useFactory: (configService: ConfigService) => {
           const biometricServiceUrl =
             configService.get<string>('BIOMETRIC_SERVICE_URL') ||
-            'tcp://localhost:3006';
+            'tcp://localhost:3007';
           const [host, port] = biometricServiceUrl.replace('tcp://', '').split(':');
           return {
             transport: Transport.TCP,

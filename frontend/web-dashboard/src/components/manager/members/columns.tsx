@@ -12,10 +12,12 @@ import { useToast } from '@/hooks/use-toast';
 import { MoreHorizontal, Fingerprint, KeyRound, CreditCard, UserCog, Ban, CircleSlash } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { addDays } from 'date-fns';
+import { API_V1_URL } from '@/lib/api/config';
 
 // Componente separado para el botón de acciones
-function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (member: Member) => void }>) {
+function ActionButtons({ member, onEdit, biometricConnected }: Readonly<{ member: Member; onEdit: (member: Member) => void; biometricConnected: boolean }>) {
   const [isActivateModalOpen, setIsActivateModalOpen] = React.useState(false);
+  const [checkingBiometric, setCheckingBiometric] = React.useState(false);
   const { toast } = useToast();
 
   const handleResetPassword = async () => {
@@ -36,12 +38,26 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
   };
 
   const handleBiometricEnrollment = async () => {
+    if (!biometricConnected) {
+      toast({
+        title: 'Error',
+        description: 'El sensor biométrico no está conectado. Verifica la conexión del Arduino.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setCheckingBiometric(true);
     try {
       await enrollBiometric(member.id);
       toast({
         title: 'Éxito',
         description: hasBiometricTemplate ? 'Huella actualizada correctamente' : 'Huella registrada correctamente',
       });
+      // Recargar estado después del enrollamiento exitoso
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       toast({
@@ -49,6 +65,8 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
         description: `Error al ${hasBiometricTemplate ? 'actualizar' : 'registrar'} la huella: ${errorMessage}`,
         variant: 'destructive',
       });
+    } finally {
+      setCheckingBiometric(false);
     }
   };
 
@@ -107,13 +125,32 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
                 size="icon" 
                 className={`h-8 w-8 ${!hasBiometricTemplate ? 'bg-[#2e9c66] hover:bg-[#2e9c66]/90 text-white' : ''}`}
                 onClick={handleBiometricEnrollment}
+                disabled={!biometricConnected || checkingBiometric}
               >
-                <Fingerprint className={`h-4 w-4 ${!hasBiometricTemplate ? 'text-white' : ''}`} />
-                <span className="sr-only">{hasBiometricTemplate ? 'Actualizar huella' : 'Registrar huella'}</span>
+                <Fingerprint className={`h-4 w-4 ${!hasBiometricTemplate ? 'text-white' : ''} ${!biometricConnected ? 'opacity-50' : ''}`} />
+                <span className="sr-only">
+                  {!biometricConnected 
+                    ? 'Sensor desconectado' 
+                    : checkingBiometric 
+                    ? 'Registrando...' 
+                    : hasBiometricTemplate 
+                    ? 'Actualizar huella' 
+                    : 'Registrar huella'
+                  }
+                </span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{hasBiometricTemplate ? 'Actualizar huella' : 'Registrar huella'}</p>
+              <p>
+                {!biometricConnected 
+                  ? 'Sensor biométrico desconectado' 
+                  : checkingBiometric 
+                  ? 'Registrando huella...' 
+                  : hasBiometricTemplate 
+                  ? 'Actualizar huella' 
+                  : 'Registrar huella'
+                }
+              </p>
             </TooltipContent>
           </Tooltip>
           {!isMembershipBanned && member.activeMembershipId && ( // ⬅️ solo si NO está baneada Y tenemos el ID
@@ -188,7 +225,7 @@ function ActionButtons({ member, onEdit }: Readonly<{ member: Member; onEdit: (m
   );
 }
 
-export const columns = (onEdit: (member: Member) => void): ColumnDef<Member>[] => [
+export const columns = (onEdit: (member: Member) => void, biometricConnected: boolean = false): ColumnDef<Member>[] => [
   { 
     accessorKey: 'firstName', 
     header: 'Nombre' 
@@ -271,7 +308,7 @@ export const columns = (onEdit: (member: Member) => void): ColumnDef<Member>[] =
     header: () => <div className="text-right">Acciones</div>,
     cell: ({ row }) => {
       const member = row.original;
-      return <ActionButtons member={member} onEdit={onEdit} />;
+      return <ActionButtons member={member} onEdit={onEdit} biometricConnected={biometricConnected} />;
     },
   },
 ];

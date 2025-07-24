@@ -204,6 +204,8 @@ services:
       context: .
       dockerfile: ./backend/apps/biometric-service/Dockerfile
     container_name: gymcore-biometric-service
+    ports:
+      - "8443:8443"  # Puerto WebSocket
     env_file:
       - ./backend/apps/biometric-service/.env
     networks:
