@@ -38,16 +38,12 @@ export function AuthCard({ title, description, className, children, ...rest }: A
     >
       <Card 
         className={cn(
-          "w-full max-w-md mx-auto bg-white/90 backdrop-blur-xl shadow-2xl border border-white/20 relative overflow-hidden group hover:shadow-3xl transition-all duration-500",
+          "w-full max-w-md mx-auto bg-white/90 backdrop-blur-xl shadow-2xl border border-white/20 relative overflow-hidden",
           className
         )} 
         {...rest}
       >
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 via-transparent to-amber-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
         
-        {/* Animated border */}
-        <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-orange-200 via-amber-200 to-orange-200 opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 blur-sm"></div>
         
         <CardHeader className="text-center space-y-4 relative z-10 pt-8">
           <motion.div

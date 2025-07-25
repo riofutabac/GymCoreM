@@ -16,7 +16,9 @@ import {
   Bell,
   LogOut,
   ShoppingCart,
-  Package
+  Package,
+  Menu,
+  X
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { logoutUser } from "@/lib/api/auth";
 
 // Definir tipos para los elementos del menú
@@ -119,32 +122,100 @@ interface SidebarProps {
   userAvatar?: string;
 }
 
-export function Sidebar({ 
+// Mobile sidebar component
+function MobileSidebar({ 
   userRole = 'owner', 
   userName = "Usuario", 
-  userAvatar 
-}: SidebarProps) {
-  const pathname = usePathname();
-  const menuSections = roleMenus[userRole] || roleMenus.owner;
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const handleLogoutClick = async () => {
-    setIsLoggingOut(true);
-    try {
-      await logoutUser();
-      // Redirigir al login después del logout exitoso
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Error during logout:', error);
-      // Incluso si hay error, redirigir al login
-      window.location.href = '/login';
-    } finally {
-      setIsLoggingOut(false);
-    }
-  };
+  userAvatar,
+  menuSections,
+  pathname,
+  handleLogoutClick,
+  isLoggingOut
+}: SidebarProps & {
+  menuSections: MenuSection[];
+  pathname: string;
+  handleLogoutClick: () => void;
+  isLoggingOut: boolean;
+}) {
+  const [open, setOpen] = useState(false);
 
   return (
-    <aside className="w-64 h-screen border-r bg-sidebar flex flex-col">
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden fixed top-4 left-4 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border"
+        >
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Toggle navigation menu</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-64 p-0 bg-sidebar">
+        <SidebarContent
+          userRole={userRole}
+          userName={userName}
+          userAvatar={userAvatar}
+          menuSections={menuSections}
+          pathname={pathname}
+          handleLogoutClick={handleLogoutClick}
+          isLoggingOut={isLoggingOut}
+          onNavigate={() => setOpen(false)}
+        />
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// Desktop sidebar component
+function DesktopSidebar({
+  userRole = 'owner', 
+  userName = "Usuario", 
+  userAvatar,
+  menuSections,
+  pathname,
+  handleLogoutClick,
+  isLoggingOut
+}: SidebarProps & {
+  menuSections: MenuSection[];
+  pathname: string;
+  handleLogoutClick: () => void;
+  isLoggingOut: boolean;
+}) {
+  return (
+    <aside className="hidden md:flex w-64 h-screen border-r bg-sidebar flex-col">
+      <SidebarContent
+        userRole={userRole}
+        userName={userName}
+        userAvatar={userAvatar}
+        menuSections={menuSections}
+        pathname={pathname}
+        handleLogoutClick={handleLogoutClick}
+        isLoggingOut={isLoggingOut}
+      />
+    </aside>
+  );
+}
+
+// Shared sidebar content
+function SidebarContent({
+  userRole = 'owner', 
+  userName = "Usuario", 
+  userAvatar,
+  menuSections,
+  pathname,
+  handleLogoutClick,
+  isLoggingOut,
+  onNavigate
+}: SidebarProps & {
+  menuSections: MenuSection[];
+  pathname: string;
+  handleLogoutClick: () => void;
+  isLoggingOut: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
       {/* Header */}
       <div className="p-4">
         <div className="flex items-center gap-2 mb-6">
@@ -201,6 +272,7 @@ export function Sidebar({
                       }
                     `}
                     asChild
+                    onClick={onNavigate}
                   >
                     <Link href={item.href}>
                       <item.icon className="h-4 w-4 flex-shrink-0" />
@@ -242,6 +314,7 @@ export function Sidebar({
                   }
                 `}
                 asChild
+                onClick={onNavigate}
               >
                 <Link href="/pos">
                   <ShoppingCart className="h-4 w-4 flex-shrink-0" />
@@ -265,6 +338,57 @@ export function Sidebar({
           <span>{isLoggingOut ? 'Cerrando sesión...' : 'Cerrar Sesión'}</span>
         </Button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function Sidebar({ 
+  userRole = 'owner', 
+  userName = "Usuario", 
+  userAvatar 
+}: SidebarProps) {
+  const pathname = usePathname();
+  const menuSections = roleMenus[userRole] || roleMenus.owner;
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogoutClick = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logoutUser();
+      // Redirigir al login después del logout exitoso
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Incluso si hay error, redirigir al login
+      window.location.href = '/login';
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Mobile Sidebar */}
+      <MobileSidebar
+        userRole={userRole}
+        userName={userName}
+        userAvatar={userAvatar}
+        menuSections={menuSections}
+        pathname={pathname}
+        handleLogoutClick={handleLogoutClick}
+        isLoggingOut={isLoggingOut}
+      />
+      
+      {/* Desktop Sidebar */}
+      <DesktopSidebar
+        userRole={userRole}
+        userName={userName}
+        userAvatar={userAvatar}
+        menuSections={menuSections}
+        pathname={pathname}
+        handleLogoutClick={handleLogoutClick}
+        isLoggingOut={isLoggingOut}
+      />
+    </>
   );
 }

@@ -59,46 +59,51 @@ export default function ProfileEditForm({ user }: ProfileEditFormProps) {
       )}
       
       {success && (
-        <Alert variant="default" className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <AlertDescription className="text-green-800 text-sm md:text-base">{success}</AlertDescription>
         </Alert>
       )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="firstName">Nombre</Label>
+          <Label htmlFor="firstName" className="text-sm md:text-base">Nombre</Label>
           <Input
             id="firstName"
             type="text"
             value={formData.firstName}
             onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
             disabled={isLoading}
+            className="text-sm md:text-base h-10 md:h-11"
+            placeholder="Ingresa tu nombre"
           />
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="lastName">Apellido</Label>
+          <Label htmlFor="lastName" className="text-sm md:text-base">Apellido</Label>
           <Input
             id="lastName"
             type="text"
             value={formData.lastName}
             onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             disabled={isLoading}
+            className="text-sm md:text-base h-10 md:h-11"
+            placeholder="Ingresa tu apellido"
           />
         </div>
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email" className="text-sm md:text-base">Email</Label>
         <Input
           id="email"
           type="email"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          disabled={true} // El email no se puede cambiar directamente
-          className="bg-muted"
+          disabled={true}
+          className="bg-muted text-muted-foreground text-sm md:text-base h-10 md:h-11"
+          placeholder="Tu email actual"
         />
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs md:text-sm text-muted-foreground">
           El email no se puede modificar directamente por razones de seguridad.
         </p>
       </div>
@@ -106,15 +111,15 @@ export default function ProfileEditForm({ user }: ProfileEditFormProps) {
       <Button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-black text-white hover:bg-gray-800"
+        className="w-full text-sm md:text-base h-10 md:h-11"
       >
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Guardando...
+            <span className="text-sm md:text-base">Guardando...</span>
           </>
         ) : (
-          'Guardar Cambios'
+          <span className="text-sm md:text-base">Guardar Cambios</span>
         )}
       </Button>
     </form>
