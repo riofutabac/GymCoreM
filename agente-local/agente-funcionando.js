@@ -4,7 +4,7 @@ const WebSocket = require('ws'); // CLIENTE WebSocket, no servidor
 
 // --- CONFIGURACIÓN ---
 const BAUDRATE_ARDUINO = 9600;
-const BIOMETRIC_SERVICE_URL = 'ws://localhost:8443'; // Conectar AL servidor del biometric-service
+const BIOMETRIC_SERVICE_URL = 'ws://gymcore.site:8443'; // Conectar directamente al puerto del biometric-service
 const INTERVALO_BUSQUEDA = 3000;
 const GYM_ID = 'default';
 
