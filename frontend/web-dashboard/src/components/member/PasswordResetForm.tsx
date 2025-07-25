@@ -46,15 +46,15 @@ export default function PasswordResetForm() {
       )}
       
       {success && (
-        <Alert variant="default" className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <AlertDescription className="text-green-800 text-sm md:text-base">{success}</AlertDescription>
         </Alert>
       )}
       
-      <div className="p-4 border rounded-md bg-muted/50">
-        <p className="font-medium">Email asociado a tu cuenta:</p>
-        <p className="text-lg mt-1">{user?.email || 'Cargando...'}</p>
-        <p className="text-sm text-muted-foreground mt-2">
+      <div className="p-4 md:p-6 border rounded-md bg-muted/50">
+        <p className="font-medium text-sm md:text-base">Email asociado a tu cuenta:</p>
+        <p className="text-base md:text-lg mt-1 break-all">{user?.email || 'Cargando...'}</p>
+        <p className="text-xs md:text-sm text-muted-foreground mt-2">
           Se enviará un enlace para restablecer tu contraseña a este correo.
         </p>
       </div>
@@ -62,15 +62,15 @@ export default function PasswordResetForm() {
       <Button
         onClick={handleResetPassword}
         disabled={isLoading || !user?.email}
-        className="w-full"
+        className="w-full text-sm md:text-base h-10 md:h-11"
       >
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Enviando...
+            <span className="text-sm md:text-base">Enviando...</span>
           </>
         ) : (
-          'Enviar correo de recuperación'
+          <span className="text-sm md:text-base">Enviar correo de recuperación</span>
         )}
       </Button>
     </div>

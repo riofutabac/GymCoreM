@@ -59,10 +59,10 @@ export default function MembershipPage() {
   };
 
   return (
-    <div className="space-y-6 p-4">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Mi Membresía</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+      <div className="space-y-2 text-center md:text-left">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Mi Membresía</h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Gestiona tu membresía y revisa su estado actual
         </p>
       </div>
@@ -124,9 +124,9 @@ export default function MembershipPage() {
                 </div>
               ) : (
                 // Si no hay membresía, muestra un mensaje para unirse a un gym
-                <div>
-                  <p className="text-muted-foreground">No tienes una membresía asociada.</p>
-                  <Button onClick={() => router.push('/member')} className="mt-4">
+                <div className="text-center md:text-left">
+                  <p className="text-sm md:text-base text-muted-foreground">No tienes una membresía asociada.</p>
+                  <Button onClick={() => router.push('/member')} className="mt-4 w-full sm:w-auto text-sm md:text-base">
                     Únete a un Gimnasio
                   </Button>
                 </div>

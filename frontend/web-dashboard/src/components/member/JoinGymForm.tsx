@@ -43,18 +43,18 @@ export default function JoinGymForm({ onSuccess }: JoinGymFormProps) {
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="text-sm md:text-base">{error}</AlertDescription>
         </Alert>
       )}
       
       {success && (
-        <Alert variant="default" className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <AlertDescription className="text-green-800 text-sm md:text-base">{success}</AlertDescription>
         </Alert>
       )}
       
       <div className="space-y-2">
-        <Label htmlFor="code">Código de gimnasio</Label>
+        <Label htmlFor="code" className="text-sm md:text-base">Código de gimnasio</Label>
         <Input
           id="code"
           type="text"
@@ -63,8 +63,9 @@ export default function JoinGymForm({ onSuccess }: JoinGymFormProps) {
           placeholder="Ingresa el código único"
           disabled={isLoading}
           required
+          className="text-sm md:text-base"
         />
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs md:text-sm text-muted-foreground">
           Solicita este código al personal del gimnasio.
         </p>
       </div>
@@ -72,15 +73,15 @@ export default function JoinGymForm({ onSuccess }: JoinGymFormProps) {
       <Button
         type="submit"
         disabled={isLoading || !uniqueCode.trim()}
-        className="w-full"
+        className="w-full text-sm md:text-base h-10 md:h-11"
       >
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Uniendo...
+            <span className="text-sm md:text-base">Uniendo...</span>
           </>
         ) : (
-          'Unirse al Gimnasio'
+          <span className="text-sm md:text-base">Unirse al Gimnasio</span>
         )}
       </Button>
     </form>

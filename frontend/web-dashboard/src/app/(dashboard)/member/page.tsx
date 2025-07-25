@@ -51,29 +51,32 @@ export default function MemberDashboardPage() {
 
   if (isAuthLoading || isLoading) {
     return (
-      <div className="space-y-6 p-4">
-        <Skeleton className="h-8 w-[250px] mb-6" />
-        <div className="grid gap-4 md:grid-cols-3">
-          <Skeleton className="h-[120px] w-full" />
-          <Skeleton className="h-[120px] w-full" />
-          <Skeleton className="h-[120px] w-full" />
+      <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+        <Skeleton className="h-6 md:h-8 w-[200px] md:w-[250px] mb-4 md:mb-6" />
+        <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <Skeleton className="h-[100px] md:h-[120px] w-full" />
+          <Skeleton className="h-[100px] md:h-[120px] w-full" />
+          <Skeleton className="h-[100px] md:h-[120px] w-full" />
         </div>
-        <Skeleton className="h-[200px] w-full" />
+        <Skeleton className="h-[180px] md:h-[200px] w-full" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-6 p-4">
+      <div className="space-y-4 md:space-y-6 p-4 md:p-6 max-w-2xl mx-auto">
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="text-sm md:text-base">{error}</AlertDescription>
         </Alert>
-        <Button onClick={() => {
-          setError('');
-          fetchMembership();
-        }}>
+        <Button 
+          onClick={() => {
+            setError('');
+            fetchMembership();
+          }}
+          className="w-full sm:w-auto"
+        >
           Reintentar
         </Button>
       </div>
@@ -82,18 +85,18 @@ export default function MemberDashboardPage() {
 
   if (!membership || !membership.hasGym) {
     return (
-      <div className="space-y-6 p-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Únete a un Gimnasio</h1>
-          <p className="text-muted-foreground">
+      <div className="space-y-4 md:space-y-6 p-4 md:p-6 max-w-2xl mx-auto">
+        <div className="space-y-2 text-center md:text-left">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Únete a un Gimnasio</h1>
+          <p className="text-muted-foreground text-sm md:text-base">
             Para acceder a todas las funcionalidades, primero debes unirte a un gimnasio.
           </p>
         </div>
         
         <Card>
-          <CardHeader>
-            <CardTitle>Ingresa el código de invitación</CardTitle>
-            <CardDescription>
+          <CardHeader className="text-center md:text-left">
+            <CardTitle className="text-lg md:text-xl">Ingresa el código de invitación</CardTitle>
+            <CardDescription className="text-sm md:text-base">
               Solicita el código único al personal del gimnasio.
             </CardDescription>
           </CardHeader>
@@ -107,33 +110,33 @@ export default function MemberDashboardPage() {
 
   // Remove Tabs, show dashboard content directly
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Mi Portal de Miembro</h1>
-        <p className="text-muted-foreground">
+      <div className="space-y-2 text-center md:text-left">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Mi Portal de Miembro</h1>
+        <p className="text-muted-foreground text-sm md:text-base">
           {membership?.gym?.name ? `Bienvenido a ${membership.gym.name}` : 'Bienvenido a tu espacio personal'}
         </p>
       </div>
 
       {/* Member Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Visitas este Mes</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">Visitas este Mes</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">14</div>
+            <div className="text-xl md:text-2xl font-bold">14</div>
             <p className="text-xs text-muted-foreground">
               +3 vs mes anterior
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estado de Membresía</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">Estado de Membresía</CardTitle>
             {/* Usamos los campos procesados para mayor claridad */}
             <Badge 
               variant={membership?.membershipStatus === 'ACTIVE' ? 'default' : 'secondary'} 
@@ -146,7 +149,7 @@ export default function MemberDashboardPage() {
           </CardHeader>
           <CardContent>
             <div 
-              className={`text-xl font-bold ${membership?.membershipStatus === 'ACTIVE' ? 'text-green-600' : 'text-amber-600'}`}
+              className={`text-lg md:text-xl font-bold ${membership?.membershipStatus === 'ACTIVE' ? 'text-green-600' : 'text-amber-600'}`}
             >
               {membership?.membershipStatus === 'ACTIVE' ? 'Activa' : 
                 membership?.membershipStatus === 'PENDING_PAYMENT' ? 'Pendiente de pago' : 
@@ -160,16 +163,16 @@ export default function MemberDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Acciones Rápidas</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">Acciones Rápidas</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="pt-2">
             {membership?.membershipStatus === 'PENDING_PAYMENT' ? (
               <Button 
                 size="sm" 
-                className="w-full"
+                className="w-full text-xs md:text-sm"
                 onClick={async () => {
                   // 1) Abrimos la ventana en el click para evitar bloqueo de popup
                   const paymentWindow = window.open('', '_blank');
@@ -195,7 +198,7 @@ export default function MemberDashboardPage() {
             ) : membership?.membershipStatus === 'EXPIRED' ? (
               <Button 
                 size="sm" 
-                className="w-full"
+                className="w-full text-xs md:text-sm"
                 onClick={async () => {
                   // 1) Abrimos la ventana en el click para evitar bloqueo de popup
                   const paymentWindow = window.open('', '_blank');
@@ -222,7 +225,7 @@ export default function MemberDashboardPage() {
               <Button 
                 size="sm" 
                 variant="outline" 
-                className="w-full"
+                className="w-full text-xs md:text-sm"
                 asChild
               >
                 <Link href="/member/membership">Ver membresía</Link>
@@ -234,24 +237,24 @@ export default function MemberDashboardPage() {
 
       {/* Quick Access Links */}
       <Card>
-        <CardHeader>
-          <CardTitle>Acceso Rápido</CardTitle>
-          <CardDescription>
+        <CardHeader className="text-center md:text-left">
+          <CardTitle className="text-lg md:text-xl">Acceso Rápido</CardTitle>
+          <CardDescription className="text-sm md:text-base">
             Accede rápidamente a las funciones principales.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center" asChild>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <Button variant="outline" className="h-20 md:h-24 flex flex-col items-center justify-center hover:shadow-md transition-shadow" asChild>
               <Link href="/member/profile">
-                <User className="h-6 w-6 mb-2" />
-                <span>Perfil</span>
+                <User className="h-5 w-5 md:h-6 md:w-6 mb-2" />
+                <span className="text-sm md:text-base">Perfil</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center" asChild>
+            <Button variant="outline" className="h-20 md:h-24 flex flex-col items-center justify-center hover:shadow-md transition-shadow" asChild>
               <Link href="/member/membership">
-                <CreditCard className="h-6 w-6 mb-2" />
-                <span>Membresía</span>
+                <CreditCard className="h-5 w-5 md:h-6 md:w-6 mb-2" />
+                <span className="text-sm md:text-base">Membresía</span>
               </Link>
             </Button>
           </div>

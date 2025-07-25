@@ -1,17 +1,27 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { AppController } from './app.controller';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { GymManagerGuard } from './auth/gym-manager.guard';
 import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-directory.middleware';
+import { AmqpLogger } from './amqp-logger.service';
+import { RequestLoggingMiddleware } from './middleware/request-logging.middleware';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: './.env',
+    }),
+    RabbitMQModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('MESSAGE_BUS_URL') || 'amqp://localhost:5672',
+      }),
+      inject: [ConfigService],
     }),
     ClientsModule.registerAsync([
       {
@@ -106,7 +116,7 @@ import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-di
         useFactory: (configService: ConfigService) => {
           const biometricServiceUrl =
             configService.get<string>('BIOMETRIC_SERVICE_URL') ||
-            'tcp://localhost:3006';
+            'tcp://localhost:3007';
           const [host, port] = biometricServiceUrl.replace('tcp://', '').split(':');
           return {
             transport: Transport.TCP,
@@ -121,12 +131,12 @@ import { EnsureUploadsDirectoryMiddleware } from './middleware/ensure-uploads-di
     ]),
   ],
   controllers: [AppController],
-  providers: [JwtAuthGuard, RolesGuard, GymManagerGuard],
+  providers: [JwtAuthGuard, RolesGuard, GymManagerGuard, AmqpLogger],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(EnsureUploadsDirectoryMiddleware)
+      .apply(EnsureUploadsDirectoryMiddleware, RequestLoggingMiddleware)
       .forRoutes('*');
   }
 }

@@ -53,23 +53,23 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
   if (!membership || !hasMembership) {
     return (
       <Card className="border-dashed border-2 border-muted">
-        <CardContent className="pt-6 text-center">
-          <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">No tienes una membresía activa</h3>
-          <p className="text-muted-foreground mb-4">
+        <CardContent className="pt-4 md:pt-6 text-center px-4 md:px-6">
+          <AlertCircle className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground mx-auto mb-3 md:mb-4" />
+          <h3 className="text-base md:text-lg font-medium mb-2">No tienes una membresía activa</h3>
+          <p className="text-sm md:text-base text-muted-foreground mb-4">
             Necesitas activar una membresía para acceder a todos los servicios del gimnasio
           </p>
           <Button 
-            className="w-full"
+            className="w-full text-sm md:text-base h-10 md:h-11"
             onClick={handlePaymentClick}
             disabled={isLoading}
           >
             <CreditCard className="mr-2 h-4 w-4" />
-            {isLoading ? 'Procesando...' : 'Activar membresía'}
+            <span className="text-sm md:text-base">{isLoading ? 'Procesando...' : 'Activar membresía'}</span>
           </Button>
           
           {paymentUrl && (
-            <p className="text-sm text-muted-foreground mt-4">
+            <p className="text-xs md:text-sm text-muted-foreground mt-4">
               Si la página de pago no se abrió automáticamente, 
               <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                 haz clic aquí
@@ -124,33 +124,34 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center">
-          <Badge className={statusColor}>{statusDisplay}</Badge>
+          <Badge className={`${statusColor} text-xs md:text-sm`}>{statusDisplay}</Badge>
         </div>
         {membership.membershipStatus === 'PENDING_PAYMENT' && (
           <Button 
             size="sm"
             onClick={handlePaymentClick}
             disabled={isLoading}
+            className="w-full sm:w-auto text-xs md:text-sm"
           >
-            {isLoading ? 'Procesando...' : 'Completar pago'}
+            <span className="text-xs md:text-sm">{isLoading ? 'Procesando...' : 'Completar pago'}</span>
           </Button>
         )}
       </div>
       
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">Fecha de inicio</p>
-          <p className="font-medium flex items-center">
-            <CalendarIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+          <p className="text-xs md:text-sm text-muted-foreground">Fecha de inicio</p>
+          <p className="font-medium flex items-center text-sm md:text-base">
+            <CalendarIcon className="mr-1 h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             {formatDate(membership.membershipStartDate)}
           </p>
         </div>
         <div>
-          <p className="text-sm text-muted-foreground">Fecha de vencimiento</p>
-          <p className="font-medium flex items-center">
-            <CalendarIcon className="mr-1 h-4 w-4 text-muted-foreground" />
+          <p className="text-xs md:text-sm text-muted-foreground">Fecha de vencimiento</p>
+          <p className="font-medium flex items-center text-sm md:text-base">
+            <CalendarIcon className="mr-1 h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             {formatDate(membership.membershipEndDate)}
           </p>
         </div>
@@ -158,19 +159,19 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
       
       {needsRenewal && (
         <Alert className="bg-amber-50 border-amber-200 mt-4">
-          <AlertDescription className="text-amber-800">
+          <AlertDescription className="text-amber-800 text-sm md:text-base">
             Tu membresía está por vencer o ha expirado. Renuévala para seguir disfrutando de todos los beneficios.
           </AlertDescription>
           <Button 
-            className="w-full mt-2 bg-amber-600 hover:bg-amber-700"
+            className="w-full mt-2 bg-amber-600 hover:bg-amber-700 text-sm md:text-base h-10 md:h-11"
             onClick={handlePaymentClick}
             disabled={isLoading}
           >
-            {isLoading ? 'Procesando...' : 'Renovar membresía'}
+            <span className="text-sm md:text-base">{isLoading ? 'Procesando...' : 'Renovar membresía'}</span>
           </Button>
           
           {paymentUrl && (
-            <p className="text-sm text-center mt-2">
+            <p className="text-xs md:text-sm text-center mt-2">
               Si la página de pago no se abrió automáticamente, 
               <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
                 haz clic aquí
@@ -182,7 +183,7 @@ export default function MembershipStatus({ membership, onDataChange }: Membershi
       
       {membership.membershipStatus === 'BANNED' && (
         <Alert variant="destructive" className="mt-4">
-          <AlertDescription>
+          <AlertDescription className="text-sm md:text-base">
             Tu membresía ha sido suspendida. Por favor, contacta con el personal del gimnasio para más información.
           </AlertDescription>
         </Alert>

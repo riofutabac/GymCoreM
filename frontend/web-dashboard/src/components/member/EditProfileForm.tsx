@@ -2,6 +2,12 @@
 
 import React, { useState } from 'react';
 import { updateMemberProfile } from '@/lib/api/member';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
 
 interface EditProfileFormProps {
   initialData: {
@@ -64,84 +70,101 @@ export default function EditProfileForm({ initialData, onSuccess, onCancel }: Ed
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Editar Perfil</h2>
-      
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-            Nombre
-          </label>
-          <input
-            type="text"
-            id="firstName"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Ingresa tu nombre"
-          />
-        </div>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader className="text-center sm:text-left">
+        <CardTitle className="text-xl md:text-2xl">Editar Perfil</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription className="text-sm md:text-base">{error}</AlertDescription>
+            </Alert>
+          )}
 
-        <div>
-          <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-            Apellido
-          </label>
-          <input
-            type="text"
-            id="lastName"
-            name="lastName"
-            value={formData.lastName}
-            onChange={handleChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Ingresa tu apellido"
-          />
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="firstName" className="text-sm md:text-base">
+                Nombre
+              </Label>
+              <Input
+                type="text"
+                id="firstName"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleChange}
+                required
+                disabled={isLoading}
+                placeholder="Ingresa tu nombre"
+                className="text-sm md:text-base"
+              />
+            </div>
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            value={formData.email}
-            disabled={true}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-500"
-            placeholder="Ingresa tu email"
-          />
-          <p className="text-xs text-gray-500 mt-1">El email no se puede modificar por razones de seguridad.</p>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-3">
-            <p className="text-red-600 text-sm">{error}</p>
+            <div className="space-y-2">
+              <Label htmlFor="lastName" className="text-sm md:text-base">
+                Apellido
+              </Label>
+              <Input
+                type="text"
+                id="lastName"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleChange}
+                required
+                disabled={isLoading}
+                placeholder="Ingresa tu apellido"
+                className="text-sm md:text-base"
+              />
+            </div>
           </div>
-        )}
 
-        <div className="flex gap-3 pt-4">
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="flex-1 bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? 'Guardando...' : 'Guardar Cambios'}
-          </button>
-          
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </div>
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm md:text-base">
+              Email
+            </Label>
+            <Input
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
+              disabled={true}
+              required
+              className="bg-muted text-muted-foreground text-sm md:text-base"
+              placeholder="Ingresa tu email"
+            />
+            <p className="text-xs md:text-sm text-muted-foreground">
+              El email no se puede modificar por razones de seguridad.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full sm:flex-1 text-sm md:text-base h-10 md:h-11"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Cambios'
+              )}
+            </Button>
+            
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isLoading}
+              className="w-full sm:flex-1 text-sm md:text-base h-10 md:h-11"
+            >
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

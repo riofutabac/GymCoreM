@@ -101,6 +101,9 @@ export async function forgotPassword(email: string) {
     credentials: 'include',
     body: JSON.stringify({ email: email })
   });
-  if (!response.ok) throw new Error('Error al solicitar recuperación de contraseña');
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Error al solicitar recuperación de contraseña');
+  }
   return response.json();
 };

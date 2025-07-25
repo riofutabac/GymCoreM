@@ -423,7 +423,7 @@ export class AppController {
         this.paymentClient.send({ cmd: 'handle_paypal_webhook' }, {
           body: req.body,
           headers,
-          rawBody: req.rawBody.toString('utf8'),
+          rawBody: JSON.stringify(req.body || {}),
         }),
       );
     } catch (error: any) {
@@ -995,12 +995,25 @@ export class AppController {
         if (targetUser.gymId !== currentUser.app_metadata?.gymId) throw new HttpException('Solo puedes registrar huellas de MEMBERs de tu mismo gimnasio', HttpStatus.FORBIDDEN);
       }
       this.logger.log(`Iniciando enrolamiento biométrico para: ${body.userId}`);
-      return await firstValueFrom(
+      const result = await firstValueFrom(
         this.biometricClient.send({ cmd: 'enroll_fingerprint' }, { userId: body.userId }),
       );
+      return result;
     } catch (error: any) {
-      this.logger.error('Error enrolling fingerprint', error);
-      throw new HttpException(error.message || 'Error al registrar la huella dactilar', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error('Error enrolling fingerprint:', error);
+      
+      // Extraer el mensaje de error de la RpcException
+      let errorMessage = 'Error al registrar la huella dactilar';
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error && error.error.message) {
+        errorMessage = error.error.message;
+      }
+      
+      // Siempre devolver un HttpException con código de estado numérico
+      throw new HttpException(errorMessage, HttpStatus.BAD_REQUEST);
     }
   }
 

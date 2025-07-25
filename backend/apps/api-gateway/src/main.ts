@@ -13,6 +13,9 @@ async function bootstrap() {
     bodyParser: false, 
   });
 
+  // Trust proxy for correct IP forwarding
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   // Configurar cookie-parser para leer cookies HTTP-Only
   app.use(cookieParser());
 

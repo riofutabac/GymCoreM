@@ -18,9 +18,9 @@ export const getApiBaseUrl = () => {
     });
   }
   
-  // If running on client-side (browser), always use localhost for external access
+  // If running on client-side (browser), use relative path for HTTPS compatibility
   if (isClient) {
-    return 'http://127.0.0.1:3000';
+    return process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
   }
   
   // If running on server-side (Docker container), check for Docker indicators
@@ -30,9 +30,8 @@ export const getApiBaseUrl = () => {
   }
   
   // Local development fallback
-
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3000';
+  return process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 };
 
 export const API_BASE_URL = () => getApiBaseUrl();
-export const API_V1_URL = () => `${getApiBaseUrl()}/api/v1`;
+export const API_V1_URL = () => `${getApiBaseUrl()}/v1`;
