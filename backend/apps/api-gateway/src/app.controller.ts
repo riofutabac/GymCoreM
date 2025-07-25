@@ -423,7 +423,7 @@ export class AppController {
         this.paymentClient.send({ cmd: 'handle_paypal_webhook' }, {
           body: req.body,
           headers,
-          rawBody: req.rawBody.toString('utf8'),
+          rawBody: JSON.stringify(req.body || {}),
         }),
       );
     } catch (error: any) {

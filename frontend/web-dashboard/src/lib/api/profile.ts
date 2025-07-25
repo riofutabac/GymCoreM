@@ -23,7 +23,7 @@ export async function updateUserProfile(data: ProfileUpdateData) {
 }
 
 export async function requestPasswordReset(email: string) {
-  const response = await fetch(`${API_V1_URL()}/auth/request-password-reset`, {
+  const response = await fetch(`${API_V1_URL()}/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

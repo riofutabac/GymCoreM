@@ -108,7 +108,7 @@ services:
       dockerfile: ./backend/apps/api-gateway/Dockerfile
     container_name: gymcore-api-gateway
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file:
       - ./backend/apps/api-gateway/.env
     networks:
@@ -256,12 +256,12 @@ services:
       target: runner
     container_name: gymcore-frontend
     ports:
-      - "3030:3030"
+      - "127.0.0.1:3030:3030"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_BASE_URL=http://api-gateway:3000
-      - NEXTAUTH_URL=http://127.0.0.1:3030
-      - NEXTAUTH_SECRET=production-nextauth-secret-key-change-in-production
+      - NEXT_PUBLIC_API_BASE_URL=/api
+      - NEXTAUTH_URL=https://gymcore.site
+      - NEXTAUTH_SECRET=gymcore-prod-secret-2024-change-this-in-production
     networks:
       - gymcore-net
     depends_on:

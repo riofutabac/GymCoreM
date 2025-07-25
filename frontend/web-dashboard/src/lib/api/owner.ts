@@ -74,7 +74,7 @@ export const ownerApi = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  requestPasswordReset: (email: string) => apiCall<any>('/auth/request-password-reset', {
+  requestPasswordReset: (email: string) => apiCall<any>('/auth/forgot-password', {
     method: 'POST',
     body: JSON.stringify({ email }),
   }),
