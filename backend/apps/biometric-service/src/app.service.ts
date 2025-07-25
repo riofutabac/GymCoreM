@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { SerialService } from './serial/serial.service';
+import { WebSocketService } from './websocket/websocket.service';
 import { firstValueFrom, timeout } from 'rxjs';
 import { RedisService } from './biometric.service';
 
@@ -13,15 +13,26 @@ export class AppService implements OnModuleInit {
   private isCoolingDown: boolean = false;
 
   constructor(
-    private readonly serialService: SerialService,
+    private readonly websocketService: WebSocketService,
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('GYM_SERVICE') private readonly gymClient: ClientProxy,
     private readonly redisService: RedisService,
   ) {}
 
   async onModuleInit() {
+    // Verificar conectividad con auth-service al inicializar
+    this.logger.log('🔄 Verificando conectividad con auth-service...');
+    try {
+      // Intentar una llamada simple para verificar la conectividad
+      await this.authClient.connect();
+      this.logger.log('✅ Conectividad con auth-service establecida');
+    } catch (error: any) {
+      this.logger.warn(`⚠️ No se pudo conectar inmediatamente con auth-service: ${error.message}`);
+      // No lanzamos error, ya que la conexión se puede establecer más tarde
+    }
+
     // Escuchar respuestas del Arduino para detectar enrollments exitosos
-    this.serialService.onData((data: string) => {
+    this.websocketService.onData((data: string) => {
       this.handleArduinoResponse(data);
     });
   }
@@ -51,7 +62,7 @@ export class AppService implements OnModuleInit {
           this.authClient.send(
             { cmd: 'enroll_biometric' },
             { userId: this.currentEnrollmentUserId, fingerprintId: enrollmentId }
-          )
+          ).pipe(timeout(5000)) // Timeout de 5 segundos
         );
         
         this.logger.log(`✅ Mapeo de huella guardado en auth-service: ${JSON.stringify(authResult)}`);
@@ -100,7 +111,7 @@ export class AppService implements OnModuleInit {
             this.logger.log(`🗣️  Consultando a auth-service por el dueño del fingerprintId: ${fingerprintId}`);
 
             const user = await firstValueFrom(
-                this.authClient.send({ cmd: 'get_user_by_fingerprint_id' }, { fingerprintId })
+                this.authClient.send({ cmd: 'get_user_by_fingerprint_id' }, { fingerprintId }).pipe(timeout(5000))
             );
 
             if (user && user.id) {
@@ -115,22 +126,22 @@ export class AppService implements OnModuleInit {
 
             if (membershipResponse.isActive) {
               this.logger.log(`✅ ACCESO CONCEDIDO. Usuario: ${user.email}, Membresía: Activa. Notificando al Arduino.`);
-              this.serialService.sendFireAndForgetCommand('VERIFY_SUCCESS');
+              this.websocketService.sendFireAndForgetCommand('VERIFY_SUCCESS');
             } else {
               this.logger.warn(`❌ ACCESO DENEGADO. Usuario: ${user.email}, Membresía: Inactiva o Expirada. Notificando al Arduino.`);
-              this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+              this.websocketService.sendFireAndForgetCommand('VERIFY_FAIL');
             }
           } catch (error: any) {
             this.logger.error(`[Error RPC] No se pudo verificar la membresía para ${user.email}. Acceso denegado por seguridad.`, error);
-            this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+            this.websocketService.sendFireAndForgetCommand('VERIFY_FAIL');
           }
         } else {
           this.logger.warn(`❌ ACCESO DENEGADO. Huella ID ${fingerprintId} no registrada en la BD. Notificando al Arduino.`);
-          this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+          this.websocketService.sendFireAndForgetCommand('VERIFY_FAIL');
         }
       } catch (error: any) {
         this.logger.error(`❌ Error durante el proceso de verificación: ${error.message}`);
-        this.serialService.sendFireAndForgetCommand('VERIFY_FAIL');
+        this.websocketService.sendFireAndForgetCommand('VERIFY_FAIL');
       } finally {
         this.isVerifying = false;
         this.startCooldown();
@@ -143,13 +154,13 @@ export class AppService implements OnModuleInit {
   }
 
   async getHealth(): Promise<{ status: string; service: string; arduino: { connected: boolean; port: string | null; error: string | null; sensor?: { healthy: boolean; response?: string; error?: string } } }> {
-    const arduinoStatus = this.serialService.getConnectionStatus();
+    const arduinoStatus = this.websocketService.getConnectionStatus();
     
     // Si está conectado, verificar el estado del sensor
     let sensorStatus;
     if (arduinoStatus.isConnected) {
       this.logger.log('🔍 Verificando estado del sensor Arduino...');
-      sensorStatus = await this.serialService.checkSensorStatus();
+      sensorStatus = await this.websocketService.checkSensorStatus();
     }
 
     const overallStatus = arduinoStatus.isConnected && sensorStatus?.isHealthy ? 'ok' : 'warning';
@@ -173,15 +184,15 @@ export class AppService implements OnModuleInit {
   // Método asíncrono para probar la comunicación real
   async pingArduino(): Promise<{ success: boolean; message: string; response?: string; error?: string }> {
     try {
-      if (!this.serialService.isArduinoConnected()) {
+      if (!this.websocketService.isArduinoConnected()) {
         return {
           success: false,
           message: 'Arduino no está conectado',
-          error: 'No hay conexión con el puerto serial'
+          error: 'No hay conexión con el agente'
         };
       }
 
-      const response = await this.serialService.sendCommand('PING');
+      const response = await this.websocketService.sendCommand('PING');
       
       if (response === 'PONG') {
         return {
@@ -214,14 +225,14 @@ export class AppService implements OnModuleInit {
     this.logger.log(`🔄 Iniciando flujo de enrolamiento completo para usuario: ${userId}`);
 
     try {
-      if (!this.serialService.isArduinoConnected()) {
+      if (!this.websocketService.isArduinoConnected()) {
         throw new Error('Arduino no está conectado');
       }
 
       // --- PASO 1: VERIFICAR SI HAY HUELLAS ANTIGUAS ---
       this.logger.log(`   [1/4] Verificando huellas existentes en la base de datos...`);
       const existingFingerprints: any[] = await firstValueFrom(
-        this.authClient.send({ cmd: 'get_fingerprints_for_user' }, { userId })
+        this.authClient.send({ cmd: 'get_fingerprints_for_user' }, { userId }).pipe(timeout(5000))
       );
 
       // --- PASO 2: SI EXISTEN, BORRARLAS ---
@@ -242,7 +253,7 @@ export class AppService implements OnModuleInit {
         // 2b. Borrar de la Base de Datos
         this.logger.log(`       -> Borrando registros de la base de datos...`);
         await firstValueFrom(
-          this.authClient.send({ cmd: 'delete_fingerprints_for_user' }, { userId })
+          this.authClient.send({ cmd: 'delete_fingerprints_for_user' }, { userId }).pipe(timeout(5000))
         );
         this.logger.log(`   [3/4] Limpieza de registros previos completada.`);
 
@@ -253,7 +264,7 @@ export class AppService implements OnModuleInit {
       // --- PASO 4: INICIAR NUEVO ENROLAMIENTO ---
       this.logger.log(`   [4/4] Enviando comando ENROLL al Arduino...`);
       this.currentEnrollmentUserId = userId; // Guardamos el ID para cuando el Arduino responda
-      const response = await this.serialService.sendCommand('ENROLL');
+      const response = await this.websocketService.sendCommand('ENROLL');
       
       this.logger.log(`   -> Respuesta del Arduino: ${response}`);
       
@@ -270,7 +281,7 @@ export class AppService implements OnModuleInit {
     } catch (error: any) {
       this.currentEnrollmentUserId = null; // Limpiar estado en caso de cualquier error
       this.logger.error(`❌ Error catastrófico durante el flujo de enrolamiento para ${userId}:`, error.stack || error.message);
-      throw new RpcException(error.message || 'Error desconocido al iniciar el enrolamiento');
+      throw new Error(error.message || 'Error desconocido al iniciar el enrolamiento');
     }
   }
 
@@ -278,11 +289,11 @@ export class AppService implements OnModuleInit {
     try {
       this.logger.log(`🔄 Contando huellas almacenadas en el Arduino...`);
       
-      if (!this.serialService.isArduinoConnected()) {
+      if (!this.websocketService.isArduinoConnected()) {
         throw new Error('Arduino no está conectado');
       }
 
-      const response = await this.serialService.sendCommand('COUNT');
+      const response = await this.websocketService.sendCommand('COUNT');
       
       this.logger.log(`📡 Respuesta del Arduino: ${response}`);
       
@@ -307,12 +318,12 @@ export class AppService implements OnModuleInit {
     try {
       this.logger.log(`🗑️ Eliminando huella ID ${fingerprintId} del Arduino...`);
       
-      if (!this.serialService.isArduinoConnected()) {
+      if (!this.websocketService.isArduinoConnected()) {
         throw new Error('Arduino no está conectado');
       }
 
       const command = `DELETE:${fingerprintId}`;
-      const response = await this.serialService.sendCommand(command);
+      const response = await this.websocketService.sendCommand(command);
       
       this.logger.log(`📡 Respuesta del Arduino: ${response}`);
       
@@ -354,7 +365,7 @@ export class AppService implements OnModuleInit {
       try {
         this.logger.log(`🔄 Ejecutando rollback para huella ID: ${fingerprintId}`);
         
-        if (!this.serialService.isArduinoConnected()) {
+        if (!this.websocketService.isArduinoConnected()) {
           reject(new Error('Arduino no está conectado - no se puede realizar rollback'));
           return;
         }
@@ -379,7 +390,7 @@ export class AppService implements OnModuleInit {
           } else if (data.startsWith('DELETE_SUCCESS:ID:')) {
             rollbackCompleted = true;
             clearTimeout(timeout);
-            this.serialService.removeDataCallback(rollbackHandler);
+            this.websocketService.removeDataCallback(rollbackHandler);
             
             const deletedId = data.split(':')[2];
             this.logger.log(`✅ Rollback exitoso: huella ID ${deletedId} eliminada del Arduino`);
@@ -387,33 +398,33 @@ export class AppService implements OnModuleInit {
           } else if (data.startsWith('DELETE_ERROR:NOT_FOUND:')) {
             rollbackCompleted = true;
             clearTimeout(timeout);
-            this.serialService.removeDataCallback(rollbackHandler);
+            this.websocketService.removeDataCallback(rollbackHandler);
             
             this.logger.warn(`⚠️ Rollback: huella ID ${fingerprintId} no encontrada en Arduino (ya fue eliminada)`);
             resolve(); // No es un error crítico, la huella ya no existe
           } else if (data.startsWith('DELETE_ERROR:INVALID_ID:')) {
             rollbackCompleted = true;
             clearTimeout(timeout);
-            this.serialService.removeDataCallback(rollbackHandler);
+            this.websocketService.removeDataCallback(rollbackHandler);
             
             reject(new Error(`ID ${fingerprintId} es inválido para rollback`));
           } else if (data.startsWith('DELETE_ERROR:FAILED:')) {
             rollbackCompleted = true;
             clearTimeout(timeout);
-            this.serialService.removeDataCallback(rollbackHandler);
+            this.websocketService.removeDataCallback(rollbackHandler);
             
             reject(new Error(`Error al eliminar huella ID ${fingerprintId} durante rollback`));
           }
         };
 
         // Registrar el handler y enviar el comando
-        this.serialService.onData(rollbackHandler);
+        this.websocketService.onData(rollbackHandler);
         
         const command = `DELETE:${fingerprintId}`;
-        this.serialService.sendCommand(command).catch((error: any) => {
+        this.websocketService.sendCommand(command).catch((error: any) => {
           rollbackCompleted = true;
           clearTimeout(timeout);
-          this.serialService.removeDataCallback(rollbackHandler);
+          this.websocketService.removeDataCallback(rollbackHandler);
           reject(error);
         });
         
