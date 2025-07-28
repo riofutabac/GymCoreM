@@ -9,11 +9,10 @@ import {
     ProductPayload
 } from './types';
 import { handleAuthError } from '@/lib/auth-utils';
-
-// API Base URL configuration
-const API_BASE_URL = 'http://localhost:3000';
+import { API_V1_URL } from './config';
 
 const apiFetch = async (url: string, options?: RequestInit, returnBlob = false) => {
+    const API_BASE_URL = API_V1_URL(); // Get URL dynamically for each request
     const defaultOptions: RequestInit = {
         headers: {
             'Content-Type': 'application/json',
@@ -23,7 +22,7 @@ const apiFetch = async (url: string, options?: RequestInit, returnBlob = false) 
     };
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/v1${url}`, defaultOptions);
+        const res = await fetch(`${API_BASE_URL}${url}`, defaultOptions);
         
         if (!res.ok) {
             // --- MODIFICACIÓN PARA DIAGNÓSTICO ---

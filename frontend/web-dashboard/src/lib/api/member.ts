@@ -1,8 +1,7 @@
-const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
-const API_BASE_URL = `${API_GATEWAY_URL}/api/v1`;
+import { API_V1_URL } from './config';
 
 export async function getMemberDashboard() {
-  const response = await fetch(`${API_BASE_URL}/member/dashboard`, { credentials: 'include' });
+  const response = await fetch(`${API_V1_URL()}/member/dashboard`, { credentials: 'include' });
   if (!response.ok) throw new Error('Error al obtener dashboard');
   return response.json();
 }
@@ -36,7 +35,7 @@ export interface MemberProfileResponse {
 export async function getMyMembership(): Promise<MemberProfileResponse> {
   try {
     // Usar el endpoint que obtiene el perfil completo del miembro
-    const response = await fetch(`${API_BASE_URL}/members/profile`, {
+    const response = await fetch(`${API_V1_URL()}/members/profile`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -108,7 +107,7 @@ export async function updateMemberProfile(profileData: {
   email?: string;
 }) {
   try {
-    const response = await fetch(`${API_BASE_URL}/members/profile`, {
+    const response = await fetch(`${API_V1_URL()}/members/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -135,7 +134,7 @@ export async function updateMemberProfile(profileData: {
 
 export async function requestPasswordReset(email: string) {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    const response = await fetch(`${API_V1_URL()}/auth/forgot-password`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -160,14 +159,14 @@ export async function requestPasswordReset(email: string) {
 }
 
 export async function listPublicGyms() {
-  const response = await fetch(`${API_BASE_URL}/public/gyms`, { credentials: 'include' });
+  const response = await fetch(`${API_V1_URL()}/public/gyms`, { credentials: 'include' });
   if (!response.ok) throw new Error('Error al obtener gimnasios');
   return response.json();
 }
 
 export async function joinGym(gymCode: string) {
   try {
-    const response = await fetch(`${API_BASE_URL}/gyms/join`, {
+    const response = await fetch(`${API_V1_URL()}/gyms/join`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',

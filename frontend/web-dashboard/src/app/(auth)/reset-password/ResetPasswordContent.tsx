@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
 import { AuthCard } from '@/components/auth/AuthCard';
@@ -9,19 +12,42 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
+import { sanitizeString } from '@/lib/utils/sanitization';
+
+const resetPasswordSchema = z.object({
+  password: z.string()
+    .transform(sanitizeString)
+    .pipe(z.string().min(8, { message: 'La contraseña debe tener al menos 8 caracteres.' })
+    .max(128, { message: 'La contraseña no puede exceder 128 caracteres.' })
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, { message: 'La contraseña debe contener al menos una minúscula, una mayúscula y un número.' })),
+  confirmPassword: z.string()
+    .transform(sanitizeString)
+    .pipe(z.string().min(1, { message: 'Confirma tu contraseña.' })),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirmPassword"],
+});
+
+type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 
 export function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClientComponentClient();
 
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isProcessingToken, setIsProcessingToken] = useState(true);
+
+  const form = useForm<ResetPasswordFormData>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      password: '',
+      confirmPassword: '',
+    },
+  });
 
   // 1) Procesar el hash de Supabase y setear sesión
   useEffect(() => {
@@ -68,23 +94,12 @@ export function ResetPasswordContent() {
   }, [searchParams, supabase.auth]);
 
   // 2) Envío del nuevo password
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleResetPassword = async (data: ResetPasswordFormData) => {
     setError('');
 
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
-      return;
-    }
-    if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres');
-      return;
-    }
-
-    setIsLoading(true);
     try {
       // Como ya tenemos sesión, actualizamos directamente
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      const { error: updateError } = await supabase.auth.updateUser({ password: data.password });
       if (updateError) throw updateError;
 
       setSuccess('Contraseña actualizada correctamente. Redirigiendo…');
@@ -92,8 +107,6 @@ export function ResetPasswordContent() {
     } catch (err: any) {
       console.error('Error al actualizar contraseña:', err);
       setError(err.message || 'No se pudo actualizar la contraseña');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -124,49 +137,63 @@ export function ResetPasswordContent() {
         </Alert>
       )}
 
-      <form onSubmit={handleResetPassword} className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="password">Nueva Contraseña</Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isLoading || !!success}
-            required
-            minLength={8}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleResetPassword)} className="space-y-6">
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nueva Contraseña</FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    disabled={form.formState.isSubmitting || !!success}
+                    {...field}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Al menos 8 caracteres con mayúscula, minúscula y número
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-          <p className="text-xs text-muted-foreground">
-            Al menos 8 caracteres
-          </p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="confirm">Confirmar Contraseña</Label>
-          <Input
-            id="confirm"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            disabled={isLoading || !!success}
-            required
+          
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Confirmar Contraseña</FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    disabled={form.formState.isSubmitting || !!success}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-        </div>
 
-        <Button
-          type="submit"
-          disabled={isLoading || !password || !confirmPassword || !!success}
-          className="w-full"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Actualizando…
-            </>
-          ) : (
-            'Guardar contraseña'
-          )}
-        </Button>
-      </form>
+          <Button
+            type="submit"
+            disabled={form.formState.isSubmitting || !!success}
+            className="w-full"
+          >
+            {form.formState.isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Actualizando…
+              </>
+            ) : (
+              'Guardar contraseña'
+            )}
+          </Button>
+        </form>
+      </Form>
 
       <div className="mt-4 text-center text-sm text-muted-foreground">
         <Link href="/login" className="font-medium underline underline-offset-4">

@@ -50,8 +50,10 @@ export class AppController {
       // El servicio ahora puede devolver un objeto más informativo.
       return { success: true, message: 'Proceso de enrolamiento iniciado.', data: result };
     } catch (error: any) {
-      // Propagar el error como una RpcException para que el api-gateway lo maneje.
-      this.logger.error(`Error en startEnrollment: ${error.message}`);
+      // Manejar tanto RpcException como errores regulares
+      this.logger.error(`Error en startEnrollment: ${error.message || error}`);
+      
+      // Siempre crear una RpcException con solo el mensaje de error
       throw new RpcException(error.message || 'Error desconocido al iniciar el enrolamiento');
     }
   }

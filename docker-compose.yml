@@ -41,8 +41,8 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: gymcore-elasticsearch
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
     environment:
       - node.name=gymcore-elasticsearch
       - cluster.name=gymcore-logging-cluster
@@ -77,7 +77,7 @@ services:
     image: docker.elastic.co/kibana/kibana:8.11.0
     container_name: gymcore-kibana
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - SERVER_NAME=gymcore-kibana
@@ -108,7 +108,7 @@ services:
       dockerfile: ./backend/apps/api-gateway/Dockerfile
     container_name: gymcore-api-gateway
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file:
       - ./backend/apps/api-gateway/.env
     networks:
@@ -204,6 +204,8 @@ services:
       context: .
       dockerfile: ./backend/apps/biometric-service/Dockerfile
     container_name: gymcore-biometric-service
+    ports:
+      - "8443:8443"  # Puerto WebSocket
     env_file:
       - ./backend/apps/biometric-service/.env
     networks:
@@ -213,6 +215,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      auth-service:
+        condition: service_started
     volumes:
       - ./backend/apps/biometric-service/src:/app/backend/apps/biometric-service/src
 
@@ -249,19 +253,26 @@ services:
       - ./backend/apps/logging-service/src:/app/backend/apps/logging-service/src
 
   # ─── Frontend ────────────────────────────────────────────────────────────
-  # frontend:
-  #   build:
-  #     context: ./frontend/web-dashboard
-  #     dockerfile: Dockerfile
-  #   container_name: gymcore-frontend
-  #   ports:
-  #     - "3001:3000"
-  #   env_file:
-  #     - ./frontend/web-dashboard/.env.local
-  #   networks:
-  #     - gymcore-net
-  #   depends_on:
-  #     - api-gateway
-  #   volumes:
-  #     - ./frontend/web-dashboard/src:/app/src
-  #     - ./frontend/web-dashboard/public:/app/public
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/web-dashboard/Dockerfile
+      target: runner
+    container_name: gymcore-frontend
+    ports:
+      - "127.0.0.1:3030:3030"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_BASE_URL=/api
+      - NEXTAUTH_URL=https://gymcore.site
+      - NEXTAUTH_SECRET=gymcore-prod-secret-2024-change-this-in-production
+    networks:
+      - gymcore-net
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://0.0.0.0:3030 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

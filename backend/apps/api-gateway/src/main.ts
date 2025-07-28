@@ -13,6 +13,9 @@ async function bootstrap() {
     bodyParser: false, 
   });
 
+  // Trust proxy for correct IP forwarding
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   // Configurar cookie-parser para leer cookies HTTP-Only
   app.use(cookieParser());
 
@@ -39,7 +42,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`API Gateway is running on: ${await app.getUrl()}`);
 }
 

@@ -1,11 +1,21 @@
 // src/components/layout/SidebarWrapper.tsx
 "use client";
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/hooks/useAuth';
 
 export function SidebarWrapper() {
   const { user, isLoading } = useAuth();
+  const router = useRouter();
+  
+  useEffect(() => {
+    // Redirect to login if not authenticated after loading completes
+    if (!isLoading && !user) {
+      router.push('/login');
+    }
+  }, [isLoading, user, router]);
 
   if (isLoading) {
     return (

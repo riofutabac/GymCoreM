@@ -1,7 +1,33 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { updateMemberProfile } from '@/lib/api/member';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Loader2 } from 'lucide-react';
+import { sanitizeName } from '@/lib/utils/sanitization';
+
+const editProfileSchema = z.object({
+  firstName: z.string()
+    .transform(sanitizeName)
+    .pipe(z.string().min(2, { message: 'El nombre debe tener al menos 2 caracteres.' })
+    .max(50, { message: 'El nombre no puede exceder 50 caracteres.' })
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/, { message: 'El nombre solo puede contener letras, espacios, guiones y apostrofes.' })),
+  lastName: z.string()
+    .transform(sanitizeName)
+    .pipe(z.string().min(2, { message: 'El apellido debe tener al menos 2 caracteres.' })
+    .max(50, { message: 'El apellido no puede exceder 50 caracteres.' })
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/, { message: 'El apellido solo puede contener letras, espacios, guiones y apostrofes.' })),
+});
+
+type EditProfileFormData = z.infer<typeof editProfileSchema>;
 
 interface EditProfileFormProps {
   initialData: {
@@ -14,32 +40,28 @@ interface EditProfileFormProps {
 }
 
 export default function EditProfileForm({ initialData, onSuccess, onCancel }: EditProfileFormProps) {
-  const [formData, setFormData] = useState({
-    firstName: initialData.firstName || '',
-    lastName: initialData.lastName || '',
-    email: initialData.email || '',
-  });
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const form = useForm<EditProfileFormData>({
+    resolver: zodResolver(editProfileSchema),
+    defaultValues: {
+      firstName: initialData.firstName || '',
+      lastName: initialData.lastName || '',
+    },
+  });
+
+  const handleSubmit = async (data: EditProfileFormData) => {
     setError(null);
 
     try {
       // Solo enviar campos que han cambiado
       const changedFields: any = {};
-      if (formData.firstName !== initialData.firstName) {
-        changedFields.firstName = formData.firstName;
+      if (data.firstName !== initialData.firstName) {
+        changedFields.firstName = data.firstName;
       }
-      if (formData.lastName !== initialData.lastName) {
-        changedFields.lastName = formData.lastName;
+      if (data.lastName !== initialData.lastName) {
+        changedFields.lastName = data.lastName;
       }
-      // El email ya no se puede modificar
-      // if (formData.email !== initialData.email) {
-      //   changedFields.email = formData.email;
-      // }
 
       if (Object.keys(changedFields).length === 0) {
         setError('No se han realizado cambios');
@@ -50,98 +72,111 @@ export default function EditProfileForm({ initialData, onSuccess, onCancel }: Ed
       onSuccess();
     } catch (err: any) {
       setError(err.message || 'Error actualizando perfil');
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Editar Perfil</h2>
-      
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-            Nombre
-          </label>
-          <input
-            type="text"
-            id="firstName"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Ingresa tu nombre"
-          />
-        </div>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader className="text-center sm:text-left">
+        <CardTitle className="text-xl md:text-2xl">Editar Perfil</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 md:space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription className="text-sm md:text-base">{error}</AlertDescription>
+              </Alert>
+            )}
 
-        <div>
-          <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-            Apellido
-          </label>
-          <input
-            type="text"
-            id="lastName"
-            name="lastName"
-            value={formData.lastName}
-            onChange={handleChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Ingresa tu apellido"
-          />
-        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm md:text-base">Nombre</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ingresa tu nombre"
+                        className="text-sm md:text-base"
+                        disabled={form.formState.isSubmitting}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            value={formData.email}
-            disabled={true}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-500"
-            placeholder="Ingresa tu email"
-          />
-          <p className="text-xs text-gray-500 mt-1">El email no se puede modificar por razones de seguridad.</p>
-        </div>
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm md:text-base">Apellido</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ingresa tu apellido"
+                        className="text-sm md:text-base"
+                        disabled={form.formState.isSubmitting}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-3">
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-        )}
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm md:text-base">
+                Email
+              </Label>
+              <Input
+                type="email"
+                id="email"
+                name="email"
+                value={initialData.email}
+                disabled={true}
+                required
+                className="bg-muted text-muted-foreground text-sm md:text-base"
+                placeholder="Ingresa tu email"
+              />
+              <p className="text-xs md:text-sm text-muted-foreground">
+                El email no se puede modificar por razones de seguridad.
+              </p>
+            </div>
 
-        <div className="flex gap-3 pt-4">
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="flex-1 bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? 'Guardando...' : 'Guardar Cambios'}
-          </button>
-          
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </div>
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <Button
+                type="submit"
+                disabled={form.formState.isSubmitting}
+                className="w-full sm:flex-1 text-sm md:text-base h-10 md:h-11"
+              >
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar Cambios'
+                )}
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={form.formState.isSubmitting}
+                className="w-full sm:flex-1 text-sm md:text-base h-10 md:h-11"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 }

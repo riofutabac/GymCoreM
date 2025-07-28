@@ -1,0 +1,559 @@
+# ============================================================================
+# 🛠️ GYMCORE DOCKER COMPOSE - DEVELOPMENT ENVIRONMENT
+# ============================================================================
+# Configuración optimizada para desarrollo local
+# Utiliza el nuevo sistema centralizado de variables de entorno
+# ============================================================================
+
+version: '3.8'
+
+networks:
+  gymcore-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  elasticsearch-data:
+    driver: local
+  kibana-data:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+
+services:
+  # ============================================================================
+  # 🗄️ DATABASE SERVICES
+  # ============================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: gymcore-postgres-dev
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_MULTIPLE_DATABASES: gymcore_auth_dev,gymcore_gym_dev,gymcore_payment_dev,gymcore_inventory_dev,gymcore_analytics_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - gymcore-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # 🏗️ INFRASTRUCTURE SERVICES
+  # ============================================================================
+  
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: gymcore-rabbitmq-dev
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - gymcore-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: gymcore-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - gymcore-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: gymcore-elasticsearch-dev
+    environment:
+      - node.name=gymcore-elasticsearch-dev
+      - cluster.name=gymcore-logging-cluster-dev
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - http.cors.enabled=true
+      - http.cors.allow-origin="*"
+      - http.cors.allow-headers=X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization
+      - http.cors.allow-credentials=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - gymcore-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: gymcore-kibana-dev
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_NAME=gymcore-kibana-dev
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=5601
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=a7a6311933d3503b89bc2dbc36572c33a6c10925682e591bffcab6911c06786d
+    ports:
+      - "127.0.0.1:5601:5601"
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+    networks:
+      - gymcore-net
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 🚪 API GATEWAY
+  # ============================================================================
+  
+  api-gateway:
+    build:
+      context: .
+      dockerfile: backend/apps/api-gateway/Dockerfile
+      target: development
+    container_name: gymcore-api-gateway-dev
+    environment:
+      # Override environment variables for Docker networking
+      - NODE_ENV=development
+      - PORT=3000
+      - JWT_SECRET=development-jwt-secret-key-minimum-32-characters-long
+      - CORS_ORIGIN=http://localhost:3030
+      - FRONTEND_URL=http://localhost:3030
+      # Internal service URLs (Docker networking)
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - GYM_SERVICE_URL=http://gym-management-service:3002
+      - PAYMENT_SERVICE_URL=http://payment-service:3003
+      - INVENTORY_SERVICE_URL=http://inventory-service:3004
+      - ANALYTICS_SERVICE_URL=http://analytics-service:3005
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3006
+      - BIOMETRIC_SERVICE_URL=http://biometric-service:3007
+      - LOGGING_SERVICE_URL=http://logging-service:3008
+      # Infrastructure
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/apps/api-gateway/src:/app/backend/apps/api-gateway/src
+      - ./backend/apps/api-gateway/uploads:/app/backend/apps/api-gateway/uploads
+    networks:
+      - gymcore-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 🔐 AUTH SERVICE
+  # ============================================================================
+  
+  auth-service:
+    build:
+      context: .
+      dockerfile: backend/apps/auth-service/Dockerfile
+      target: development
+    container_name: gymcore-auth-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/gymcore_auth_dev
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      # Supabase configuration (to be set in actual .env file)
+      - SUPABASE_URL=${SUPABASE_URL:-https://your-dev-project.supabase.co}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-your-dev-anon-key}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-your-dev-service-key}
+      - OWNER_INITIAL_EMAIL=${OWNER_INITIAL_EMAIL:-admin@gymcore.dev}
+      - OWNER_INITIAL_PASSWORD=${OWNER_INITIAL_PASSWORD:-Dev123456!}
+      - GYM_SERVICE_HOST=gym-management-service
+      - GYM_SERVICE_PORT=3002
+    volumes:
+      - ./backend/apps/auth-service/src:/app/backend/apps/auth-service/src
+    networks:
+      - gymcore-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 🏋️ GYM MANAGEMENT SERVICE
+  # ============================================================================
+  
+  gym-management-service:
+    build:
+      context: .
+      dockerfile: backend/apps/gym-management-service/Dockerfile
+      target: development
+    container_name: gymcore-gym-management-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/gymcore_gym_dev
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      - AUTH_SERVICE_HOST=auth-service
+      - AUTH_SERVICE_PORT=3001
+    volumes:
+      - ./backend/apps/gym-management-service/src:/app/backend/apps/gym-management-service/src
+    networks:
+      - gymcore-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 💳 PAYMENT SERVICE
+  # ============================================================================
+  
+  payment-service:
+    build:
+      context: .
+      dockerfile: backend/apps/payment-service/Dockerfile
+      target: development
+    container_name: gymcore-payment-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/gymcore_payment_dev
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      - FRONTEND_URL=http://localhost:3030
+      # PayPal configuration (to be set in actual .env file)
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-your-paypal-sandbox-client-id}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-your-paypal-sandbox-client-secret}
+      - PAYPAL_MODE=sandbox
+      - PAYPAL_API=https://api-m.sandbox.paypal.com
+      - PAYPAL_SKIP_SIGNATURE=true
+    volumes:
+      - ./backend/apps/payment-service/src:/app/backend/apps/payment-service/src
+    networks:
+      - gymcore-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 📦 INVENTORY SERVICE
+  # ============================================================================
+  
+  inventory-service:
+    build:
+      context: .
+      dockerfile: backend/apps/inventory-service/Dockerfile
+      target: development
+    container_name: gymcore-inventory-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/gymcore_inventory_dev
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+    volumes:
+      - ./backend/apps/inventory-service/src:/app/backend/apps/inventory-service/src
+    networks:
+      - gymcore-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3004/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 📊 ANALYTICS SERVICE
+  # ============================================================================
+  
+  analytics-service:
+    build:
+      context: .
+      dockerfile: backend/apps/analytics-service/Dockerfile
+      target: development
+    container_name: gymcore-analytics-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/gymcore_analytics_dev
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./backend/apps/analytics-service/src:/app/backend/apps/analytics-service/src
+    networks:
+      - gymcore-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3005/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 👆 BIOMETRIC SERVICE
+  # ============================================================================
+  
+  biometric-service:
+    build:
+      context: .
+      dockerfile: backend/apps/biometric-service/Dockerfile
+      target: development
+    container_name: gymcore-biometric-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3006
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
+      # Hardware port will be mapped when needed
+      - BIOMETRIC_DEVICE_PORT=${BIOMETRIC_DEVICE_PORT:-/dev/ttyUSB0}
+    volumes:
+      - ./backend/apps/biometric-service/src:/app/backend/apps/biometric-service/src
+      # Map device if needed
+      # - /dev/ttyUSB0:/dev/ttyUSB0
+    networks:
+      - gymcore-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3006/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    # Privileged access for hardware devices
+    # privileged: true
+
+  # ============================================================================
+  # 📧 NOTIFICATION SERVICE
+  # ============================================================================
+  
+  notification-service:
+    build:
+      context: .
+      dockerfile: backend/apps/notification-service/Dockerfile
+      target: development
+    container_name: gymcore-notification-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3007
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - RUN_HTTP_SERVER=true
+      # SendGrid configuration (to be set in actual .env file)
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-your-development-sendgrid-api-key}
+      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL:-dev@gymcore.local}
+    volumes:
+      - ./backend/apps/notification-service/src:/app/backend/apps/notification-service/src
+    networks:
+      - gymcore-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3007/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 📝 LOGGING SERVICE
+  # ============================================================================
+  
+  logging-service:
+    build:
+      context: .
+      dockerfile: backend/apps/logging-service/Dockerfile
+      target: development
+    container_name: gymcore-logging-service-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3008
+      - MESSAGE_BUS_URL=amqp://guest:guest@rabbitmq:5672
+      - ELASTICSEARCH_NODE=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=
+      - ELASTICSEARCH_PASSWORD=
+    volumes:
+      - ./backend/apps/logging-service/src:/app/backend/apps/logging-service/src
+    networks:
+      - gymcore-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3008/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # 🖥️ FRONTEND WEB DASHBOARD
+  # ============================================================================
+  
+  web-dashboard:
+    build:
+      context: ./frontend/web-dashboard
+      dockerfile: Dockerfile
+      target: development
+    container_name: gymcore-web-dashboard-dev
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:3030
+      - NEXTAUTH_SECRET=development-nextauth-secret-key
+    ports:
+      - "3030:3000"
+    volumes:
+      - ./frontend/web-dashboard/src:/app/src
+      - ./frontend/web-dashboard/public:/app/public
+      - ./frontend/web-dashboard/components.json:/app/components.json
+      # Exclude node_modules from volume mount
+      - /app/node_modules
+    networks:
+      - gymcore-net
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+# ============================================================================
+# 🔧 ADDITIONAL CONFIGURATIONS
+# ============================================================================
+
+# For development, you can uncomment these services if needed:
+
+# pgadmin:
+#   image: dpage/pgadmin4
+#   container_name: gymcore-pgadmin-dev
+#   environment:
+#     PGADMIN_DEFAULT_EMAIL: admin@gymcore.dev
+#     PGADMIN_DEFAULT_PASSWORD: password
+#   ports:
+#     - "5050:80"
+#   networks:
+#     - gymcore-net
+#   depends_on:
+#     - postgres
+
+# redis-commander:
+#   image: ghcr.io/joeferner/redis-commander:latest
+#   container_name: gymcore-redis-commander-dev
+#   environment:
+#     REDIS_HOSTS: local:redis:6379
+#   ports:
+#     - "8081:8081"
+#   networks:
+#     - gymcore-net
+#   depends_on:
+#     - redis

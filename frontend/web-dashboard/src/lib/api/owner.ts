@@ -1,6 +1,5 @@
 import { handleAuthError } from '@/lib/auth-utils';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+import { API_V1_URL } from './config';
 
 // Helper genérico para llamadas a la API
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -12,7 +11,7 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1${endpoint}`, { ...defaultOptions, ...options });
+    const response = await fetch(`${API_V1_URL()}${endpoint}`, { ...defaultOptions, ...options });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Error de red o respuesta no válida.' }));
@@ -75,7 +74,7 @@ export const ownerApi = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  requestPasswordReset: (email: string) => apiCall<any>('/auth/request-password-reset', {
+  requestPasswordReset: (email: string) => apiCall<any>('/auth/forgot-password', {
     method: 'POST',
     body: JSON.stringify({ email }),
   }),
