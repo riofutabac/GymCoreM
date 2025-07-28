@@ -34,35 +34,43 @@ export function LoginForm() {
       const response = await loginUser(data);
       console.log('🔍 Login Debug: API Response:', response);
       
-      if (response && response.access_token && response.user && response.user.role) {
-        const user = response.user;
-        const userRole = user.role.toLowerCase();
+      if (response && response.access_token) {
+        // Extract user information from JWT token instead of response.user
+        const { getUserInfoFromJWT } = await import('@/lib/utils/jwt');
+        const userInfo = getUserInfoFromJWT(response.access_token);
         
-        console.log('🔍 Login Debug: Login successful, role:', userRole);
-        setSuccess("Inicio de sesión exitoso. Redirigiendo...");
-        
-        // Determinar la URL de redirección basada en el rol
-        let dashboardUrl = '/';
-        switch (userRole) {
-          case 'owner':
-            dashboardUrl = '/owner';
-            break;
-          case 'manager':
-            dashboardUrl = '/manager';
-            break;
-          case 'member':
-            dashboardUrl = '/member';
-            break;
-          case 'receptionist':
-            dashboardUrl = '/receptionist';
-            break;
+        if (userInfo && userInfo.role) {
+          const userRole = userInfo.role.toLowerCase();
+          
+          console.log('🔍 Login Debug: Login successful, role:', userRole);
+          setSuccess("Inicio de sesión exitoso. Redirigiendo...");
+          
+          // Determinar la URL de redirección basada en el rol
+          let dashboardUrl = '/';
+          switch (userRole) {
+            case 'owner':
+              dashboardUrl = '/owner';
+              break;
+            case 'manager':
+              dashboardUrl = '/manager';
+              break;
+            case 'member':
+              dashboardUrl = '/member';
+              break;
+            case 'receptionist':
+              dashboardUrl = '/receptionist';
+              break;
+          }
+          
+          console.log('🔍 Login Debug: Redirecting to:', dashboardUrl);
+          // Redirigir después de un breve delay para mostrar el mensaje de éxito
+          setTimeout(() => {
+            router.push(dashboardUrl);
+          }, 1000);
+        } else {
+          console.log('🔍 Login Debug: Could not extract user info from JWT');
+          setError("Error al procesar la información de usuario. Por favor intenta de nuevo.");
         }
-        
-        console.log('🔍 Login Debug: Redirecting to:', dashboardUrl);
-        // Redirigir después de un breve delay para mostrar el mensaje de éxito
-        setTimeout(() => {
-          router.push(dashboardUrl);
-        }, 1000);
       } else {
         console.log('🔍 Login Debug: Invalid response structure:', response);
         setError("Respuesta inválida del servidor. Por favor intenta de nuevo.");

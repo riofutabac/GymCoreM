@@ -11,11 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, AlertTriangle, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+import { sanitizeString } from '@/lib/utils/sanitization';
+
 const roleSchema = z.object({
   role: z.enum(['OWNER', 'MANAGER', 'RECEPTIONIST'], {
     required_error: "Por favor selecciona un rol.",
   }),
-  gymId: z.string().optional(),
+  gymId: z.string()
+    .transform(sanitizeString)
+    .pipe(z.string().max(100, { message: 'ID de gimnasio inválido.' }))
+    .optional(),
 });
 
 type RoleFormData = z.infer<typeof roleSchema>;

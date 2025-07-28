@@ -24,12 +24,30 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ProductDto } from '@/lib/api/types';
 
+import { sanitizeString, sanitizeText, sanitizeBarcode } from '@/lib/utils/sanitization';
+
 const productSchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido'),
-  description: z.string().optional(),
-  price: z.number().positive('El precio debe ser mayor a 0'),
-  stock: z.number().min(0, 'El stock no puede ser negativo'),
-  barcode: z.string().min(1, 'El código de barras es requerido'),
+  name: z.string()
+    .transform(sanitizeString)
+    .pipe(z.string().min(1, 'El nombre es requerido')
+    .max(200, 'El nombre no puede exceder 200 caracteres')
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-_\.]+$/, 'El nombre solo puede contener letras, números, espacios y caracteres básicos')),
+  description: z.string()
+    .transform(sanitizeText)
+    .pipe(z.string().max(1000, 'La descripción no puede exceder 1000 caracteres'))
+    .optional(),
+  price: z.number()
+    .positive('El precio debe ser mayor a 0')
+    .max(999999.99, 'El precio no puede exceder 999,999.99'),
+  stock: z.number()
+    .int('El stock debe ser un número entero')
+    .min(0, 'El stock no puede ser negativo')
+    .max(999999, 'El stock no puede exceder 999,999 unidades'),
+  barcode: z.string()
+    .transform(sanitizeBarcode)
+    .pipe(z.string().min(1, 'El código de barras es requerido')
+    .max(50, 'El código de barras no puede exceder 50 caracteres')
+    .regex(/^[a-zA-Z0-9\-_]+$/, 'El código de barras solo puede contener letras, números, guiones y guiones bajos')),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
