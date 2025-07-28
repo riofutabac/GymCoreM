@@ -11,9 +11,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { loginFormSchema } from "@/lib/validations";
 import { loginUser } from "@/lib/api/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 export function LoginForm() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
@@ -24,26 +26,35 @@ export function LoginForm() {
   });
 
   async function onSubmit(data: z.infer<typeof loginFormSchema>) {
-    console.log('🔍 Login Debug: Starting login process...', data);
     setIsLoading(true);
     setError("");
     setSuccess("");
 
     try {
-      console.log('🔍 Login Debug: Calling loginUser API...');
       const response = await loginUser(data);
-      console.log('🔍 Login Debug: API Response:', response);
       
       if (response && response.access_token) {
-        // Extract user information from JWT token instead of response.user
+        // Extract user information from JWT token for immediate redirect
         const { getUserInfoFromJWT } = await import('@/lib/utils/jwt');
         const userInfo = getUserInfoFromJWT(response.access_token);
         
         if (userInfo && userInfo.role) {
           const userRole = userInfo.role.toLowerCase();
           
-          console.log('🔍 Login Debug: Login successful, role:', userRole);
           setSuccess("Inicio de sesión exitoso. Redirigiendo...");
+          
+          // Wait for the cookie to be set by the browser
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Refresh user data in auth context
+          try {
+            await refreshUser();
+            // Additional wait to ensure the context is updated
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (error) {
+            console.error('Error refreshing user:', error);
+            // Continue with redirect even if refreshUser fails
+          }
           
           // Determinar la URL de redirección basada en el rol
           let dashboardUrl = '/';
@@ -62,28 +73,21 @@ export function LoginForm() {
               break;
           }
           
-          console.log('🔍 Login Debug: Redirecting to:', dashboardUrl);
-          // Redirigir después de un breve delay para mostrar el mensaje de éxito
-          setTimeout(() => {
-            router.push(dashboardUrl);
-          }, 1000);
+          // Use Next.js router for better navigation handling
+          router.push(dashboardUrl);
         } else {
-          console.log('🔍 Login Debug: Could not extract user info from JWT');
           setError("Error al procesar la información de usuario. Por favor intenta de nuevo.");
         }
       } else {
-        console.log('🔍 Login Debug: Invalid response structure:', response);
         setError("Respuesta inválida del servidor. Por favor intenta de nuevo.");
       }
     } catch (error) {
-      console.error('🔍 Login Debug: Error occurred:', error);
       if (error instanceof Error) {
         setError(error.message);
       } else {
         setError("Ha ocurrido un error inesperado al iniciar sesión.");
       }
     } finally {
-      console.log('🔍 Login Debug: Process completed');
       setIsLoading(false);
     }
   }

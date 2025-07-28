@@ -103,6 +103,7 @@ export class AppController {
           sameSite: 'lax',
           maxAge: oneDay,
           path: '/',
+          domain: isProd ? '.gymcore.site' : undefined, // Allow subdomain sharing in production
         });
       }
       
@@ -126,6 +127,7 @@ export class AppController {
       sameSite: 'lax', 
       maxAge: 0,
       path: '/',
+      domain: isProd ? '.gymcore.site' : undefined, // Match domain from login
     });
     
     return { message: 'Logged out successfully' };
