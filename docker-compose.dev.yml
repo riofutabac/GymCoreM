@@ -116,8 +116,8 @@ services:
         soft: 65536
         hard: 65536
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     networks:
@@ -141,7 +141,7 @@ services:
       - XPACK_SECURITY_ENABLED=false
       - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=a7a6311933d3503b89bc2dbc36572c33a6c10925682e591bffcab6911c06786d
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
     volumes:
       - kibana-data:/usr/share/kibana/data
     networks:

@@ -1,10 +1,55 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+// Función para decodificar JWT en el middleware
+function decodeJWT(token: string): any | null {
+  try {
+    if (!token || typeof token !== 'string') {
+      return null;
+    }
+
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const payload = parts[1];
+    const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
+    
+    // Use Buffer for Node.js environment (middleware runs server-side)
+    const decodedPayload = Buffer.from(paddedPayload, 'base64').toString('utf-8');
+    const parsedPayload = JSON.parse(decodedPayload);
+    
+    return parsedPayload;
+  } catch (error) {
+    console.error('Error decoding JWT in middleware:', error);
+    return null;
+  }
+}
+
+// Función para extraer el rol del JWT
+function getRoleFromJWT(token: string): string | null {
+  const payload = decodeJWT(token);
+  
+  if (!payload) {
+    return null;
+  }
+  
+  // Extract role from app_metadata or user_metadata or direct property
+  const role = payload.app_metadata?.role || 
+               payload.user_metadata?.role || 
+               payload.role || 
+               'member';
+  
+  return role.toLowerCase();
+}
+
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('jwt_token')?.value;
-  const role = request.cookies.get('user_role')?.value;
   const { pathname } = request.nextUrl;
+
+  // Extract role from JWT token instead of separate cookie
+  const role = token ? getRoleFromJWT(token) : null;
 
   // 🔒 MEJORA 1: Validar que el rol sea uno de los permitidos
   const validRoles = ['owner', 'manager', 'receptionist', 'member'];
@@ -18,22 +63,32 @@ export function middleware(request: NextRequest) {
                        pathname.startsWith('/reset-password');
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register');
   
+  // Routes that should be handled by React components (don't redirect immediately)
+  const isDashboardRoute = pathname.startsWith('/owner') || 
+                          pathname.startsWith('/manager') || 
+                          pathname.startsWith('/member') || 
+                          pathname.startsWith('/receptionist') || 
+                          pathname === '/profile';
+  
   // 1) Permitir siempre la ruta genérica de perfil para usuarios autenticados
   const isProfileRoute = pathname === '/profile';
 
   // Si no hay token y el usuario intenta acceder a una ruta protegida
-  if (!token && !isPublicRoute) {
+  // Pero permitir que las rutas de dashboard sean manejadas por React para mejor UX
+  if (!token && !isPublicRoute && !isDashboardRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
+  }
+  
+  // For dashboard routes without token, let React handle the authentication
+  if (!token && isDashboardRoute) {
+    return NextResponse.next();
   }
 
   // 🔒 MEJORA 2: Si hay token pero el rol no es válido, redirigir al login
   if (token && !isValidRole && !isPublicRoute) {
-    // Eliminar cookies inválidas
+    // Eliminar cookie JWT inválida
     const response = NextResponse.redirect(new URL('/login', request.url));
     response.cookies.delete('jwt_token');
-    response.cookies.delete('user_role');
-    response.cookies.delete('user_name');
-    response.cookies.delete('user_email');
     return response;
   }
 

@@ -95,44 +95,20 @@ export class AppController {
       if (response.access_token) {
         const isProd = process.env.NODE_ENV === 'production';
         const oneDay = 24 * 60 * 60 * 1000;
-        // JWT
+        
+        // Only set the JWT token cookie - all user info is in the token
         res.cookie('jwt_token', response.access_token, {
           httpOnly: true,
           secure: isProd,
           sameSite: 'lax',
           maxAge: oneDay,
+          path: '/',
+          domain: isProd ? '.gymcore.site' : undefined, // Allow subdomain sharing in production
         });
-        // User role
-        if (response.user?.role) {
-          res.cookie('user_role', response.user.role.toLowerCase(), {
-            httpOnly: false,
-            secure: isProd,
-            sameSite: 'lax',
-            maxAge: oneDay,
-          });
-        }
-        // User name
-        if (response.user) {
-          const fullName = `${response.user.firstName || ''} ${response.user.lastName || ''}`.trim();
-          if (fullName) {
-            res.cookie('user_name', fullName, {
-              httpOnly: false,
-              secure: isProd,
-              sameSite: 'lax',
-              maxAge: oneDay,
-            });
-          }
-        }
-        // User email
-        if (response.user?.email) {
-          res.cookie('user_email', response.user.email, {
-            httpOnly: false,
-            secure: isProd,
-            sameSite: 'lax',
-            maxAge: oneDay,
-          });
-        }
       }
+      
+      // Return the response without setting additional cookies
+      // Frontend will decode JWT to get user information
       return response;
     } catch (error: any) {
       throw new HttpException(error.message || 'Internal server error', error.status || HttpStatus.INTERNAL_SERVER_ERROR);
@@ -143,10 +119,17 @@ export class AppController {
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: any) {
     const isProd = process.env.NODE_ENV === 'production';
-    res.cookie('jwt_token', '', { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 0 });
-    res.cookie('user_role', '', { httpOnly: false, secure: isProd, sameSite: 'lax', maxAge: 0 });
-    res.cookie('user_name', '', { httpOnly: false, secure: isProd, sameSite: 'lax', maxAge: 0 });
-    res.cookie('user_email', '', { httpOnly: false, secure: isProd, sameSite: 'lax', maxAge: 0 });
+    
+    // Only clear the JWT token cookie
+    res.cookie('jwt_token', '', { 
+      httpOnly: true, 
+      secure: isProd, 
+      sameSite: 'lax', 
+      maxAge: 0,
+      path: '/',
+      domain: isProd ? '.gymcore.site' : undefined, // Match domain from login
+    });
+    
     return { message: 'Logged out successfully' };
   }
 

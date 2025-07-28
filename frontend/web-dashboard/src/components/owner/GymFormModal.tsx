@@ -25,9 +25,15 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Loader2 } from 'lucide-react';
 
+import { sanitizeName } from '@/lib/utils/sanitization';
+
 // Esquema de validación con Zod
 const gymSchema = z.object({
-  name: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }),
+  name: z.string()
+    .transform(sanitizeName)
+    .pipe(z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' })
+    .max(100, { message: 'El nombre no puede exceder 100 caracteres.' })
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s'-]+$/, { message: 'El nombre solo puede contener letras, números, espacios, guiones y apostrofes.' })),
   isActive: z.boolean(),
 });
 

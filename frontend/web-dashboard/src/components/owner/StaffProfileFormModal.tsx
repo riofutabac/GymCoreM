@@ -10,9 +10,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 
+import { sanitizeName } from '@/lib/utils/sanitization';
+
 const profileSchema = z.object({
-  firstName: z.string().min(2, { message: 'El nombre debe tener al menos 2 caracteres.' }),
-  lastName: z.string().min(2, { message: 'El apellido debe tener al menos 2 caracteres.' }),
+  firstName: z.string()
+    .transform(sanitizeName)
+    .pipe(z.string().min(2, { message: 'El nombre debe tener al menos 2 caracteres.' })
+    .max(50, { message: 'El nombre no puede exceder 50 caracteres.' })
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/, { message: 'El nombre solo puede contener letras, espacios, guiones y apostrofes.' })),
+  lastName: z.string()
+    .transform(sanitizeName)
+    .pipe(z.string().min(2, { message: 'El apellido debe tener al menos 2 caracteres.' })
+    .max(50, { message: 'El apellido no puede exceder 50 caracteres.' })
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/, { message: 'El apellido solo puede contener letras, espacios, guiones y apostrofes.' })),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;

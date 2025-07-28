@@ -84,6 +84,8 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /app/backend/apps/gym-management-service/dist ./backend/apps/gym-management-service/dist
 COPY --from=builder /app/backend/apps/gym-management-service/package.json ./backend/apps/gym-management-service/
 COPY --from=builder /app/backend/apps/gym-management-service/prisma ./backend/apps/gym-management-service/prisma
+# Copy generated Prisma client to the expected location relative to the dist folder
+COPY --from=builder /app/backend/apps/gym-management-service/prisma/generated ./backend/apps/gym-management-service/dist/apps/gym-management-service/prisma/generated
 
 # 4. Establecer el directorio de trabajo final
 WORKDIR /app/backend/apps/gym-management-service
@@ -91,4 +93,4 @@ WORKDIR /app/backend/apps/gym-management-service
 EXPOSE 3002
 
 # 5. Comando para ejecutar la aplicación
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/apps/gym-management-service/src/main.js"]

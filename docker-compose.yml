@@ -41,8 +41,8 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: gymcore-elasticsearch
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
     environment:
       - node.name=gymcore-elasticsearch
       - cluster.name=gymcore-logging-cluster
@@ -77,7 +77,7 @@ services:
     image: docker.elastic.co/kibana/kibana:8.11.0
     container_name: gymcore-kibana
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - SERVER_NAME=gymcore-kibana
